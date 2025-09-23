@@ -1,5 +1,5 @@
 # Path to your trained toy checkpoint
-checkpoint: /mnt/data/weatherloss/WindPower/training/Runs/checkpoint/9473f691-a592-40d5-b725-541580c630ad/inference-last.ckpt
+checkpoint: /mnt/data/weatherloss/WindPower/training/Runs/checkpoint/97491142-3994-42c7-969c-06545fda36bf/inference-last.ckpt
 
 # Forecast lead time in hours
 lead_time: 24
