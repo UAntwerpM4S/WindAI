@@ -1,0 +1,82 @@
+[2025-09-23 08:25:39,838][anemoi.training.train.train][INFO] - Skipping config validation.
+[2025-09-23 08:25:39,838][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2025-09-23 08:25:39,839][anemoi.training.train.train][INFO] - Run id: c9a09895-72fe-4364-a74f-3fbb2aba103b
+[2025-09-23 08:25:39,839][anemoi.training.train.train][INFO] - Checkpoints path: /mnt/data/weatherloss/WindPower/Runs/checkpoint/c9a09895-72fe-4364-a74f-3fbb2aba103b
+[2025-09-23 08:25:39,839][anemoi.training.train.train][INFO] - Plots path: /mnt/data/weatherloss/WindPower/Runs/plots/c9a09895-72fe-4364-a74f-3fbb2aba103b
+[2025-09-23 08:25:40,197][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'dataset': '/mnt/data/weatherloss/WindPower/data/CERRA5.zarr', 'select': ['t2m', 'mcc', 'msl', 'si10', 'sr', 'wdir10', 'orog', 'ws100', 'wind_power']}.
+[2025-09-23 08:25:44,254][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 12 nearest neighbours) between data and hidden.
+[2025-09-23 08:26:05,886][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 3 nearest neighbours) between hidden and data.
+[2025-09-23 08:26:06,000][anemoi.graphs.create][INFO] - Cleaning graph.
+[2025-09-23 08:26:06,000][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2025-09-23 08:26:06,000][anemoi.graphs.create][INFO] - _dataset deleted from graph.
+[2025-09-23 08:26:06,000][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2025-09-23 08:26:06,002][anemoi.graphs.create][INFO] - _node_ordering deleted from graph.
+[2025-09-23 08:26:06,002][anemoi.graphs.create][INFO] - _nx_graph deleted from graph.
+[2025-09-23 08:26:06,002][anemoi.graphs.create][INFO] - _resolutions deleted from graph.
+[2025-09-23 08:26:06,081][anemoi.graphs.create][INFO] - Graph saved at /mnt/data/weatherloss/WindPower/Runs/graphs/pretrain_n320.pt.
+[2025-09-23 08:26:06,098][anemoi.training.data.datamodule.singledatamodule][WARNING] - Falling back rollout to: 1
+[2025-09-23 08:26:06,099][anemoi.training.data.datamodule.singledatamodule][INFO] - Timeincrement set to 1 for data with frequency, 10800, and timestep, 10800
+[2025-09-23 08:26:06,099][anemoi.training.train.train][INFO] - Number of data variables: 9
+[2025-09-23 08:26:06,099][anemoi.training.train.train][INFO] - Variables: ['t2m', 'mcc', 'msl', 'si10', 'sr', 'wdir10', 'orog', 'ws100', 'wind_power']
+[2025-09-23 08:26:06,099][anemoi.training.train.train][INFO] - Total number of prognostic variables: 9
+[2025-09-23 08:26:06,099][anemoi.training.train.train][INFO] - Total number of auxiliary variables: 0
+[2025-09-23 08:26:06,099][anemoi.training.train.train][INFO] - Total GPU count / model group size: 6 - NB: the learning rate will be scaled by this factor!
+[2025-09-23 08:26:06,100][anemoi.training.train.train][INFO] - Effective learning rate: 2.500e-04
+[2025-09-23 08:26:06,100][anemoi.training.train.train][INFO] - Training limits: max_epochs=5, max_steps=3000. Training will stop when either limit is reached first. Learning rate scheduler will run for 3000 steps.
+[2025-09-23 08:26:06,111][anemoi.models.migrations.migrator][INFO] - Loading migration 1755530253_initial
+[2025-09-23 08:26:06,128][anemoi.training.train.train][INFO] - TensorBoard logger enabled
+[2025-09-23 08:26:06,156][anemoi.training.train.train][INFO] - Initial seed: Rank 2, initial seed 42000, running with random seed: 42000
+[2025-09-23 08:26:06,575][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2025-09-23 08:26:06,576][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2025-09-23 08:26:06,576][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2025-09-23 08:26:06,577][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,578][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,643][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2025-09-23 08:26:06,644][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2025-09-23 08:26:06,644][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2025-09-23 08:26:06,645][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,645][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,764][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2025-09-23 08:26:06,764][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2025-09-23 08:26:06,765][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2025-09-23 08:26:06,766][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,767][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2025-09-23 08:26:06,833][anemoi.training.losses.scalers.variable_level][INFO] - Variable Level Scaling: Applying ReluVariableLevelScaler scaling to pl variables ({'param': []})
+[2025-09-23 08:26:06,833][anemoi.training.losses.scalers.variable_level][INFO] - with slope = 0.001 and y-intercept/minimum = 0.2.
+[2025-09-23 08:26:06,883][anemoi.training.train.train][INFO] - The following submodules will NOT be trained: []
+[2025-09-23 08:27:00,081][anemoi.training.data.datamodule.singledatamodule][WARNING] - Falling back rollout to: 1
+[2025-09-23 08:27:00,159][anemoi.training.data.dataset.singledataset][INFO] - Worker 0 (pid 2864305, global_rank 2, model comm group 2)  has low/high range 158 / 167
+[2025-09-23 08:27:00,160][anemoi.training.data.dataset.singledataset][INFO] - Worker 0 (validation, pid 2864305, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,196][anemoi.training.data.dataset.singledataset][INFO] - Worker 1 (pid 2864431, global_rank 2, model comm group 2)  has low/high range 167 / 176
+[2025-09-23 08:27:00,197][anemoi.training.data.dataset.singledataset][INFO] - Worker 1 (validation, pid 2864431, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,228][anemoi.training.data.dataset.singledataset][INFO] - Worker 2 (pid 2864496, global_rank 2, model comm group 2)  has low/high range 176 / 185
+[2025-09-23 08:27:00,230][anemoi.training.data.dataset.singledataset][INFO] - Worker 2 (validation, pid 2864496, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,262][anemoi.training.data.dataset.singledataset][INFO] - Worker 3 (pid 2864593, global_rank 2, model comm group 2)  has low/high range 185 / 194
+[2025-09-23 08:27:00,263][anemoi.training.data.dataset.singledataset][INFO] - Worker 3 (validation, pid 2864593, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,296][anemoi.training.data.dataset.singledataset][INFO] - Worker 4 (pid 2864698, global_rank 2, model comm group 2)  has low/high range 194 / 203
+[2025-09-23 08:27:00,297][anemoi.training.data.dataset.singledataset][INFO] - Worker 4 (validation, pid 2864698, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,331][anemoi.training.data.dataset.singledataset][INFO] - Worker 5 (pid 2864800, global_rank 2, model comm group 2)  has low/high range 203 / 212
+[2025-09-23 08:27:00,333][anemoi.training.data.dataset.singledataset][INFO] - Worker 5 (validation, pid 2864800, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,363][anemoi.training.data.dataset.singledataset][INFO] - Worker 6 (pid 2864896, global_rank 2, model comm group 2)  has low/high range 212 / 221
+[2025-09-23 08:27:00,365][anemoi.training.data.dataset.singledataset][INFO] - Worker 6 (validation, pid 2864896, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:00,396][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 08:27:00,397][anemoi.training.data.dataset.singledataset][INFO] - Worker 7 (pid 2865019, global_rank 2, model comm group 2)  has low/high range 221 / 230
+[2025-09-23 08:27:00,398][anemoi.training.data.dataset.singledataset][INFO] - Worker 7 (validation, pid 2865019, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,336][anemoi.training.data.dataset.singledataset][INFO] - Worker 0 (pid 2865193, global_rank 2, model comm group 2)  has low/high range 972 / 1053
+[2025-09-23 08:27:04,338][anemoi.training.data.dataset.singledataset][INFO] - Worker 0 (train, pid 2865193, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,379][anemoi.training.data.dataset.singledataset][INFO] - Worker 1 (pid 2865288, global_rank 2, model comm group 2)  has low/high range 1053 / 1134
+[2025-09-23 08:27:04,380][anemoi.training.data.dataset.singledataset][INFO] - Worker 1 (train, pid 2865288, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,416][anemoi.training.data.dataset.singledataset][INFO] - Worker 2 (pid 2865420, global_rank 2, model comm group 2)  has low/high range 1134 / 1215
+[2025-09-23 08:27:04,418][anemoi.training.data.dataset.singledataset][INFO] - Worker 2 (train, pid 2865420, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,457][anemoi.training.data.dataset.singledataset][INFO] - Worker 3 (pid 2865525, global_rank 2, model comm group 2)  has low/high range 1215 / 1296
+[2025-09-23 08:27:04,458][anemoi.training.data.dataset.singledataset][INFO] - Worker 3 (train, pid 2865525, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,498][anemoi.training.data.dataset.singledataset][INFO] - Worker 4 (pid 2865621, global_rank 2, model comm group 2)  has low/high range 1296 / 1377
+[2025-09-23 08:27:04,499][anemoi.training.data.dataset.singledataset][INFO] - Worker 4 (train, pid 2865621, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,538][anemoi.training.data.dataset.singledataset][INFO] - Worker 5 (pid 2865730, global_rank 2, model comm group 2)  has low/high range 1377 / 1458
+[2025-09-23 08:27:04,539][anemoi.training.data.dataset.singledataset][INFO] - Worker 5 (train, pid 2865730, glob. rank 2, model comm group 2, group_rank 0, seed group id 2, base_seed 42000, sanity rnd 0.315034)
+[2025-09-23 08:27:04,541][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 08:45:17,653][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 09:04:16,491][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 09:23:15,505][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 09:42:14,421][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2025-09-23 10:01:13,692][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.

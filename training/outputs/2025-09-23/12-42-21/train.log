@@ -1,0 +1,31 @@
+[2025-09-23 12:42:22,028][anemoi.training.train.train][INFO] - Skipping config validation.
+[2025-09-23 12:42:22,028][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2025-09-23 12:42:22,028][anemoi.training.train.train][INFO] - Run id: 1d365d70-85ae-4ac0-96cd-c17138edecb8
+[2025-09-23 12:42:22,029][anemoi.training.train.train][INFO] - Checkpoints path: /mnt/data/weatherloss/WindPower/training/Runs/checkpoint/1d365d70-85ae-4ac0-96cd-c17138edecb8
+[2025-09-23 12:42:22,029][anemoi.training.train.train][INFO] - Plots path: /mnt/data/weatherloss/WindPower/training/Runs/plots/1d365d70-85ae-4ac0-96cd-c17138edecb8
+[2025-09-23 12:42:22,473][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'dataset': '/mnt/data/weatherloss/WindPower/data/CERRA5.zarr', 'select': ['t2m', 'mcc', 'msl', 'si10', 'sr', 'wdir10', 'orog', 'ws100', 'wind_power']}.
+[2025-09-23 12:42:25,679][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 12 nearest neighbours) between data and hidden.
+[2025-09-23 12:42:46,718][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 3 nearest neighbours) between hidden and data.
+[2025-09-23 12:42:46,764][anemoi.graphs.create][INFO] - Cleaning graph.
+[2025-09-23 12:42:46,764][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2025-09-23 12:42:46,764][anemoi.graphs.create][INFO] - _dataset deleted from graph.
+[2025-09-23 12:42:46,764][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2025-09-23 12:42:46,765][anemoi.graphs.create][INFO] - _node_ordering deleted from graph.
+[2025-09-23 12:42:46,765][anemoi.graphs.create][INFO] - _resolutions deleted from graph.
+[2025-09-23 12:42:46,765][anemoi.graphs.create][INFO] - _nx_graph deleted from graph.
+[2025-09-23 12:42:46,837][anemoi.graphs.create][INFO] - Graph saved at /mnt/data/weatherloss/WindPower/training/Runs/graphs/pretrain_n320.pt.
+[2025-09-23 12:42:46,856][anemoi.training.data.datamodule.singledatamodule][WARNING] - Falling back rollout to: 1
+[2025-09-23 12:42:46,856][anemoi.training.data.datamodule.singledatamodule][INFO] - Timeincrement set to 1 for data with frequency, 10800, and timestep, 10800
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Number of data variables: 9
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Variables: ['t2m', 'mcc', 'msl', 'si10', 'sr', 'wdir10', 'orog', 'ws100', 'wind_power']
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Total number of prognostic variables: 8
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Total number of auxiliary variables: 1
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Total GPU count / model group size: 6 - NB: the learning rate will be scaled by this factor!
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Effective learning rate: 2.500e-04
+[2025-09-23 12:42:46,857][anemoi.training.train.train][INFO] - Training limits: max_epochs=5, max_steps=3000. Training will stop when either limit is reached first. Learning rate scheduler will run for 3000 steps.
+[2025-09-23 12:42:46,870][anemoi.models.migrations.migrator][INFO] - Loading migration 1755530253_initial
+[2025-09-23 12:42:46,887][anemoi.training.train.train][INFO] - TensorBoard logger enabled
+[2025-09-23 12:42:46,889][pytorch_lightning.utilities.rank_zero][INFO] - Using 16bit Automatic Mixed Precision (AMP)
+[2025-09-23 12:42:46,897][pytorch_lightning.utilities.rank_zero][INFO] - GPU available: True (cuda), used: True
+[2025-09-23 12:42:46,897][pytorch_lightning.utilities.rank_zero][INFO] - TPU available: False, using: 0 TPU cores
+[2025-09-23 12:42:46,897][pytorch_lightning.utilities.rank_zero][INFO] - HPU available: False, using: 0 HPUs

@@ -1,0 +1,22 @@
+#Data 
+*.nc
+*.grib
+*.zarr/
+
+#Checkpoints
+*.ckpt
+
+#Folders
+training/Runs
+trainings/outputs
+logs/
+
+#Env 
+.env
+WindPower/
+
+#Jupyter
+.ipynb_checkpoints/
+
+#Python cache 
+__pycache__/

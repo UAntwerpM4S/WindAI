@@ -1,0 +1,16 @@
+# Path to your trained toy checkpoint
+checkpoint: /mnt/data/weatherloss/WindPower/training/Runs/checkpoint/9473f691-a592-40d5-b725-541580c630ad/inference-last.ckpt
+
+# Forecast lead time in hours
+lead_time: 24
+
+# Starting date for the forecast (must be in the dataset range)
+date: "2024-04-01T06:00:00"
+
+
+# Input data key (must match dataloader in training config)
+input: test
+
+# Where to save the forecast
+output:
+  netcdf: ./GraphTransformer_forecast_20240401T0600.nc
