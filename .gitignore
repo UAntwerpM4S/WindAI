@@ -24,3 +24,4 @@ inference/*.ipynb
 #Python cache
 
 
+*.sw?
