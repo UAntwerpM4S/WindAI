@@ -5,4 +5,5 @@ dates:
   
 input:
   netcdf:
-    path: CERRA5_Belgium.nc
+    path: CERRA_BOZ.nc
+

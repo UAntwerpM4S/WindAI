@@ -11,6 +11,7 @@
 training/Runs
 training/outputs
 logs/
+data/BOZ_Turbines
 
 #Env 
 .env

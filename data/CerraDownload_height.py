@@ -1,19 +1,20 @@
+#Script to download the cerra data at height levels 
 import cdsapi
 
-dataset = "reanalysis-cerra-single-levels"
+dataset = "reanalysis-cerra-height-levels"
 request = {
     "variable": [
-        "10m_wind_direction",
-        "10m_wind_speed",
-        "2m_temperature",
-        "mean_sea_level_pressure",
-        "medium_cloud_cover",
-        "orography",
-        "surface_roughness"
+        "wind_direction",
+        "wind_speed"
     ],
-    "level_type": "surface_or_atmosphere",
+    "height_level": [
+        "50_m",
+        "100_m",
+        "150_m",
+        "200_m"
+    ],
     "data_type": ["reanalysis"],
-    "product_type": "analysis",
+    "product_type": ["analysis"],
     "year": ["2023", "2024"],
     "month": [
         "01", "02", "03",
@@ -43,4 +44,4 @@ request = {
 }
 
 client = cdsapi.Client()
-client.retrieve(dataset, request).download()
+client.retrieve(dataset, request, "Cerra_height.grib")
