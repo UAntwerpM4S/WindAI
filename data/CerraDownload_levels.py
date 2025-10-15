@@ -1,22 +1,25 @@
-#Script to download the CERRA data at surface 
 import cdsapi
 
-dataset = "reanalysis-cerra-single-levels"
+dataset = "reanalysis-cerra-pressure-levels"
 request = {
     "variable": [
-        "10m_wind_direction",
-        "10m_wind_speed",
-        "2m_temperature",
-        "mean_sea_level_pressure",
-        "medium_cloud_cover",
-        "orography",
-        "surface_roughness"
+        "geopotential",
+        "relative_humidity",
+        "temperature",
+        "u_component_of_wind",
+        "v_component_of_wind"
     ],
-    "level_type": "surface_or_atmosphere",
+    "pressure_level": [
+        "500", "600", "700",
+        "750", "800", "850",
+        "900", "950", "1000"
+    ],
     "data_type": ["reanalysis"],
-    "product_type": "analysis",
-    "year": ["2021", "2022", "2023",
-        "2024", "2025"],
+    "product_type": ["analysis"],
+    "year": [
+        "2021", "2022", "2023",
+        "2024", "2025"
+    ],
     "month": [
         "01", "02", "03",
         "04", "05", "06",
