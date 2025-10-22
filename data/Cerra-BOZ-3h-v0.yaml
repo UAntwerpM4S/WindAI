@@ -1,10 +1,10 @@
-# build:
-#   group_by: daily
-#   variable_naming: param_levelist
+build:
+  group_by: daily
+  variable_naming: param_levelist
 dates:
-  end: '2024-01-31T21:00:00'
+  end: '2025-07-31T21:00:00'
   frequency: 3h
-  start: '2024-01-01T00:00:00'
+  start: '2023-01-01T00:00:00'
 description: Toy dataset for wind power prediction in BOZ
 input:
   join:
@@ -12,16 +12,24 @@ input:
       mode: constant
       source:
         xarray-zarr:
-          url: cerra_jan2024_boz.zarr
           param:
           - surface_geopotential
           - lsm
-          
+          - mask
+          url: Cerra_boz_rechunked.zarr
   - xarray-zarr:
-      url: cerra_jan2024_boz.zarr
+      param:
+      - r
+      - t
+      - u
+      - v
+      - z
+      url: Cerra_boz_rechunked.zarr
+  - xarray-zarr:
       param:
       - mcc
       - msl
+      - power
       - synthetic_windpower
       - t2m
       - wdir10_cos
@@ -39,28 +47,7 @@ input:
       - ws150
       - ws200
       - ws50
-
-
-  # - xarray-zarr:
-  #     url: cerra_jan2024_boz.zarr
-  #     param:
-      - r
-      - t 
-      - v
-      - u
-      - z
-      # level: 
-      # - 500
-      # - 600
-      # - 700
-      # - 750
-      # - 800
-      # - 850
-      # - 900
-      # - 950
-      # - 1000
-
-      url: cerra_jan2024_boz.zarr
+      url: Cerra_boz_rechunked.zarr
   - forcings:
       param:
       - cos_latitude
@@ -70,4 +57,4 @@ input:
       - julian_day
       - insolation
       template: ${input.join.1.xarray-zarr}
-name: Cerra-BOZ-Jan2024-3h-v0
+name: Cerra-BOZ-3h-v0

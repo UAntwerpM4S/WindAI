@@ -3,6 +3,7 @@
 *.grib
 *.grib.*
 *.zarr/
+*.zarr
 
 #Checkpoints
 *.ckpt
@@ -11,8 +12,12 @@
 training/Runs
 training/outputs
 logs/
-data/BOZ_Turbines
-
+data/BOZ_Turbines/coordinates
+data/oldfiles 
+data/BOZ_Turbines/windpowerdata
+data/Cerra_boz_Anemoids.zarr
+data/Cerra_boz_Anemoids.zarr.storage_for_statistics.tmp
+data/Cerra_boz_Anemoids.zarr.sync
 #Env 
 .env
 WindPower/
@@ -24,5 +29,6 @@ inference/*.ipynb
 
 #Python cache
 
-
+#Others
+data/BOZ_Turbines/token.txt
 *.sw?

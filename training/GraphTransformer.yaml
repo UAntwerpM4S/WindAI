@@ -14,13 +14,18 @@ data: #this component is not changed per configuration
   timestep: 3h
   forcing:  #only goes in, but doesnt come out
     - orog
+    - sin_doy
+    - cos_doy
+    
+  #doesnt go in, only comes out 
   diagnostic:
     - wind_power 
   remapped: null
   normalizer:
     default: mean-std
   # zero value in the normalized space.
-    min-max: null
+    min-max: 
+    - wind_power
     max:
     - orog
     none: []
@@ -85,14 +90,18 @@ dataloader: #is also not changed for a different configuration
   dataset:
     dataset: ${hardware.paths.data}/${hardware.files.dataset}
     select:
-    - t2m
-    - mcc
-    - msl
-    - si10
-    - sr 
-    - wdir10
-    - orog
+    - ws10
     - ws100
+    - ws150
+    - sinwdir10
+    - coswdir10
+    - sinwdir100
+    - coswdir100
+    - sinwdir150
+    - coswdir150
+    - cos_doy
+    - sin_doy
+    - orog
     - wind_power
   training:
     dataset: ${dataloader.dataset}
@@ -125,7 +134,7 @@ diagnostics: #This section controls how model performance is analyzed:
       batch: 1500
       epoch: 25
     parameters:
-    - t2m
+    - ws100
 
     sample_idx: 0
     precip_and_related_fields: []
@@ -209,7 +218,7 @@ hardware:  #change the output depending on the configuration!
     profiler: ${hardware.paths.output}/profiler/
     graph: ${hardware.paths.output}/graphs/
   files:
-    dataset: "CERRA5.zarr"
+    dataset: "CERRA_BOZ.zarr"
     graph: pretrain_n320.pt #graph is created 
     truncation: null
     truncation_inv: null
@@ -285,7 +294,7 @@ graph:
  # ============# ============# ============# ============# ============
  
 model:
-  num_channels: 256
+  num_channels: 128
   cpu_offload: false
   
   model:
@@ -313,10 +322,10 @@ model:
     _target_: anemoi.models.layers.processor.GraphTransformerProcessor
     trainable_size: ${model.trainable_parameters.hidden2hidden}
     sub_graph_edge_attributes: ${model.attributes.edges}
-    num_layers: 16
+    num_layers: 8
     num_chunks: 2         
-    mlp_hidden_ratio: 4
-    num_heads: 16
+    mlp_hidden_ratio: 2
+    num_heads: 8
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
@@ -326,8 +335,8 @@ model:
     trainable_size: ${model.trainable_parameters.data2hidden}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1          
-    mlp_hidden_ratio: 4
-    num_heads: 16
+    mlp_hidden_ratio: 2
+    num_heads: 8
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
@@ -338,8 +347,8 @@ model:
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1         
-    mlp_hidden_ratio: 4
-    num_heads: 16
+    mlp_hidden_ratio: 2
+    num_heads: 8
     initialise_data_extractor_zero: false
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
@@ -414,7 +423,7 @@ training:
     # loss function for the model
   training_loss:
       # loss class to initialise
-    _target_: anemoi.training.losses.MSELoss
+    _target_: anemoi.training.losses.MAELoss
       # Scalers to include in loss calculation
       # A selection of available scalers are listed in training/scalers.
       # '*' is a valid entry to use all `scalers` given, if a scaler is to be excluded
@@ -425,7 +434,7 @@ training:
   validation_metrics:
   # loss class to initialise
    mse:
-    _target_: anemoi.training.losses.MSELoss
+    _target_: anemoi.training.losses.MAELoss
     # Scalers to include in loss calculation
     # Cannot scale over the variable dimension due to possible remappings.
     # Available scalers include:
@@ -451,8 +460,8 @@ training:
     start: 1
     epoch_increment: 0
     max: 1
-  max_epochs: 5   
-  max_steps: 3000 #260000  
+  max_epochs: 10   
+  max_steps: 6000 #260000  
   lr:
   # Set this value depending on the number of GPUs you're using
   # global_lr = local_lr * num_gpus / gpus_per_model
@@ -469,9 +478,12 @@ training:
     min: 3.0e-07
     warmup_t: 1000
   variable_loss_scaling:
-    default: 1
+    default: 0.5
     pl: []
-    sfc: []
+    sfc: 
+      ws100: 1
+      wind_power: 0.75
+    
         # cp: 0.0025
   metrics: []
   submodules_to_freeze: []
