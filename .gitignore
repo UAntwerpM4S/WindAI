@@ -4,6 +4,7 @@
 *.grib.*
 *.zarr/
 *.zarr
+*.csv
 
 #Checkpoints
 *.ckpt
