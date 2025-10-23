@@ -16,7 +16,7 @@ input:
           - surface_geopotential
           - lsm
           - mask
-          url: Cerra_boz_rechunked.zarr
+          url: Cerra_boz.zarr
   - xarray-zarr:
       param:
       - r
@@ -24,7 +24,7 @@ input:
       - u
       - v
       - z
-      url: Cerra_boz_rechunked.zarr
+      url: Cerra_boz.zarr
   - xarray-zarr:
       param:
       - mcc
@@ -47,7 +47,7 @@ input:
       - ws150
       - ws200
       - ws50
-      url: Cerra_boz_rechunked.zarr
+      url: Cerra_boz.zarr
   - forcings:
       param:
       - cos_latitude
