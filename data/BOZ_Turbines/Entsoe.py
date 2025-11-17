@@ -6,9 +6,9 @@ from entsoe import EntsoePandasClient
 
 # ---------------- CONFIG ----------------
 COUNTRY = "BE"                        
-START_YM = "2023-01"
-END_YM   = "2025-07"
-OUT_FILE = "BE_offshore_per_unit_hourly_2023-01_to_2025-07.csv"
+START_YM = "2020-01"
+END_YM   = "2022-12"
+OUT_FILE = "BE_offshore_per_unit_hourly_2020-01_to_2025-07.csv"
 
 # ---------------- API TOKEN ----------------
 with open("token.txt") as f:
@@ -56,8 +56,8 @@ df_3h = df_all.resample("3H").mean()
 # ---------------- SAVE ----------------
 os.makedirs("testdata", exist_ok=True)
 df_all.to_csv("testdata/" + OUT_FILE)
-df_3h.to_csv("testdata/BE_offshore_per_unit_3H_meanMW_2023-01_to_2025-07.csv")
+df_3h.to_csv("testdata/BE_offshore_per_unit_3H_meanMW_2020-01_to_2025-07.csv")
 
 print("✅ Saved:")
 print("  testdata/" + OUT_FILE)
-print("  testdata/BE_offshore_per_unit_3H_meanMW_2023-01_to_2025-07.csv")
+print("  testdata/BE_offshore_per_unit_3H_meanMW_2020-01_to_2025-07.csv")

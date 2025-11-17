@@ -16,7 +16,7 @@ input:
           - surface_geopotential
           - lsm
           - mask
-          url: Cerra.zarr #remove inner for full dataset 
+          url: Cerra_inner.zarr #remove inner for full dataset 
   - xarray-zarr:
       param:
       - r
@@ -24,7 +24,7 @@ input:
       - u
       - v
       - z
-      url: Cerra.zarr
+      url: Cerra_inner.zarr
   - xarray-zarr:
       param:
       - mcc
@@ -47,7 +47,7 @@ input:
       - ws150
       - ws200
       - ws50
-      url: Cerra.zarr
+      url: Cerra_inner.zarr
   - forcings:
       param:
       - cos_latitude
@@ -59,4 +59,4 @@ input:
       template: ${input.join.1.xarray-zarr}
 statistics:
   allow_nans: [mask,power]
-name: Cerra-BOZ-3h-v0  #remove inner for full 
+name: Cerra-BOZ-3h-v0-inner  #remove inner for full 

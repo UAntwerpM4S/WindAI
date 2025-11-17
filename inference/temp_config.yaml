@@ -1,0 +1,6 @@
+checkpoint: /mnt/data/weatherloss/WindPower/training/GraphTransformer/fullloss/checkpoint/d1563676-4bbf-4dad-b86b-941bb8de4288/inference-last.ckpt
+lead_time: 24
+date: "2024-08-13T09:00:00"
+input: test
+output:
+  netcdf: Huber4/forecast_20240813090000.nc

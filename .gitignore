@@ -5,6 +5,9 @@
 *.zarr/
 *.zarr
 *.csv
+*.png
+*.html
+*.pt
 
 #Checkpoints
 *.ckpt
@@ -12,6 +15,10 @@
 #Folders
 training/Runs
 training/outputs
+training/GraphTransformer/Noloss
+training/GraphTransformer/fullloss
+training/GraphTransformer/outputs
+training/Transformer
 logs/
 data/BOZ_Turbines/coordinates
 data/oldfiles 

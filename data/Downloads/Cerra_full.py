@@ -13,7 +13,7 @@ os.makedirs(RAW_DIR, exist_ok=True)
 os.makedirs(NC_DIR,  exist_ok=True)
 
 # Years & cadence
-YEARS  = ["2022"]   # 2020..2025 inclusive
+YEARS  = ["2020"]   # 2020..2025 inclusive
 MONTHS = [f"{m:02d}" for m in range(1, 13)]
 TIMES  = ["00:00","03:00","06:00","09:00","12:00","15:00","18:00","21:00"]
 
