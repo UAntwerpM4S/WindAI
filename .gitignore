@@ -8,11 +8,13 @@
 *.png
 *.html
 *.pt
+*.pyc
 
 #Checkpoints
 *.ckpt
 
 #Folders
+.vscode/
 training/Runs
 training/outputs
 training/GraphTransformer/Noloss
@@ -26,6 +28,14 @@ data/BOZ_Turbines/windpowerdata
 data/Cerra_boz_Anemoids.zarr
 data/Cerra_boz_Anemoids.zarr.storage_for_statistics.tmp
 data/Cerra_boz_Anemoids.zarr.sync
+data/cerra_boz
+data/NorthSea/Power/Belgium
+data/NorthSea/Power/UK
+graphs/tryout_viz
+inference/*
+
+
+
 #Env 
 .env
 WindPower/
@@ -39,4 +49,5 @@ inference/*.ipynb
 
 #Others
 data/BOZ_Turbines/token.txt
+data/NorthSea/Power/token.txt
 *.sw?

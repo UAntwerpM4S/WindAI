@@ -5,7 +5,7 @@ dates:
   end: '2025-07-31T21:00:00'
   frequency: 3h
   start: '2020-01-01T00:00:00'
-description: Dataset for wind power prediction in BOZ
+description: Dataset for wind power prediction in the Northsea
 input:
   join:
   - repeated-dates:
@@ -16,7 +16,10 @@ input:
           - surface_geopotential
           - lsm
           - mask
-          url: Cerra.zarr #remove inner for full dataset 
+          - turbines
+          - capacity 
+
+          url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
   - xarray-zarr:
       param:
       - r
@@ -24,13 +27,13 @@ input:
       - u
       - v
       - z
-      url: Cerra.zarr
+      url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
   - xarray-zarr:
       param:
       - mcc
       - msl
       - power
-      - synthetic_windpower
+     # - synthetic_windpower
       - t2m
       - wdir10_cos
       - wdir10_sin
@@ -47,7 +50,7 @@ input:
       - ws150
       - ws200
       - ws50
-      url: Cerra.zarr
+      url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
   - forcings:
       param:
       - cos_latitude
@@ -58,5 +61,5 @@ input:
       - insolation
       template: ${input.join.1.xarray-zarr}
 statistics:
-  allow_nans: [mask,power]
-name: Cerra-BOZ-3h-v0  #remove inner for full 
+  allow_nans: [mask,power,turbines,capacity]
+name: Cerra-Northsea-3h-inner-v0  #remove inner for full 

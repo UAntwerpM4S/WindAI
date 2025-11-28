@@ -16,7 +16,9 @@ data: #this component is not changed per configuration
     - lsm # Land-Sea Mask
     - insolation # Solar radiation 
     - julian_day
-    - mask #turbines
+    - mask #1 or nan if turbines
+    - turbines #turbines count 
+    - capacity 
     - cos_latitude
     - sin_latitude
     - cos_longitude
@@ -32,6 +34,9 @@ data: #this component is not changed per configuration
     0.0:
       - power
       - mask
+      - turbines
+      - capacity 
+
        
   normalizer:
     default: mean-std
@@ -84,10 +89,10 @@ dataloader: #is also not changed for a different configuration
     test: 8
     predict: 8
   batch_size:
-    training: 1
-    validation: 1
-    test: 4
-    predict: 4
+    training: 2
+    validation: 2
+    test: 2
+    predict: 2
 
 # Runs only N training batches [N = integer | null]
   limit_batches:
@@ -180,9 +185,11 @@ dataloader: #is also not changed for a different configuration
     - cos_longitude
     - sin_longitude
     - power
+    - turbines 
+    - capacity 
   training:
     dataset: ${hardware.files.datasets.outer}
-    start: "2020-10-01"
+    start: "2020-01-01"
     end: "2024-01-31"
     frequency: ${data.frequency}
     drop: []
@@ -287,7 +294,7 @@ diagnostics: #This section controls how model performance is analyzed:
 # ============# ============# ============# ============# ============
 hardware:  #change the output depending on the configuration!
   paths:
-    data: /mnt/data/weatherloss/WindPower/data
+    data: /mnt/data/weatherloss/WindPower/data/NorthSea/Anemoidatasets
     output: /mnt/data/weatherloss/WindPower/training/GraphTransformer
     logs:
       base: ${hardware.paths.output}/logs
@@ -298,11 +305,11 @@ hardware:  #change the output depending on the configuration!
     plots: ${hardware.paths.output}/plots
     profiler: ${hardware.paths.output}/profiler/
     graph: ${hardware.paths.output}/graphs/
-    
+    warm_start: null #${hardware.paths.output}/checkpoint/GraphNoL2
   files:
     datasets:
-        inner: ${hardware.paths.data}/Cerra_inner_Anemoids.zarr
-        outer: ${hardware.paths.data}/Cerra_Anemoids.zarr
+        inner: ${hardware.paths.data}/cerra_inner_Anemoi.zarr
+        outer: ${hardware.paths.data}/cerra_outer_Anemoi.zarr
     graph: "/mnt/data/weatherloss/WindPower/graphs/tryout.pt"
     truncation: null
     truncation_inv: null
@@ -310,7 +317,7 @@ hardware:  #change the output depending on the configuration!
       every_n_epochs: anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}
       every_n_train_steps: anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}
       every_n_minutes: anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}
-    warm_start:  null
+    warm_start: null #last.ckpt 
   accelerator: gpu # auto
   num_gpus_per_node: 4  #  ${oc.decode:${oc.env:SLURM_GPUS_PER_NODE, 1}}
   num_nodes: 1 # ${oc.decode:${oc.env:SLURM_NNODES, 1}}
@@ -333,7 +340,7 @@ graph:
         dataset:
           cutout:
             - dataset: ${hardware.files.datasets.inner}
-              #thinning: 25
+              #thinning: 50
             - dataset: ${hardware.files.datasets.outer}
           min_distance_km: 0
           adjust: all
@@ -347,9 +354,9 @@ graph:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
           masks: 
             _target_: anemoi.graphs.nodes.attributes.CutOutMask #marks true for the boundary
-        # turbine_mask:
-        #   _target_: anemoi.graphs.nodes.attributes.masks.BinaryAnemoiDatasetVariable
-        #   variable: mask 
+        turbine_mask:
+          _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
+          variable: mask 
         
         
   # Hidden nodes
@@ -511,11 +518,8 @@ model:
         - mask 
         - mcc 
         - r
-        - ws10
-        - ws100
-        - ws150
-        - ws200
-        - ws50
+        - turbines
+        - capacity 
     - _target_: anemoi.models.layers.bounding.HardtanhBounding #[0, 1)
       variables:
         - power
@@ -530,7 +534,7 @@ training:
 # Several scalers can be added here. In order to be applied their names must be included in the loss.
 # scaler name must be included in `scalers` in the losses for this to be applied.
 
-  run_id: null # d1563676-4bbf-4dad-b86b-941bb8de4288
+  run_id: null #GraphNoL2
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null # activate to perform transfer learning
@@ -568,17 +572,28 @@ training:
       read_group_size: ${dataloader.read_group_size}
       
   loss_gradient_scaling: False
+
+  scalers:
+    turbine_node_weights:
+      _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
+      nodes_name: ${graph.data}
+      nodes_attribute_name: turbine_mask
+      norm: null
+
     
+    # loss function for the model
     # loss function for the model
   training_loss:
       # loss class to initialise
-    _target_: anemoi.training.losses.HuberLoss
-      # Scalers to include in loss calculation
-      # A selection of available scalers are listed in training/scalers.
-      # '*' is a valid entry to use all `scalers` given, if a scaler is to be excluded
-      # add `!scaler_name`, i.e. ['*', '!scaler_1'], and `scaler_1` will not be added.
-    scalers: ['pressure_level', 'general_variable', 'nan_mask_weights', 'node_weights']
-    ignore_nans: True
+    _target_: anemoi.training.losses.combined.CombinedLoss
+    loss_weights: [1.0, 0] 
+    losses:
+      - _target_: anemoi.training.losses.HuberLoss
+        scalers: ['pressure_level','variable','nan_mask_weights','node_weights'] #['pressure_level','general_variable','nan_mask_weights','node_weights']
+        ignore_nans: True
+      - _target_: anemoi.training.losses.HuberLoss
+        scalers: ['pressure_level','variable','node_weights', 'nan_mask_weights', 'turbine_node_weights']
+        ignore_nans: True
 
   validation_metrics:
   # loss class to initialise
@@ -601,20 +616,18 @@ training:
     
 
   scale_validation_metrics:
-    scalars_to_apply:
-    - variable
-    metrics:
-    - all
+    scalars_to_apply: []
+    metrics: []
   rollout:
-    start: 1
-    epoch_increment: 0
+    start: 1 # change for finetuning 2
+    epoch_increment: 0 #change for finetuning
     max: 1 #change for finetuning 
-  max_epochs: 50   
-  max_steps: 50000 #260000  
+  max_epochs: 10   
+  max_steps: 10000 #260000  
   lr:
   # Set this value depending on the number of GPUs you're using
   # global_lr = local_lr * num_gpus / gpus_per_model
-    rate:   6.25e-5
+    rate: 6.25e-4 
   # Alternatives:
   # rate: 2.5e-4     # for 1 GPU
   # rate: 1.25e-4    # for 2 GPUs
@@ -632,7 +645,7 @@ training:
     default: 1
     pl: 
       r: 0.6 #0.6 #0.3
-      t: 3 #6 #3
+      t: 6 #6 #3
       u: 0.8 #0.8 #0.4
       v: 0.5 #0.5 #0.25
       z: 12 #12 #0.5 
@@ -656,6 +669,6 @@ training:
   node_loss_weights:
     _target_: anemoi.training.losses.nodeweights.GraphNodeAttribute
     target_nodes: data
-    node_attribute: area_weight
+    node_attribute: area_weight #turbine_mask (for finetuning?)
 
 config_validation: False #sanity check config files 

@@ -1,32 +1,41 @@
+import os
 import subprocess
 from datetime import datetime, timedelta
-import os
 
+# Common forecasting window
 start_date = datetime(2024, 8, 1, 3)
 end_date = datetime(2024, 8, 31, 21)
 interval = timedelta(hours=3)
 
-output_dir = "Huber4"
-os.makedirs(output_dir, exist_ok=True)
+ckpt_dir = "/mnt/data/weatherloss/WindPower/training/Transformer/checkpoint/TransNoL2"
+checkpoints = { "TransNoL2Last": "inference-last.ckpt"
+    
+}
 
-checkpoint_path = "/mnt/data/weatherloss/WindPower/training/GraphTransformer/fullloss/checkpoint/d1563676-4bbf-4dad-b86b-941bb8de4288/inference-last.ckpt"
+for tag, ckpt_name in checkpoints.items():
+    checkpoint_path = os.path.join(ckpt_dir, ckpt_name)
+    output_dir = tag
+    os.makedirs(output_dir, exist_ok=True)
 
-while start_date <= end_date:
-    date_str = start_date.strftime("%Y-%m-%dT%H:%M:%S")
-    output_file = f"{output_dir}/forecast_{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
+    current = start_date
+    while current <= end_date:
+        date_str = current.strftime("%Y-%m-%dT%H:%M:%S")
+        output_file = f"{output_dir}/forecast_{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
 
-    temp_yaml = "temp_config.yaml"
-    with open(temp_yaml, "w") as f:
-        f.write(f"""\
+        temp_yaml = "temp_config.yaml"
+        with open(temp_yaml, "w") as f:
+            f.write(
+                f"""\
 checkpoint: {checkpoint_path}
 lead_time: 24
 date: "{date_str}"
 input: test
 output:
   netcdf: {output_file}
-""")
+"""
+            )
 
-    print(f"Running forecast for {date_str}")
-    subprocess.run(["anemoi-inference", "run", temp_yaml])
+        print(f"[{tag}] Running forecast for {date_str}")
+        subprocess.run(["anemoi-inference", "run", temp_yaml])
 
-    start_date += interval
+        current += interval

@@ -11,15 +11,16 @@ RAW_DIR  = os.path.join(OUT_ROOT, "raw_grib")
 NC_DIR   = os.path.join(OUT_ROOT, "nc_boz")
 os.makedirs(RAW_DIR, exist_ok=True)
 os.makedirs(NC_DIR,  exist_ok=True)
-
+# Toggle cropping/NetCDF generation
+DO_CROP = False
 # Years & cadence
-YEARS  = ["2020"]   # 2020..2025 inclusive
-MONTHS = [f"{m:02d}" for m in range(1, 13)]
+YEARS  = ["2025"]   # 2020..2025 inclusive
+MONTHS = [f"{m:02d}" for m in range(1, 8)]
 TIMES  = ["00:00","03:00","06:00","09:00","12:00","15:00","18:00","21:00"]
 
 # Training domain (deg)
-LAT_MIN, LAT_MAX = 49.0, 56.0
-LON_MIN, LON_MAX = -6.0, 10.0
+LAT_MIN, LAT_MAX = 49.0, 56.0 #Boz domain, not northsea
+LON_MIN, LON_MAX = -6.0, 10.0 #boz domain, not northsea
 
 # Workers (crop/convert)
 N_PROCESSORS = 2
@@ -119,7 +120,8 @@ def downloader():
         dataset, req, grib_path = item
         try:
             cds_retrieve_with_retry(dataset, req, grib_path)
-            proc_queue.put((grib_path,))
+            if DO_CROP:
+                proc_queue.put((grib_path,))
         finally:
             dl_queue.task_done()
 
@@ -205,7 +207,7 @@ def submit_single_month(y, m):
 def main():
     # Start workers
     t_dl = threading.Thread(target=downloader, daemon=True)
-    procs = [threading.Thread(target=processor, daemon=True) for _ in range(N_PROCESSORS)]
+    procs = [threading.Thread(target=processor, daemon=True) for _ in range(N_PROCESSORS)] if DO_CROP else []
     t_dl.start()
     for t in procs: t.start()
 
@@ -223,15 +225,19 @@ def main():
 
     # Wait for downloads to finish
     dl_queue.join()
-    # Stop processors
-    for _ in procs:
-        proc_queue.put(None)
-    # Wait for processing to finish
-    proc_queue.join()
+    if DO_CROP:
+        # Stop processors
+        for _ in procs:
+            proc_queue.put(None)
+        # Wait for processing to finish
+        proc_queue.join()
 
     print("\nAll done.")
     print(f"Raw GRIB: {RAW_DIR}")
-    print(f"BOZ NetCDF: {NC_DIR}")
+    if DO_CROP:
+        print(f"BOZ NetCDF: {NC_DIR}")
+    else:
+        print("Cropping disabled; only GRIB files downloaded.")
 
 if __name__ == "__main__":
     main()
