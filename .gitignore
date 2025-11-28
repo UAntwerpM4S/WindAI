@@ -20,7 +20,7 @@ training/outputs
 training/GraphTransformer/Noloss
 training/GraphTransformer/fullloss
 training/GraphTransformer/outputs
-training/Transformer
+training/Transformer/outputs 
 logs/
 data/BOZ_Turbines/coordinates
 data/oldfiles 
