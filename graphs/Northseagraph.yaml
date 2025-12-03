@@ -1,0 +1,90 @@
+  nodes:
+    # Data nodes
+    data:
+      node_builder:
+        _target_: anemoi.graphs.nodes.AnemoiDatasetNodes #node builder
+        dataset:
+          cutout:
+            - dataset: /mnt/data/weatherloss/WindPower/data/NorthSea/Anemoidatasets/cerra_inner_Anemoi.zarr
+            #  thinning: 50
+            - dataset: /mnt/data/weatherloss/WindPower/data/NorthSea/Anemoidatasets/cerra_outer_Anemoi.zarr
+          min_distance_km: 0
+          adjust: all
+      attributes:
+        area_weight:
+          _target_: anemoi.graphs.nodes.attributes.UniformWeights # options: Area, Uniform
+          norm: unit-max # options: l1, l2, unit-max, unit-sum, unit-std
+        cutout:
+          _target_: anemoi.graphs.nodes.attributes.CutOutMask
+        boundary:
+          _target_: anemoi.graphs.nodes.attributes.BooleanNot
+          masks: 
+            _target_: anemoi.graphs.nodes.attributes.CutOutMask #marks true for the boundary
+        #turbine_mask:
+         # _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
+          #variable: mask 
+         
+  # Hidden nodes
+    hidden:
+      node_builder:
+        _target_: anemoi.graphs.nodes.LimitedAreaTriNodes
+        resolution: 9 
+        reference_node_name: data
+        mask_attr_name: cutout #inner region 
+        margin_radius_km: 600 #(default is 100km)
+
+  edges:
+# Encoder configuration
+  - source_name: data
+    target_name: hidden
+    edge_builders:
+    - _target_: anemoi.graphs.edges.CutOffEdges # connects only boundary nodes
+      cutoff_factor: 4 # only for cutoff method, sets the cut off radius 
+      #source_mask_attr_name: cutout
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+  # Processor configuration
+  - source_name: hidden
+    target_name: hidden
+    edge_builders:
+    - _target_: anemoi.graphs.edges.MultiScaleEdges
+      x_hops: 1
+      scale_resolutions: 9
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+  # Decoder configuration
+  - source_name: hidden
+    target_name: data
+    edge_builders:
+    - _target_: anemoi.graphs.edges.KNNEdges
+      target_mask_attr_name: cutout
+      num_nearest_neighbours: 3
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+
+  post_processors:
+    - _target_: anemoi.graphs.processors.RestrictEdgeLength
+      source_name: data
+      target_name: hidden
+      max_length_km: 100
+      source_mask_attr_name: cutout
+      
+    - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
+      nodes_name: data
+      #ignore: cutout # optional
+      save_mask_indices_to_attr: indices_connected_nodes # optional
