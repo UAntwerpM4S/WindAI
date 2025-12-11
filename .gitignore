@@ -15,12 +15,16 @@
 
 #Folders
 .vscode/
+.venv/
 training/Runs
 training/outputs
 training/GraphTransformer/Noloss
 training/GraphTransformer/fullloss
 training/GraphTransformer/outputs
 training/Transformer/outputs 
+training/TransformerBOZ/outputs
+training/GraphTransformerBOZ/outputs
+training/RegularWeather
 logs/
 data/BOZ_Turbines/coordinates
 data/oldfiles 

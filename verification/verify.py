@@ -7,7 +7,8 @@ Combined verification: model forecast vs power-curve baseline on one plot.
   total power (verification/BE_offshore_3H_totalMW.csv).
 - Computes a power-curve baseline from ws100 using turbine specs + counts for
   the same Belgian cells, and compares to the same observations.
-- Outputs a single MAE plot with both baselines per forecast directory.
+- Outputs a single MAE plot with both baselines per forecast directory, with
+  errors expressed as % of total installed capacity (2262 MW).
 """
 
 from __future__ import annotations
@@ -27,8 +28,17 @@ import xarray as xr
 # Configuration
 # ---------------------------------------------------------------------------
 FORECAST_DIRS: List[Path] = [
-     Path("/mnt/data/weatherloss/WindPower/inference/TransWithL25"),
-     Path("/mnt/data/weatherloss/WindPower/inference/TransNoL2Last")
+      Path("/mnt/data/weatherloss/WindPower/inference/BestTransf"),
+        Path("/mnt/data/weatherloss/WindPower/inference/BestGraph"),
+        Path("/mnt/data/weatherloss/WindPower/inference/Regular")
+        # Path("/mnt/data/weatherloss/WindPower/inference/newBOZTransf13"),
+        #Path("/mnt/data/weatherloss/WindPower/inference/newBOZTransfLastLast")
+     #Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphT5"),
+     #Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphT6"),
+     #Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphT7"),
+     #     Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphT9"),
+     #Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphT10"),
+    # Path("/mnt/data/weatherloss/WindPower/inference/newBOZGraphTLast")
 ]
 
 OBS_PATH = Path("/mnt/data/weatherloss/WindPower/verification/BE_offshore_3H_totalMW.csv")
@@ -38,11 +48,14 @@ METADATA_PATH = Path("/mnt/data/weatherloss/WindPower/data/NorthSea/Power/windfa
 
 PLOT_DIR = Path("/mnt/data/weatherloss/WindPower/verification/Plots")
 
-FORECAST_NX = 217 #211 #217 
-FORECAST_NY = 237 #157 #237 
+FORECAST_NX = 211 # 217 #211  #217 
+FORECAST_NY = 157 #237 #157 #237 
 
 LEAD_MIN = 3
-LEAD_MAX = 24
+LEAD_MAX = 72
+
+# Total installed capacity for percentage error calculations (MW)
+TOTAL_CAPACITY_MW = 2262.0
 
 # ---------------------------------------------------------------------------
 
@@ -88,14 +101,24 @@ def build_forecast_indices(cells: Sequence[Tuple[int, int]]) -> np.ndarray:
     return np.array([int(flat_idx_grid[y, x]) for (y, x) in cells], dtype=int)
 
 
-def load_forecast_power(path: Path, turbine_value_indices: np.ndarray) -> pd.DataFrame:
-    ds = xr.open_dataset(path)
-    values_dim = ds.sizes.get("values")
-    if values_dim != FORECAST_NX * FORECAST_NY:
-        raise ValueError(f"Unexpected values dimension in {path}: {values_dim}")
+def dir_has_power(forecast_dir: Path) -> bool:
+    files = sorted(forecast_dir.glob("forecast_*.nc"))
+    if not files:
+        raise FileNotFoundError(f"No forecast_*.nc files found in {forecast_dir}")
+    with xr.open_dataset(files[0]) as ds:
+        return "power" in ds
 
-    power = ds["power"].isel(values=turbine_value_indices).sum(dim="values")
-    out = power.to_series().rename("fcst_MW").reset_index()
+
+def load_forecast_power(path: Path, turbine_value_indices: np.ndarray) -> pd.DataFrame:
+    with xr.open_dataset(path) as ds:
+        values_dim = ds.sizes.get("values")
+        if values_dim != FORECAST_NX * FORECAST_NY:
+            raise ValueError(f"Unexpected values dimension in {path}: {values_dim}")
+        if "power" not in ds:
+            raise KeyError(f"Dataset missing 'power' variable: {path}")
+
+        power = ds["power"].isel(values=turbine_value_indices).sum(dim="values")
+        out = power.to_series().rename("fcst_MW").reset_index()
 
     init_time = parse_init_time(path)
     out["time"] = pd.to_datetime(out["time"], utc=True)
@@ -109,7 +132,16 @@ def load_dir_forecasts(forecast_dir: Path, turbine_value_indices: np.ndarray) ->
     files = sorted(forecast_dir.glob("forecast_*.nc"))
     if not files:
         raise FileNotFoundError(f"No forecast_*.nc files found in {forecast_dir}")
-    frames = [load_forecast_power(p, turbine_value_indices) for p in files]
+    frames = []
+    for p in files:
+        try:
+            frames.append(load_forecast_power(p, turbine_value_indices))
+        except KeyError as exc:
+            # Skip corrupted/partial files but continue with the rest.
+            print(f"Skipping {p.name}: {exc}")
+            continue
+    if not frames:
+        raise RuntimeError(f"No usable forecasts found in {forecast_dir}")
     return pd.concat(frames, ignore_index=True)
 
 
@@ -212,11 +244,23 @@ def load_dir_powercurve(
 # ------------------------- Metrics + plotting -----------------------------
 
 
-def compute_mae(fcst: pd.DataFrame, obs: pd.DataFrame, value_col: str) -> pd.DataFrame:
+def compute_mae(
+    fcst: pd.DataFrame,
+    obs: pd.DataFrame,
+    value_col: str,
+    *,
+    as_percent: bool = False,
+    capacity_mw: float | None = None,
+) -> pd.DataFrame:
+    if as_percent and (capacity_mw is None or capacity_mw <= 0):
+        raise ValueError("capacity_mw must be a positive number when as_percent is True.")
     merged = fcst.merge(obs, on="time", how="inner").dropna(subset=[value_col, "obs_MW"])
     if merged.empty:
         raise ValueError("No overlapping forecast/obs times after merge.")
-    merged["err"] = merged[value_col] - merged["obs_MW"]
+    err = merged[value_col] - merged["obs_MW"]
+    if as_percent:
+        err = err / capacity_mw * 100.0
+    merged["err"] = err
     metrics = (
         merged.groupby("lead_hours")
         .agg(count=("err", "size"), MAE=("err", lambda s: s.abs().mean()))
@@ -226,7 +270,7 @@ def compute_mae(fcst: pd.DataFrame, obs: pd.DataFrame, value_col: str) -> pd.Dat
     return metrics
 
 
-def plot_mae(results: List[Tuple[str, pd.DataFrame]], out_path: Path) -> None:
+def plot_mae(results: List[Tuple[str, pd.DataFrame]], out_path: Path, y_label: str = "MAE [MW]") -> None:
     plt.figure(figsize=(7, 4))
     base_colors: Dict[str, str] = {}
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
@@ -250,9 +294,11 @@ def plot_mae(results: List[Tuple[str, pd.DataFrame]], out_path: Path) -> None:
             label=label,
             color=base_colors.get(base_label),
         )
-    plt.title("MAE vs Lead Time (Belgian cells)", fontsize=12)
+        mean_mae = df["MAE"].mean()
+        plt.axhline(mean_mae, color=base_colors.get(base_label), lw=1.0, ls=":", alpha=1)
+    plt.title("MAE vs Lead Time", fontsize=12)
     plt.xlabel("Lead time [hours]")
-    plt.ylabel("MAE [MW]")
+    plt.ylabel(y_label)
     plt.grid(True, ls="--", alpha=0.6)
     plt.legend()
     plt.tight_layout()
@@ -267,24 +313,28 @@ def main() -> None:
     specs = load_specs(SPECS_PATH)
     type_order, counts_matrix = build_counts_matrix(cells)
 
-    all_forecast_series: List[Tuple[str, pd.DataFrame]] = []
-    all_pc_series: List[Tuple[str, pd.DataFrame]] = []
+    series_per_dir: List[Tuple[str, bool, pd.DataFrame | None, pd.DataFrame]] = []
     global_time_min: pd.Timestamp | None = None
     global_time_max: pd.Timestamp | None = None
 
     for fc_dir in FORECAST_DIRS:
         label = fc_dir.name
         print(f"Processing {label} ...")
-        fcst = load_dir_forecasts(fc_dir, turbine_value_indices)
+        has_power = dir_has_power(fc_dir)
+        if not has_power:
+            print(f"  '{label}' has no 'power' variable; using power-curve baseline only.")
+        fcst = load_dir_forecasts(fc_dir, turbine_value_indices) if has_power else None
         pc_fcst = load_dir_powercurve(fc_dir, turbine_value_indices, type_order, specs, counts_matrix)
 
-        tmin = min(fcst["time"].min(), pc_fcst["time"].min())
-        tmax = max(fcst["time"].max(), pc_fcst["time"].max())
-        global_time_min = tmin if global_time_min is None else min(global_time_min, tmin)
-        global_time_max = tmax if global_time_max is None else max(global_time_max, tmax)
+        for df in (fcst, pc_fcst):
+            if df is None:
+                continue
+            tmin = df["time"].min()
+            tmax = df["time"].max()
+            global_time_min = tmin if global_time_min is None else min(global_time_min, tmin)
+            global_time_max = tmax if global_time_max is None else max(global_time_max, tmax)
 
-        all_forecast_series.append((label, fcst))
-        all_pc_series.append((label, pc_fcst))
+        series_per_dir.append((label, has_power, fcst, pc_fcst))
 
     if global_time_min is None or global_time_max is None:
         raise RuntimeError("No forecasts processed.")
@@ -292,14 +342,31 @@ def main() -> None:
     obs = load_obs((global_time_min, global_time_max))
 
     mae_results: List[Tuple[str, pd.DataFrame]] = []
-    for (label, fcst), (_, pc_fcst) in zip(all_forecast_series, all_pc_series):
-        mae_model = compute_mae(fcst, obs, "fcst_MW")
-        mae_pc = compute_mae(pc_fcst, obs, "pc_MW")
-        mae_results.append((f"{label}-model", mae_model))
+    for label, has_power, fcst, pc_fcst in series_per_dir:
+        if has_power:
+            mae_model = compute_mae(
+                fcst,
+                obs,
+                "fcst_MW",
+                as_percent=True,
+                capacity_mw=TOTAL_CAPACITY_MW,
+            )
+            mae_results.append((f"{label}-model", mae_model))
+        mae_pc = compute_mae(
+            pc_fcst,
+            obs,
+            "pc_MW",
+            as_percent=True,
+            capacity_mw=TOTAL_CAPACITY_MW,
+        )
         mae_results.append((f"{label}-powercurve", mae_pc))
 
     plot_name = f"mae_combined_{pd.Timestamp.utcnow().strftime('%Y%m%dT%H%M%SZ')}.png"
-    plot_mae(mae_results, PLOT_DIR / plot_name)
+    plot_mae(
+        mae_results,
+        PLOT_DIR / plot_name,
+        y_label=f"MAE % of total capacity]",
+    )
 
 
 if __name__ == "__main__":

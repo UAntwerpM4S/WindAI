@@ -1,6 +1,10 @@
-checkpoint: /mnt/data/weatherloss/WindPower/training/Transformer/checkpoint/TransNoL2/inference-last.ckpt
-lead_time: 24
-date: "2024-08-31T21:00:00"
+checkpoint: /mnt/data/weatherloss/WindPower/training/RegularWeather/checkpoint/Regular/inference-last.ckpt
+lead_time: 72
+date: "2025-07-31T21:00:00"
 input: test
 output:
-  netcdf: TransNoL2Last/forecast_20240831210000.nc
+  netcdf: Regular/forecast_20250731210000.nc
+runner:
+  external_graph:
+    graph: /mnt/data/weatherloss/WindPower/graphs/tryout.pt
+    updated_number_of_grid_points: x

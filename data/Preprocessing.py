@@ -79,34 +79,34 @@ cerra = cerra.drop_vars(["wdir10", "wdir"])
 
 
 #add synthetic wind power with a power curve 
-ws_pts = np.array([0.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
-                   11.0, 12.0, 13.0, 14.0, 16.0, 20.0, 24.99,24.999,25.0,25.01, 30.0], dtype="float32")
-p_pts  = np.array([0.0, 0.0, 0.05, 0.20, 0.50, 1.00, 1.80, 3.00, 4.50, 6.00,
-                   7.50, 9.00, 9.50, 9.50, 9.50, 9.50, 9.5,9.5,0.00,0.00, 0.00], dtype="float32")
+# ws_pts = np.array([0.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+#                    11.0, 12.0, 13.0, 14.0, 16.0, 20.0, 24.99,24.999,25.0,25.01, 30.0], dtype="float32")
+# p_pts  = np.array([0.0, 0.0, 0.05, 0.20, 0.50, 1.00, 1.80, 3.00, 4.50, 6.00,
+#                    7.50, 9.00, 9.50, 9.50, 9.50, 9.50, 9.5,9.5,0.00,0.00, 0.00], dtype="float32")
 
-def interp_power(ws):
-    return np.interp(ws, ws_pts, p_pts)
-ws100 = cerra["ws"].sel(heightAboveGround=100.0)
-synthetic_power = xr.apply_ufunc(
-    np.interp,
-    ws100,                # x
-    xr.DataArray(ws_pts, dims="ws_pts"),
-    xr.DataArray(p_pts,  dims="ws_pts"),
-    input_core_dims=[[], ["ws_pts"], ["ws_pts"]],
-    output_core_dims=[[]],
-    vectorize=True,
-    dask="parallelized",
-    output_dtypes=[np.float32],
-)
+# def interp_power(ws):
+#     return np.interp(ws, ws_pts, p_pts)
+# ws100 = cerra["ws"].sel(heightAboveGround=100.0)
+# synthetic_power = xr.apply_ufunc(
+#     np.interp,
+#     ws100,                # x
+#     xr.DataArray(ws_pts, dims="ws_pts"),
+#     xr.DataArray(p_pts,  dims="ws_pts"),
+#     input_core_dims=[[], ["ws_pts"], ["ws_pts"]],
+#     output_core_dims=[[]],
+#     vectorize=True,
+#     dask="parallelized",
+#     output_dtypes=[np.float32],
+# )
 
-synthetic_power.name = "synthetic_windpower"
-synthetic_power.attrs = {
-    "long_name": "Synthetic wind power from 100 m wind speed",
-    "units": "MW per turbine",
-    "description": "Derived from representative 9.5 MW-class power curve",
-}
+# synthetic_power.name = "synthetic_windpower"
+# synthetic_power.attrs = {
+#     "long_name": "Synthetic wind power from 100 m wind speed",
+#     "units": "MW per turbine",
+#     "description": "Derived from representative 9.5 MW-class power curve",
+# }
 
-cerra = cerra.assign(synthetic_windpower=synthetic_power)
+#cerra = cerra.assign(synthetic_windpower=synthetic_power)
 
 
 #flatten the height variables 
@@ -157,5 +157,5 @@ cerra = cerra.rename({"si10": "ws10"})
 cerra["ws10"].attrs.update({"long_name": "10 m wind speed", "units": "m s-1"})
 
 cerra = cerra.chunk({"time": 24, "y": 157, "x": 211})  # or adjust chunking for your workflow
-cerra.to_zarr("Cerra.zarr", mode="w", consolidated=True)
+cerra.to_zarr("BOZ.zarr", mode="w", consolidated=True)
 

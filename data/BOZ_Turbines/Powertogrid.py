@@ -1,226 +1,201 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-import os, re, glob
+"""Project Belgian offshore wind farm power/metadata onto the BOZ CERRA grid.
+
+Adds four variables to ``BOZ.zarr``:
+    - power: summed farm power (MW) mapped to the nearest grid cell
+    - mask: 1 at cells with at least one farm, NaN elsewhere
+    - turbines: number of turbines per grid cell (sums co-located farms)
+    - capacity: nameplate capacity per grid cell in MW (sums co-located farms)
+
+This mirrors ``data/NorthSea/Power/powertogrid_northsea.py`` but restricts the
+farms to Belgium only.
+"""
+
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pathlib import Path
 from scipy.spatial import cKDTree
 
-# =========================
-# CONFIG (edit paths here)
-# =========================
-BASE = "/mnt/data/weatherloss/WindPower/data/BOZ_Turbines"
-COORD_DIR = os.path.join(BASE, "coordinates")
-ENTSOE_CSV = os.path.join(BASE, "windpowerdata", "BE_offshore_per_unit_3H_meanMW_2020-01_to_2025-07.csv")
-CERRA_ZARR = "/mnt/data/weatherloss/WindPower/data/Cerra.zarr"
+# Paths
+DATA_ROOT = Path("/mnt/data/weatherloss/WindPower/data")
+POWER_CSV = DATA_ROOT / "BOZ_Turbines" / "windpowerdata" / "BE_offshore_per_unit_3H_meanMW_2020-01_to_2025-07.csv"
+META_CSV = DATA_ROOT / "NorthSea" / "Power" / "windfarm_metadata.csv"
+BOZ_ZARR = DATA_ROOT / "BOZ.zarr"
 
 
-CSV_TO_FARM = {
-    "Belwind Phase 1":                 "Belwind",
-    "Mermaid Offshore WP":             "Mermaid",
-    "Nobelwind Offshore Windpark":     "Nobelwind",
-    "Norther Offshore WP":             "Norther",
-    "Northwester 2":                   "Northwester2",
-    "Northwind":                       "Northwind",
-    "Rentel Offshore WP":              "Rentel",
-    "Seastar Offshore WP":             "Seastar",
-    "Thorntonbank - C-Power - Area NE":"CPower_NE",
-    "Thorntonbank - C-Power - Area SW":"CPower_SW",
-}
+def _normalize_lon(lon_series: pd.Series, lon_grid: np.ndarray) -> pd.Series:
+    """Match longitude convention of the target grid (0..360 vs -180..180)."""
+    lon_max = np.nanmax(lon_grid)
+    if lon_max > 180:
+        return (lon_series + 360) % 360
+    return lon_series
 
-# =========================
-# 1) Load CERRA grid (lon/lat + time)
-# =========================
-ds = xr.open_zarr(CERRA_ZARR, consolidated=True)
-lon2d = np.asarray(ds["longitude"])
-lat2d = np.asarray(ds["latitude"])
-ny, nx = ds.sizes["y"], ds.sizes["x"]
-cerra_times = pd.DatetimeIndex(pd.to_datetime(ds["time"].values))
-print(f"[CERRA] grid: ny={ny}, nx={nx}; times: {cerra_times.min()} → {cerra_times.max()}")
 
-# KDTree for nearest grid cell queries
-pts = np.c_[lon2d.ravel(), lat2d.ravel()]
-tree = cKDTree(pts)
+def load_metadata() -> pd.DataFrame:
+    """Load Belgian farm metadata and coerce numeric fields."""
+    df = pd.read_csv(META_CSV)
+    required_cols = {"farm", "lat", "lon", "capacity_mw", "turbines", "region"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Metadata missing columns: {sorted(missing)}")
 
-# =========================
-# 2) Load turbine coordinates and split CPower
-# =========================
-_HUB_REGEX = re.compile(
-    r"(?:^|\b)(?:OSS|OHVS|SUB-?STATION|OFFSHORE\s+HIGH\s+VOLTAGE|HUB|PLATFORM)(?:\b|$)",
-    re.I,
-)
-_LETTER_NUM = re.compile(r"^\s*([A-J])\s*-?\s*(\d+)\s*$", re.I)
+    df = df[df["region"].str.lower() == "belgium"].copy()
+    df["capacity_mw"] = pd.to_numeric(df["capacity_mw"], errors="coerce")
+    df["turbines"] = pd.to_numeric(df["turbines"], errors="coerce")
+    df = df.dropna(subset=["lat", "lon"])
+    return df
 
-def cpower_subfarm(name: str) -> str:
-    m = _LETTER_NUM.match(str(name).strip())
-    if not m:
-        return "CPower_unknown"
-    letter = m.group(1).upper()
-    n = int(m.group(2))
-    if letter in {"A","B","C"}:
-        return "CPower_SW"
-    if letter == "D":
-        return "CPower_SW" if 0 <= n <= 8 else "CPower_NE"
-    if letter in {"E","F","G","H","I","J"}:
-        return "CPower_NE"
-    return "CPower_unknown"
 
-def load_all_turbines(coord_dir):
-    rows = []
-    for csv in glob.glob(os.path.join(coord_dir, "*_turbines_coords.csv")):
-        farm = os.path.basename(csv).replace("_turbines_coords.csv", "")
-        df = pd.read_csv(csv)
+def load_power_series(target_times: pd.DatetimeIndex, farms: list[str]) -> pd.DataFrame:
+    """Read power CSV, keep requested farms, and align to CERRA timestamps."""
+    df = pd.read_csv(POWER_CSV)
+    if "time" not in df.columns:
+        raise ValueError("Power CSV must contain a 'time' column.")
 
-        cols = {c.lower().strip(): c for c in df.columns}
-        name_col = cols.get("name", next((c for c in df.columns if c.lower().startswith("name")), None))
-        lon_col  = cols.get("longitude", next((c for c in df.columns if "lon" in c.lower()), None))
-        lat_col  = cols.get("latitude", next((c for c in df.columns if "lat" in c.lower()), None))
-        if not (name_col and lon_col and lat_col):
-            raise ValueError(f"Missing columns in {csv}. Found: {list(df.columns)}")
+    time_parsed = pd.DatetimeIndex(pd.to_datetime(df["time"], utc=True, errors="coerce"))
+    df = df.drop(columns=["time"])
+    if time_parsed.tz is not None:
+        idx = time_parsed.tz_convert("UTC").tz_localize(None)
+    else:
+        idx = time_parsed.tz_localize(None)
+    df.index = idx
 
-        sub = df[[name_col, lon_col, lat_col]].copy()
-        sub.columns = ["name","lon","lat"]
-        sub = sub[~sub["name"].astype(str).str.contains(_HUB_REGEX)]
-        sub["farm"] = farm
-        rows.append(sub)
+    df = df.apply(pd.to_numeric, errors="coerce")
+    keep_cols = [c for c in df.columns if c in farms]
+    if not keep_cols:
+        raise ValueError("No overlapping farm columns between metadata and power CSV.")
 
-    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["name","lon","lat","farm"])
+    df = df[keep_cols]
+    aligned = df.reindex(target_times)
+    return aligned
 
-turbines = load_all_turbines(COORD_DIR)
-turbines["farm_split"] = turbines["farm"]
-mask_cp = turbines["farm"].str.fullmatch("CPower", case=False, na=False)
-turbines.loc[mask_cp, "farm_split"] = turbines.loc[mask_cp, "name"].map(cpower_subfarm)
 
-# Drop rare unknown labels
-turbines_use = turbines[turbines["farm_split"] != "CPower_unknown"].copy()
+def map_farms_to_grid(ds: xr.Dataset, meta_df: pd.DataFrame) -> pd.DataFrame:
+    """Snap each farm to its nearest BOZ grid cell."""
+    if "longitude" not in ds or "latitude" not in ds:
+        raise ValueError("CERRA dataset must expose 'longitude' and 'latitude' coordinates.")
 
-# =========================
-# 3) Map each farm to nearest CERRA cell (centroid of turbines)
-# =========================
-farm_key = "farm_split"
-centroids = (turbines_use.groupby(farm_key)[["lon","lat"]]
-             .mean()
-             .rename(columns={"lon":"farm_lon","lat":"farm_lat"}))
+    lon2d = np.asarray(ds["longitude"])
+    lat2d = np.asarray(ds["latitude"])
+    ny, nx = lon2d.shape
 
-# nearest grid cell
-dist, idx = tree.query(centroids[["farm_lon","farm_lat"]].values, k=1)
-j = (idx % nx).astype(int)
-i = (idx // nx).astype(int)
+    meta_df = meta_df.copy()
+    meta_df["lon_norm"] = _normalize_lon(meta_df["lon"], lon2d)
 
-farm_cells = centroids.copy()
-farm_cells["y"] = i
-farm_cells["x"] = j
-farm_cells["lon_cell"] = lon2d[i, j]
-farm_cells["lat_cell"] = lat2d[i, j]
-farm_cells["deg_error"] = np.hypot(farm_cells["lon_cell"]-farm_cells["farm_lon"],
-                                   farm_cells["lat_cell"]-farm_cells["farm_lat"])
-farm_cells = farm_cells.reset_index().rename(columns={farm_key: "farm"})
+    pts_grid = np.c_[lon2d.ravel(), lat2d.ravel()]
+    tree = cKDTree(pts_grid)
 
-print("[FARMS] mapped:")
-print(farm_cells[["farm","y","x","deg_error"]].sort_values("farm").to_string(index=False))
+    dist, idx = tree.query(np.c_[meta_df["lon_norm"], meta_df["lat"]], k=1)
+    meta_df["x"] = (idx % nx).astype(int)
+    meta_df["y"] = (idx // nx).astype(int)
+    meta_df["lon_cell"] = lon2d[meta_df["y"], meta_df["x"]]
+    meta_df["lat_cell"] = lat2d[meta_df["y"], meta_df["x"]]
+    meta_df["deg_error"] = np.hypot(meta_df["lon_cell"] - meta_df["lon_norm"], meta_df["lat_cell"] - meta_df["lat"])
+    meta_df["km_error_approx"] = meta_df["deg_error"] * 111.0
+    return meta_df
 
-# one-hot mask (farm,y,x)
-farms = farm_cells["farm"].tolist()
-mask_arr = np.zeros((len(farms), ny, nx), dtype="float32")
-lookup = {row["farm"]: (int(row["y"]), int(row["x"])) for _, row in farm_cells.iterrows()}
-for k, f in enumerate(farms):
-    ii, jj = lookup[f]
-    mask_arr[k, ii, jj] = 1.0
 
-farm_mask = xr.DataArray(
-    mask_arr, coords={"farm": farms, "y": ds["y"], "x": ds["x"]},
-    dims=("farm","y","x"), name="farm_mask_onehot"
-)
+def build_static_fields(mapped: pd.DataFrame, ny: int, nx: int):
+    """Create mask, turbines, and capacity arrays aggregated per grid cell."""
+    mask_arr = np.full((ny, nx), np.nan, dtype="float32")
+    turb_arr = np.full((ny, nx), np.nan, dtype="float32")
+    cap_arr = np.full((ny, nx), np.nan, dtype="float32")
 
-# =========================
-# 4) Load ENTSO-E 3H power & align to CERRA time
-# =========================
-dfp_raw = pd.read_csv(ENTSOE_CSV, index_col=0, parse_dates=True)
-# ensure tz-aware UTC
-# ensure UTC, then drop timezone to make times naive (matches CERRA)
-if dfp_raw.index.tz is not None:
-    dfp_raw.index = dfp_raw.index.tz_convert("UTC").tz_localize(None)
-else:
-    dfp_raw.index = dfp_raw.index.tz_localize(None)  # assume already UTC
-# keep only mapped columns, rename to canonical farm names
-keep_cols = [c for c in dfp_raw.columns if c in CSV_TO_FARM]
-dfp = dfp_raw[keep_cols].rename(columns=CSV_TO_FARM)
-# coerce numeric
-dfp = dfp.apply(pd.to_numeric, errors="coerce")
-# align to CERRA 3H ticks
-dfp_aligned = dfp.reindex(cerra_times)
-# keep only farms we have cells for
-farms_in_csv = sorted(set(farms) & set(dfp_aligned.columns))
-dfp_aligned = dfp_aligned[farms_in_csv].astype("float32")
+    for (iy, ix), grp in mapped.groupby(["y", "x"]):
+        mask_arr[iy, ix] = 1.0
+        turb_arr[iy, ix] = grp["turbines"].sum(skipna=True)
+        cap_arr[iy, ix] = grp["capacity_mw"].sum(skipna=True)
 
-print(f"[ENTSO-E] aligned shape: {dfp_aligned.shape}, farms: {farms_in_csv[:5]}{'...' if len(farms_in_csv)>5 else ''}")
-print(f"[ENTSO-E] time span: {dfp_aligned.index.min()} → {dfp_aligned.index.max()}")
+    return mask_arr, turb_arr, cap_arr
 
-# =========================
-# 5) Scatter farm series to grid (sum co-located farms), NaN elsewhere
-# =========================
-P_farm = xr.DataArray(
-    dfp_aligned.to_numpy(dtype="float32"),
-    coords={"time": dfp_aligned.index, "farm": farms_in_csv},
-    dims=("time","farm"),
-    name="farm_power_series_MW",
-)
-farm_mask_sub = farm_mask.sel(farm=P_farm.farm)
 
-# dot: (time,farm) · (farm,y,x) -> (time,y,x)
-power_cell = xr.dot(P_farm.fillna(0.0), farm_mask_sub, dims="farm").astype("float32").rename("power")
+def build_power_field(ds: xr.Dataset, mapped: pd.DataFrame, power_df: pd.DataFrame) -> xr.DataArray:
+    """Scatter farm power onto the grid, summing co-located farms."""
+    farms = [f for f in power_df.columns if f in set(mapped["farm"])]
+    if not farms:
+        raise ValueError("No overlapping farms between mapped metadata and power series.")
 
-# 2D mask of turbine locations; NaN elsewhere
-mask2d_bool = (farm_mask_sub.sum(dim="farm") > 0)
-mask_da = xr.where(mask2d_bool, 1.0, np.nan).astype("float32").rename("mask")
+    mapped_use = mapped[mapped["farm"].isin(farms)]
+    ny, nx = ds.sizes["y"], ds.sizes["x"]
 
-# Apply NaN outside turbine cells
-power_on_cells = power_cell.where(mask2d_bool).astype("float32")
+    farm_mask = np.zeros((len(farms), ny, nx), dtype="float32")
+    lookup = {row["farm"]: (int(row["y"]), int(row["x"])) for _, row in mapped_use.iterrows()}
+    for k, farm in enumerate(farms):
+        iy, ix = lookup[farm]
+        farm_mask[k, iy, ix] = 1.0
 
-# Attach CERRA coords (already aligned)
-power_on_cells = power_on_cells.assign_coords(time=P_farm.time, y=ds["y"], x=ds["x"])
-mask_da = mask_da.assign_coords(y=ds["y"], x=ds["x"])
+    farm_mask_da = xr.DataArray(
+        farm_mask,
+        coords={"farm": farms, "y": ds["y"], "x": ds["x"]},
+        dims=("farm", "y", "x"),
+        name="farm_mask_onehot",
+    )
 
-# attrs
-power_on_cells.attrs.update({
-    "long_name": "Offshore wind power mapped to CERRA grid (sum across co-located farms)",
-    "units": "MW",
-    "note": "NaN outside turbine cells; time in UTC (3-hourly).",
-})
-mask_da.attrs.update({
-    "long_name": "Turbine-location mask (2D)",
-    "values": "1 at farm cells, NaN elsewhere",
-})
+    power_da = xr.DataArray(
+        power_df[farms].to_numpy(dtype="float32"),
+        coords={"time": pd.DatetimeIndex(power_df.index), "farm": farms},
+        dims=("time", "farm"),
+        name="farm_power_series_MW",
+    )
 
-# =========================
-# 6) Sanity checks
-# =========================
-# a) overlap with CERRA
-overlap_rows = int(dfp_aligned.notna().any(axis=1).sum())
-print(f"[CHECK] rows with any farm data: {overlap_rows}")
+    power_grid = xr.dot(power_da.fillna(0.0), farm_mask_da, dims="farm").astype("float32").rename("power")
+    mask2d = (farm_mask_da.sum(dim="farm") > 0)
+    power_grid = power_grid.where(mask2d)
+    return power_grid.assign_coords(time=ds["time"], y=ds["y"], x=ds["x"])
 
-# b) totals compare at a few times
-def check_time(idx):
-    s = float(np.nansum(P_farm.isel(time=idx).values))
-    g = float(np.nansum(power_on_cells.isel(time=idx).values))
-    print(f"[CHECK] t[{idx}] {pd.Timestamp(P_farm.time.values[idx])}  series_sum={s:.3f} MW | grid_sum={g:.3f} MW")
 
-for ti in [0, min(100, len(P_farm.time)-1), min(500, len(P_farm.time)-1), len(P_farm.time)-1]:
-    check_time(ti)
+def append_power_to_zarr(zarr_path: Path):
+    """Append power/mask/turbines/capacity variables to the BOZ Zarr store."""
+    print(f"[LOAD] Opening {zarr_path}")
+    ds = xr.open_zarr(zarr_path, consolidated=True)
 
-# c) nonzero cells (should equal number of farm cells that have any data at some time)
-nz_cells = int((power_on_cells.notnull().any(dim="time")).sum().item())
-print(f"[CHECK] cells with any non-NaN power over time: {nz_cells}")
+    meta_df = load_metadata()
+    mapped = map_farms_to_grid(ds, meta_df)
 
-# =========================
-# 7) Write into existing CERRA Zarr (append variables)
-# =========================
-power_ds = xr.Dataset({"power": power_on_cells, "mask": mask_da})
-# chunking
-encoding = {
-    "power": {"chunks": (24, ny, nx)},
-    "mask":  {"chunks": (ny, nx)},
-}
-power_ds.to_zarr(CERRA_ZARR, mode="a", consolidated=True, encoding=encoding)
-print(f"[WRITE] Appended variables ['power','mask'] to {CERRA_ZARR}")
+    cerra_times = pd.DatetimeIndex(pd.to_datetime(ds["time"].values))
+    power_df = load_power_series(cerra_times, farms=mapped["farm"].tolist())
+
+    mapped = mapped[mapped["farm"].isin(power_df.columns)].reset_index(drop=True)
+    if mapped.empty:
+        raise ValueError("No farms left after intersecting metadata and power columns.")
+
+    ny, nx = ds.sizes["y"], ds.sizes["x"]
+    mask_arr, turb_arr, cap_arr = build_static_fields(mapped, ny=ny, nx=nx)
+    power_grid = build_power_field(ds, mapped, power_df)
+
+    mask_da = xr.DataArray(mask_arr, coords={"y": ds["y"], "x": ds["x"]}, dims=("y", "x"), name="mask").astype("float32")
+    turb_da = xr.DataArray(turb_arr, coords={"y": ds["y"], "x": ds["x"]}, dims=("y", "x"), name="turbines").astype("float32")
+    cap_da = xr.DataArray(cap_arr, coords={"y": ds["y"], "x": ds["x"]}, dims=("y", "x"), name="capacity").astype("float32")
+
+    power_grid.attrs.update({
+        "long_name": "Offshore wind power mapped to CERRA grid (sum across co-located farms)",
+        "units": "MW",
+        "note": "NaN outside turbine cells; time in UTC (3-hourly).",
+    })
+    mask_da.attrs.update({"long_name": "Wind farm mask", "values": "1 at farm cells, NaN elsewhere"})
+    turb_da.attrs.update({"long_name": "Wind turbines per cell", "units": "count"})
+    cap_da.attrs.update({"long_name": "Nameplate capacity per cell", "units": "MW"})
+
+    out_ds = xr.Dataset({"power": power_grid, "mask": mask_da, "turbines": turb_da, "capacity": cap_da})
+    encoding = {
+        "power": {"chunks": (24, ny, nx)},
+        "mask": {"chunks": (ny, nx)},
+        "turbines": {"chunks": (ny, nx)},
+        "capacity": {"chunks": (ny, nx)},
+    }
+
+    print(f"[WRITE] Appending variables to {zarr_path}")
+    out_ds.to_zarr(zarr_path, mode="a", consolidated=True, encoding=encoding)
+    print(f"[DONE] Completed {zarr_path.name}")
+
+
+def main():
+    append_power_to_zarr(BOZ_ZARR)
+
+
+if __name__ == "__main__":
+    main()

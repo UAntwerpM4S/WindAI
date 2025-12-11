@@ -15,11 +15,8 @@ input:
           param:
           - surface_geopotential
           - lsm
-          - mask
-          - turbines
-          - capacity 
 
-          url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
+          url: "/mnt/data/weatherloss/WindPower/data/Regular/BOZ_inner.zarr" #remove inner for full dataset 
   - xarray-zarr:
       param:
       - r
@@ -27,13 +24,10 @@ input:
       - u
       - v
       - z
-      url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
-  - xarray-zarr:
+      url: "/mnt/data/weatherloss/WindPower/data/Regular/BOZ_inner.zarr"
       param:
       - mcc
       - msl
-      - power
-     # - synthetic_windpower
       - t2m
       - wdir10_cos
       - wdir10_sin
@@ -50,7 +44,7 @@ input:
       - ws150
       - ws200
       - ws50
-      url: "/mnt/data/weatherloss/WindPower/data/NorthSea/Cerra/cerra_inner2.zarr" #remove inner for full dataset 
+      url: "/mnt/data/weatherloss/WindPower/data/Regular/BOZ_inner.zarr" #remove inner for full dataset 
   - forcings:
       param:
       - cos_latitude
@@ -60,6 +54,4 @@ input:
       - julian_day
       - insolation
       template: ${input.join.1.xarray-zarr}
-statistics:
-  allow_nans: [mask,power,turbines]
-name: Cerra-Northsea-3h-inner-v0  #remove inner for full 
+name: Regular-Northsea-3h-inner-v0  #remove inner for full 

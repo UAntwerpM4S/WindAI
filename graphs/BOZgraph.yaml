@@ -6,7 +6,7 @@
         dataset:
           cutout:
             - dataset: /mnt/data/weatherloss/WindPower/data/BOZ_inner_A.zarr
-             # thinning: 10
+             # thinning: 25
             - dataset: /mnt/data/weatherloss/WindPower/data/BOZ_A.zarr
           min_distance_km: 0
           adjust: all
@@ -37,7 +37,6 @@
 # Encoder configuration
   - source_name: data
     target_name: hidden
-    edge_builders:
     edge_builders:
     - _target_: anemoi.graphs.edges.KNNEdges
       num_nearest_neighbours:  12
