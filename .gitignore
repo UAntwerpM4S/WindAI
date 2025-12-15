@@ -47,7 +47,8 @@ WindPower/
 #Jupyter
 .ipynb_checkpoints/
 inference/*.ipynb
-
+.venv
+.vsocde
 
 #Python cache
 
