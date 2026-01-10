@@ -1,15 +1,10 @@
-# Path to your trained toy checkpoint
-checkpoint: "/mnt/data/weatherloss/WindPower/training/GraphTransformer/checkpoint/56b7d75e-4cd5-43bb-83b8-b887d4255989/inference-anemoi-by_time-epoch_026-step_065000.ckpt"
-
-# Forecast lead time in hours
+checkpoint: "/mnt/weatherloss/WindPower/training/GraphTransformer/checkpoint/RegularLatePower/inference-last.ckpt"
 lead_time: 24
-
-# Starting date for the forecast (must be in the dataset range)
-date: "2024-08-10T00:00:00"
-
-# Input data key (must match dataloader in training config)
-input: 
-  dataset: "/mnt/data/weatherloss/WindPower/data/Cerra_Anemoids.zarr"
-# Where to save the forecast
+date: "2024-08-15T09:00:00"
+input:
+  dataset:
+    cutout:
+      - /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_HR_A.zarr
+      - /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_LR_A.zarr
 output:
-  netcdf: ./test.nc
+  netcdf: test.nc

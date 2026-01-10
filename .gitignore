@@ -13,7 +13,9 @@
 #Checkpoints
 *.ckpt
 
+
 #Folders
+conda_envs/
 .vscode/
 .venv/
 training/Runs

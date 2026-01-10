@@ -1,33 +1,111 @@
-#This is the blueprint for all the different configurations we make
-defaults:        
+defaults:
+  - model: transformer
   - training: default
-  - _self_ 
-#All default .yaml files are overwritten here
-# ============# ============# ============# ============# ============
-# ============# ============# ============# ============# ============
-datamodule: 
-    _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule #deterministic forecasting
-data: #this component is not changed per configuration
-#Configuration for input/output data handling
+  - _self_
+
+# ============================================================
+# NEW REQUIRED TOP-LEVEL SYSTEM BLOCK
+# ============================================================
+system:
+  hardware:
+    accelerator: gpu
+    num_gpus_per_node: 1
+    num_nodes: 1
+    num_gpus_per_model: 1
+
+  input:
+    dataset:
+      -datasets:
+        inner: ${hardware.paths.data}/Cerra_HR_A.zarr
+        outer: ${hardware.paths.data}/Cerra_LR_A.zarr
+    graph: /mnt/weatherloss/WindPower/graphs/Northsea.pt
+    truncation: null
+    truncation_inv: null
+    warm_start: /mnt/weatherloss/WindPower/training/Transformer/checkpoint/TransformerHuber256/last.ckpt
+
+  output:
+    root: /mnt/weatherloss/WindPower/training/Transformer
+    logs:
+      root: logs
+      wandb: wandb
+      mlflow: mlflow
+      tensorboard: tensorboard
+    checkpoints:
+      root: checkpoint
+      every_n_epochs: anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}
+      every_n_train_steps: anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}
+      every_n_minutes: anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}
+    plots: plots
+    profiler: profiler
+
+# ============================================================
+# BACKWARD-COMPAT SHIM: keep your existing `${hardware.*}` refs working
+# ============================================================
+hardware:
+  accelerator: ${system.hardware.accelerator}
+  num_gpus_per_node: ${system.hardware.num_gpus_per_node}
+  num_nodes: ${system.hardware.num_nodes}
+  num_gpus_per_model: ${system.hardware.num_gpus_per_model}
+
+  paths:
+    data: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets
+    output: ${system.output.root}
+    logs:
+      base: ${system.output.root}/${system.output.logs.root}
+      wandb: ${hardware.paths.logs.base}/${system.output.logs.wandb}
+      mlflow: ${hardware.paths.logs.base}/${system.output.logs.mlflow}
+      tensorboard: ${hardware.paths.logs.base}/${system.output.logs.tensorboard}
+    checkpoints: ${system.output.root}/${system.output.checkpoints.root}
+    plots: ${system.output.root}/${system.output.plots}
+    profiler: ${system.output.root}/${system.output.profiler}
+    graph: ${system.output.root}/graphs
+    warm_start: ${system.input.warm_start}
+
+  files:
+    datasets:
+      outer: ${hardware.paths.data}/Cerra_LR_A.zarr
+      inner: ${hardware.paths.data}/Cerra_HR_A.zarr
+
+    # fixed: removed stray quote from your original path and now sourced from system
+    graph: ${system.input.graph}
+
+    truncation: ${system.input.truncation}
+    truncation_inv: ${system.input.truncation_inv}
+
+    checkpoint:
+      every_n_epochs: ${system.output.checkpoints.every_n_epochs}
+      every_n_train_steps: ${system.output.checkpoints.every_n_train_steps}
+      every_n_minutes: ${system.output.checkpoints.every_n_minutes}
+
+    warm_start: ${system.input.warm_start}
+
+# ============================================================
+# DATA / DATAMODULE
+# ============================================================
+datamodule:
+  _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule  # deterministic forecasting
+
+data:
   format: zarr
   frequency: 3h
   timestep: 3h
-  forcing:  #only goes in, but doesnt come out
-    - lsm # Land-Sea Mask
-    - insolation # Solar radiation 
+
+  forcing:
+    - lsm
+    - insolation
     - julian_day
-    - mask #1 or nan if turbines
-    - turbines #turbines count 
-    - capacity 
+    - mask
+    - turbines
+    - capacity
     - cos_latitude
     - sin_latitude
     - cos_longitude
     - sin_longitude
     - surface_geopotential
 
-  #doesnt go in, only comes out 
   diagnostic:
-    - power 
+    - power
+
   remapped: null
 
   imputer:
@@ -35,182 +113,194 @@ data: #this component is not changed per configuration
       - power
       - mask
       - turbines
-      - capacity 
+      - capacity
 
-       
   normalizer:
     default: mean-std
-  # zero value in the normalized space.
     max:
-    - power 
-    - surface_geopotential
-    none: 
-    - mask
-    - lsm
-    - cos_latitude
-    - sin_latitude 
-    - cos_longitude
-    - sin_longitude 
-    - wdir10_cos
-    - wdir10_sin
-    - wdir_cos100
-    - wdir_cos150
-    - wdir_cos200
-    - wdir_cos50
-    - wdir_sin100
-    - wdir_sin150
-    - wdir_sin200
-    - wdir_sin50
+      - surface_geopotential
+    min-max:
+      - power
+    none:
+      - mask
+      - lsm
+      - cos_latitude
+      - sin_latitude
+      - cos_longitude
+      - sin_longitude
+      - wdir10_cos
+      - wdir10_sin
+      - wdir_cos100
+      - wdir_cos150
+      - wdir_cos200
+      - wdir_cos50
+      - wdir_sin100
+      - wdir_sin150
+      - wdir_sin200
+      - wdir_sin50
 
-  remapper: #spatial transformations -> no need
+  remapper:
     default: none
-    
+
   processors:
     imputer:
       _target_: anemoi.models.preprocessing.imputer.ConstantImputer
       config: ${data.imputer}
-      
-    normalizer: #preprocessing, i.e. normalizing the data
+
+    normalizer:
       _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
       _convert_: all
       config: ${data.normalizer}
-  num_features: null  # number of features in the forecast state
 
- # ============# ============# ============# ============# ============
- # ============# ============# ============# ============# ============
-dataloader: #is also not changed for a different configuration
-# Settings for loading data during training/testing
-  prefetch_factor: 2 # Number of batches to load in advance per worker thread.
+  num_features: null
+
+# ============================================================
+# DATALOADER
+# ============================================================
+dataloader:
+  prefetch_factor: 2
   pin_memory: true
   read_group_size: ${hardware.num_gpus_per_model}
+
   num_workers:
-    training: 6
-    validation: 8
-    test: 8
-    predict: 8
-  batch_size:
     training: 2
     validation: 2
     test: 2
     predict: 2
 
-# Runs only N training batches [N = integer | null]
+  batch_size:
+    training: 1
+    validation: 1
+    test: 1
+    predict: 1
+
   limit_batches:
     training: null
     validation: null
     test: 20
     predict: 20
+
   grid_indices:
-    _target_: anemoi.training.data.grid_indices.FullGrid
-    nodes_name: ${graph.data}
+    _target_: anemoi.training.data.grid_indices.MaskedGrid
+    nodes_name: data
+    node_attribute_name: indices_connected_nodes
 
   dataset:
-    dataset:  ${hardware.files.datasets.outer}
+    dataset:
+      cutout:
+        - dataset: ${hardware.files.datasets.inner}
+        - dataset: ${hardware.files.datasets.outer}
+      min_distance_km: 0
+      adjust: all
     select:
-    # === 3D ATMOSPHERIC STATE (Input Features) ===
-    - u_1000
-    - v_1000
-    - u_950
-    - v_950
-    - u_900
-    - v_900
-    - u_850
-    - v_850
-    - u_800
-    - v_800
-    - u_750
-    - v_750
-    - u_700
-    - v_700
-    - u_600
-    - v_600
-    - u_500
-    - v_500
-    # Temperature (K) at pressure levels (500 to 1000 hPa)
-    - t_1000
-    - t_950
-    - t_900
-    - t_850
-    - t_800
-    - t_750
-    - t_700
-    - t_600
-    - t_500
-    # Geopotential (m^2/s^2) and Mean Sea Level Pressure (Pa)
-    - z_1000
-    - z_950
-    - z_900
-    - z_850
-    - z_800
-    - z_750
-    - z_700
-    - z_600
-    - z_500
-    # Relative Humidity (%) 
-    - r_1000
-    - r_950
-    - r_900
-    - r_850
-    - r_800
-    - r_750
-    - r_700
-    - r_600
-    - r_500
-    # === SURFACE/STATIC/TIME VARIABLES ===
-    - msl
-    - mcc
-    - ws10 
-    - ws50
-    - ws100
-    - ws150
-    - ws200
-    - wdir10_cos
-    - wdir10_sin
-    - wdir_cos50
-    - wdir_sin50
-    - wdir_cos100
-    - wdir_sin100
-    - wdir_cos150
-    - wdir_sin150
-    - wdir_cos200
-    - wdir_sin200
-    - t2m # 2m Temperature
-    - surface_geopotential
-    - lsm # Land-Sea Mask- 
-    - mask
-    - insolation # Solar radiation 
-    - julian_day
-    - cos_latitude
-    - sin_latitude
-    - cos_longitude
-    - sin_longitude
-    - power
-    - turbines 
-    - capacity 
+      # === 3D ATMOSPHERIC STATE (Input Features) ===
+      - u_1000
+      - v_1000
+      - u_950
+      - v_950
+      - u_900
+      - v_900
+      - u_850
+      - v_850
+      - u_800
+      - v_800
+      - u_750
+      - v_750
+      - u_700
+      - v_700
+      - u_600
+      - v_600
+      - u_500
+      - v_500
+
+      - t_1000
+      - t_950
+      - t_900
+      - t_850
+      - t_800
+      - t_750
+      - t_700
+      - t_600
+      - t_500
+
+      - z_1000
+      - z_950
+      - z_900
+      - z_850
+      - z_800
+      - z_750
+      - z_700
+      - z_600
+      - z_500
+
+      - r_1000
+      - r_950
+      - r_900
+      - r_850
+      - r_800
+      - r_750
+      - r_700
+      - r_600
+      - r_500
+
+      # === SURFACE/STATIC/TIME VARIABLES ===
+      - msl
+      - mcc
+      - ws10
+      - ws50
+      - ws100
+      - ws150
+      - ws200
+      - wdir10_cos
+      - wdir10_sin
+      - wdir_cos50
+      - wdir_sin50
+      - wdir_cos100
+      - wdir_sin100
+      - wdir_cos150
+      - wdir_sin150
+      - wdir_cos200
+      - wdir_sin200
+      - t2m
+      - surface_geopotential
+      - lsm
+      - mask
+      - insolation
+      - julian_day
+      - cos_latitude
+      - sin_latitude
+      - cos_longitude
+      - sin_longitude
+      - power
+      - turbines
+      - capacity
+
   training:
-    dataset: ${hardware.files.datasets.outer}
-    start: "2020-01-01"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2020-10-01"
     end: "2024-01-31"
     frequency: ${data.frequency}
     drop: []
-  validation_rollout: 1 # number of rollouts to use for validation, must be equal or greater than rollout expected by callbacks
+
+  validation_rollout: 1
+
   validation:
-    dataset: ${hardware.files.datasets.outer}
+    dataset: ${dataloader.dataset.dataset}
     start: "2024-02-01"
     end: "2024-07-31"
     frequency: ${data.frequency}
     drop: []
+
   test:
-    dataset: ${hardware.files.datasets.outer}
+    dataset: ${dataloader.dataset.dataset}
     start: "2024-08-01"
     end: "2025-07-31"
     frequency: ${data.frequency}
- # ============# ============# ============# ============# ============
- # ============# ============# ============# ============# ============
-#configures how model performance is analyzed visually and numerically.
-#three default yaml files: plot, callbacks and benchmark_profiler
-#shouldn't change between configurations
-diagnostics: #This section controls how model performance is analyzed:
+
+# ============================================================
+# DIAGNOSTICS
+# ============================================================
+diagnostics:
   plot:
     asynchronous: true
     datashader: true
@@ -218,40 +308,23 @@ diagnostics: #This section controls how model performance is analyzed:
       batch: 500
       epoch: 2
     parameters:
-    - z_500
-    - t_850
-    - t2m
-    - ws100
-    - power
-
+      - z_500
+      - t_850
+      - t2m
+      - ws100
+      - power
     sample_idx: 0
     precip_and_related_fields: []
-    callbacks: {}
-  callbacks: {}
-  # benchmark_profiler:
-  #   memory:
-  #     enabled: true
-  #     steps: 5
-  #     warmup: 2
-  #     extra_plots: false
-  #     trace_rank0_only: false
-  #   time:
-  #     enabled: true
-  #     verbose: true
-  #   speed:
-  #     enabled: true
-  #   system:
-  #     enabled: true
-  #   model_summary:
-  #     enabled: true
-  #   snapshot:
-  #     enabled: true
-  #     steps: 4
-  #     warmup: 0
+    callbacks: []
+
+  callbacks: []
+
   debug:
     anomaly_detection: false
+
   profiler: false
   enable_checkpointing: true
+
   checkpoint:
     every_n_minutes:
       save_frequency: 60
@@ -262,6 +335,7 @@ diagnostics: #This section controls how model performance is analyzed:
     every_n_train_steps:
       save_frequency: null
       num_models_saved: 0
+
   log:
     wandb:
       enabled: false
@@ -271,174 +345,139 @@ diagnostics: #This section controls how model performance is analyzed:
       entity: "University of Antwerp"
       gradients: false
       parameters: false
+
     tensorboard:
       enabled: true
+
     mlflow:
       enabled: false
-      # offline: false
-      # authentication: true
-      # log_model: false
-      # tracking_uri: https://mlflow.ecmwf.int
-      # experiment_name: ${oc.env:EXP_NAME}
-      # project_name: anemoi
-      # system: true
-      # terminal: true
-      # run_name: ${oc.decode:${oc.env:RUN_NAME}}
-      # on_resume_create_child: true
-      # expand_hyperparams:
-      # - config
+      offline: false
+      authentication: false
+      log_model: false
+      tracking_uri: "file:${hardware.paths.logs.mlflow}"
+      experiment_name: "disabled"
+      project_name: "disabled"
+      system: true
+      terminal: true
+      run_name: null
+      on_resume_create_child: true
+      expand_hyperparams:
+        - config
+
     interval: 100
+
   enable_progress_bar: true
   print_memory_summary: false
-# ============# ============# ============# ============# ============
-# ============# ============# ============# ============# ============
-hardware:  #change the output depending on the configuration!
-  paths:
-    data: /mnt/data/weatherloss/WindPower/data/NorthSea/Anemoidatasets
-    output: /mnt/data/weatherloss/WindPower/training/Transformer
-    logs:
-      base: ${hardware.paths.output}/logs
-      wandb: ${hardware.paths.logs.base}
-      mlflow: ${hardware.paths.logs.base}/mlflow
-      tensorboard: ${hardware.paths.logs.base}/tensorboard
-    checkpoints: ${hardware.paths.output}/checkpoint
-    plots: ${hardware.paths.output}/plots
-    profiler: ${hardware.paths.output}/profiler/
-    graph: ${hardware.paths.output}/graphs/
-    warm_start: null #${hardware.paths.output}/checkpoint/TransfNoL2
-  files:
-    datasets:
-        inner: ${hardware.paths.data}/cerra_inner_Anemoi.zarr
-        outer: ${hardware.paths.data}/cerra_outer_Anemoi.zarr
-    graph: "/mnt/data/weatherloss/WindPower/graphs/tryout.pt"
-    truncation: null
-    truncation_inv: null
-    checkpoint:
-      every_n_epochs: anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}
-      every_n_train_steps: anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}
-      every_n_minutes: anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}
-    warm_start: null #last.ckpt 
-  accelerator: gpu # auto
-  num_gpus_per_node: 4  #  ${oc.decode:${oc.env:SLURM_GPUS_PER_NODE, 1}}
-  num_nodes: 1 # ${oc.decode:${oc.env:SLURM_NNODES, 1}}
-  num_gpus_per_model: 1   #  or 4 depending on performance
 
- # ============# ============# ============# ============# ============
- # ============# ============# ============# ============# ============ 
+# ============================================================
+# GRAPH
+# ============================================================
 graph:
   overwrite: true
   data: data
   hidden: hidden
-  #### JOB SCRIPT SETTINGS ####
 
-# Anemoi-graphs config
   nodes:
-    # Data nodes
     data:
       node_builder:
-        _target_: anemoi.graphs.nodes.AnemoiDatasetNodes #node builder
+        _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
             - dataset: ${hardware.files.datasets.inner}
-              #thinning: 25
             - dataset: ${hardware.files.datasets.outer}
           min_distance_km: 0
           adjust: all
       attributes:
         area_weight:
-          _target_: anemoi.graphs.nodes.attributes.UniformWeights # options: Area, Uniform
-          norm: unit-max # options: l1, l2, unit-max, unit-sum, unit-std
+          _target_: anemoi.graphs.nodes.attributes.UniformWeights
+          norm: unit-max
         cutout:
           _target_: anemoi.graphs.nodes.attributes.CutOutMask
         boundary:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
-          masks: 
-            _target_: anemoi.graphs.nodes.attributes.CutOutMask #marks true for the boundary
+          masks:
+            _target_: anemoi.graphs.nodes.attributes.CutOutMask
         turbine_mask:
           _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
-          variable: mask 
-        
-        
-  # Hidden nodes
+          variable: mask
+
     hidden:
       node_builder:
         _target_: anemoi.graphs.nodes.LimitedAreaTriNodes
-        resolution: 9 
+        resolution: 9
         reference_node_name: data
-        mask_attr_name: cutout #inner region 
-        margin_radius_km: 600 #(default is 100km)
+        mask_attr_name: cutout
+        margin_radius_km: 300
 
   edges:
-# Encoder configuration
-  - source_name: data
-    target_name: hidden
-    edge_builders:
-    - _target_: anemoi.graphs.edges.KNNEdges
-      num_nearest_neighbours:  12
-      source_mask_attr_name: cutout
-    - _target_: anemoi.graphs.edges.CutOffEdges # connects only boundary nodes
-      cutoff_factor: 4 # only for cutoff method, sets the cut off radius 
-      source_mask_attr_name: boundary
-    attributes:
-      edge_length:
-        _target_: anemoi.graphs.edges.attributes.EdgeLength
-        norm: unit-max
-      edge_dirs:
-        _target_: anemoi.graphs.edges.attributes.EdgeDirection
-        norm: unit-std
-  # Processor configuration
-  - source_name: hidden
-    target_name: hidden
-    edge_builders:
-    - _target_: anemoi.graphs.edges.MultiScaleEdges
-      x_hops: 1
-      scale_resolutions: 9
-    attributes:
-      edge_length:
-        _target_: anemoi.graphs.edges.attributes.EdgeLength
-        norm: unit-max
-      edge_dirs:
-        _target_: anemoi.graphs.edges.attributes.EdgeDirection
-        norm: unit-std
-  # Decoder configuration
-  - source_name: hidden
-    target_name: data
-    edge_builders:
-    - _target_: anemoi.graphs.edges.KNNEdges
-      target_mask_attr_name: cutout
-      num_nearest_neighbours: 3
-    attributes:
-      edge_length:
-        _target_: anemoi.graphs.edges.attributes.EdgeLength
-        norm: unit-max
-      edge_dirs:
-        _target_: anemoi.graphs.edges.attributes.EdgeDirection
-        norm: unit-std
+    - source_name: data
+      target_name: hidden
+      edge_builders:
+        - _target_: anemoi.graphs.edges.KNNEdges
+          num_nearest_neighbours: 12
+          source_mask_attr_name: cutout
+        - _target_: anemoi.graphs.edges.CutOffEdges
+          cutoff_factor: 4
+          source_mask_attr_name: boundary
+      attributes:
+        edge_length:
+          _target_: anemoi.graphs.edges.attributes.EdgeLength
+          norm: unit-max
+        edge_dirs:
+          _target_: anemoi.graphs.edges.attributes.EdgeDirection
+          norm: unit-std
+
+    - source_name: hidden
+      target_name: hidden
+      edge_builders:
+        - _target_: anemoi.graphs.edges.MultiScaleEdges
+          x_hops: 1
+          scale_resolutions: 9
+      attributes:
+        edge_length:
+          _target_: anemoi.graphs.edges.attributes.EdgeLength
+          norm: unit-max
+        edge_dirs:
+          _target_: anemoi.graphs.edges.attributes.EdgeDirection
+          norm: unit-std
+
+    - source_name: hidden
+      target_name: data
+      edge_builders:
+        - _target_: anemoi.graphs.edges.KNNEdges
+          target_mask_attr_name: cutout
+          num_nearest_neighbours: 3
+      attributes:
+        edge_length:
+          _target_: anemoi.graphs.edges.attributes.EdgeLength
+          norm: unit-max
+        edge_dirs:
+          _target_: anemoi.graphs.edges.attributes.EdgeDirection
+          norm: unit-std
 
   post_processors:
     - _target_: anemoi.graphs.processors.RestrictEdgeLength
       source_name: data
       target_name: hidden
-      max_length_km: 30
+      max_length_km: 50
       source_mask_attr_name: cutout
-      
+
     - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
       nodes_name: data
-      #ignore: cutout # optional
-      save_mask_indices_to_attr: indices_connected_nodes # optional
- # ============# ============# ============# ============# ============
- # ============# ============# ============# ============# ============
+      save_mask_indices_to_attr: indices_connected_nodes
 
+# ============================================================
+# MODEL
+# ============================================================
 model:
-  num_channels: 128
+  num_channels: 256
   cpu_offload: false
-  
+
   model:
     _target_: anemoi.models.models.AnemoiModelEncProcDec
 
   keep_batch_sharded: true
 
-  # central place to declare kernels / activations (replaces the old "activation:" string)
   layer_kernels:
     LayerNorm:
       _target_: torch.nn.LayerNorm
@@ -453,17 +492,15 @@ model:
       _target_: anemoi.models.layers.normalization.AutocastLayerNorm
       bias: false
 
-  # === Processor / Encoder / Decoder ===
-
   processor:
     _target_: anemoi.models.layers.processor.TransformerProcessor
     num_layers: 8
     num_chunks: 4
     mlp_hidden_ratio: 2 # GraphTransformer or Transformer only
     num_heads: 8 # GraphTransformer or Transformer only
-    window_size: 64
+    window_size: 128
     dropout_p: 0.0 # GraphTransformer
-    attention_implementation: flash_attention # Possible values:      scaled_dot_product_attention, flash_attention
+    attention_implementation:  scaled_dot_product_attention # Possible values:      scaled_dot_product_attention, flash_attention
     qk_norm: False # Transformer and GraphTransformer only
     softcap: 0.0 # Transformer only
     cpu_offload: ${model.cpu_offload}
@@ -473,33 +510,27 @@ model:
     _target_: anemoi.models.layers.mapper.GraphTransformerForwardMapper
     trainable_size: ${model.trainable_parameters.data2hidden}
     sub_graph_edge_attributes: ${model.attributes.edges}
-    num_chunks: 4
-    mlp_hidden_ratio: 2 # GraphTransformer or Transformer only
-    num_heads: 8 # GraphTransformer or Transformer only
-    qk_norm: False
+    num_chunks: 1
+    mlp_hidden_ratio: 2
+    num_heads: 8
+    qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
-
-
 
   decoder:
     _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
-    num_chunks: 4
-    mlp_hidden_ratio: 2 # GraphTransformer or Transformer only
-    num_heads: 8 # GraphTransformer or Transformer only
-    initialise_data_extractor_zero: False
-    qk_norm: False
+    num_chunks: 1
+    mlp_hidden_ratio: 2
+    num_heads: 8
+    initialise_data_extractor_zero: false
+    qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
-  # no masking by default in the new template
 
   output_mask:
     _target_: anemoi.training.utils.masks.NoOutputMask
-    # nodes_name: data
-    # attribute_name: turbine_mask
-    # variables: power 
 
   trainable_parameters:
     data: 8
@@ -510,71 +541,61 @@ model:
 
   attributes:
     edges:
-    - edge_length
-    - edge_dirs
+      - edge_length
+      - edge_dirs
     nodes: []
 
-
-  bounding: 
-    - _target_: anemoi.models.layers.bounding.ReluBounding #[0, infinity)
+  bounding:
+    - _target_: anemoi.models.layers.bounding.ReluBounding
       variables:
-        - mask 
-        - mcc 
+        - mask
+        - mcc
         - r
         - turbines
-        - capacity 
-    - _target_: anemoi.models.layers.bounding.HardtanhBounding #[0, 1)
+        - capacity
+
+    - _target_: anemoi.models.layers.bounding.HardtanhBounding
       variables:
         - power
-      min_val: 0.0  # Normalized minimum value (0 power)
-      max_val: 1.0  # Normalized maximum value (full capacity)
-        
+      min_val: 0.0
+      max_val: 1.0
 
-
- # ============# ============# ============# ============# ============
- # ============# ============# ============# ============# ============
+# ============================================================
+# TRAINING
+# ============================================================
 training:
-# Several scalers can be added here. In order to be applied their names must be included in the loss.
-# scaler name must be included in `scalers` in the losses for this to be applied.
-
-  run_id: null #TransfWithL2
+  run_id: TransformerHuber256 #null #42aaa6a7-6516-4cc9-b5cd-454c1a9f006b
   fork_run_id: null
   load_weights_only: false
-  transfer_learning: null # activate to perform transfer learning
-  
-  deterministic: false #force right order
-  
+  transfer_learning: null
+
+  deterministic: false
   precision: 16-mixed
-  
-  # multistep input
-# 1 = single step scheme, X(t-1) used to predict X(t)
-# k > 1: multistep scheme, uses [X(t-k), X(t-k+1), ... X(t-1)] to predict X(t)
-# Deepmind use k = 2 in their model
+
   multistep_input: 2
   accum_grad_batches: 1
   num_sanity_val_steps: 6
-  
+
   gradient_clip:
     val: 32.0
     algorithm: value
-    
+
   swa:
     enabled: false
-    lr: 0.0001 #not used 
-    
+    lr: 0.0001
+
   optimizer:
-    zero: False # use ZeroRedundancyOptimizer ; saves memory for larger models
-    kwargs:
-      betas: [0.9, 0.95]
+    _target_: torch.optim.AdamW
+    betas: [0.9, 0.95]
 
   model_task: anemoi.training.train.tasks.GraphForecaster
-  
+
   strategy:
-      _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
-      num_gpus_per_model: ${hardware.num_gpus_per_model}
-      read_group_size: ${dataloader.read_group_size}
-      
-  loss_gradient_scaling: False
+    _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
+    num_gpus_per_model: ${hardware.num_gpus_per_model}
+    read_group_size: ${dataloader.read_group_size}
+
+  loss_gradient_scaling: false
 
   scalers:
     turbine_node_weights:
@@ -582,101 +603,74 @@ training:
       nodes_name: ${graph.data}
       nodes_attribute_name: turbine_mask
       norm: null
-    
-    # loss function for the model
+
   training_loss:
-      # loss class to initialise
-    _target_: anemoi.training.losses.combined.CombinedLoss
-    loss_weights: [1.0, 0] 
-    losses:
-      - _target_: anemoi.training.losses.HuberLoss
-        scalers: ['pressure_level','variable','nan_mask_weights','node_weights'] #['pressure_level','general_variable','nan_mask_weights','node_weights']
-        ignore_nans: True
-      - _target_: anemoi.training.losses.HuberLoss
-        scalers: ['pressure_level','variable','node_weights', 'nan_mask_weights', 'turbine_node_weights']
-        ignore_nans: True
-
-
+    _target_: anemoi.training.losses.HuberLoss
+    scalers: ['pressure_level', 'general_variable', 'nan_mask_weights', 'node_weights']
+    ignore_nans: true
 
   validation_metrics:
-  # loss class to initialise
     huber:
       _target_: anemoi.training.losses.HuberLoss
-    # Scalers to include in loss calculation
-    # Cannot scale over the variable dimension due to possible remappings.
-    # Available scalers include:
-    # - 'loss_weights_mask': Giving imputed NaNs a zero weight in the loss function
-    # Use the `scale_validation_metrics` section to variable scale.
       scalers: ['node_weights']
-    # other kwargs
-      ignore_nans: True
+      ignore_nans: true
 
-    
   variable_groups:
     default: sfc
     pl:
       param: []
-    
 
   scale_validation_metrics:
-    scalars_to_apply:
-    - variable
-    metrics:
-    - all
+    scalars_to_apply: []
+    metrics: []
+
   rollout:
-    start: 1 # change for finetuning 2
-    epoch_increment: 0 #change for finetuning
-    max: 1 #change for finetuning 
-  max_epochs: 10   
-  max_steps: 20000 #260000  
+    start: 1
+    epoch_increment: 1
+    max: 8
+
+  max_epochs: 25
+  max_steps: 135000
+
   lr:
-  # Set this value depending on the number of GPUs you're using
-  # global_lr = local_lr * num_gpus / gpus_per_model
-    rate: 6.25e-4
-  # Alternatives:
-  # rate: 2.5e-4     # for 1 GPU
-  # rate: 1.25e-4    # for 2 GPUs
-  # rate  0.83e-4    # for 3 GPU's
-  # rate  6.25e-5    # for 4 GPU's
-  # rate: 4.1667e-5  # for 6 GPUs
-  # rate: 3.125e-5   # for 8 GPUs 
-    #   # Changes in per-gpu batch_size should come with a rescaling of the local_lr
-#   # in order to keep a constant global_lr
-#   # global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+    rate: 1.25e-4
     iterations: ${training.max_steps}
     min: 3.0e-07
     warmup_t: 1000
+
   variable_loss_scaling:
     default: 1
-    pl: 
-      r: 0.6 #0.6 #0.3
-      t: 6 #6 #3
-      u: 0.8 #0.8 #0.4
-      v: 0.5 #0.5 #0.25
-      z: 12 #12 #0.5 
-    sfc:   
+    pl:
+      r: 0.6
+      t: 6
+      u: 0.8
+      v: 0.5
+      z: 12
+    sfc:
       ws100: 1.5
-      power: 1.5
-    
-        # cp: 0.0025
-  metrics: 
+      power: 5
+
+  metrics:
     - power
     - ws100
     - z_850
     - t_850
     - u_850
     - v_850
+
   submodules_to_freeze: []
+
   pressure_level_scaler:
     _target_: anemoi.training.data.scaling.ReluPressureLevelScaler
     minimum: 0.2
     slope: 0.001
+
   node_loss_weights:
     _target_: anemoi.training.losses.nodeweights.GraphNodeAttribute
     target_nodes: data
-    node_attribute: area_weight
+    node_attribute: turbine_mask #area_weight #turbine_mask
+config_validation: false
 
-config_validation: False #sanity check config files 
 
 
  

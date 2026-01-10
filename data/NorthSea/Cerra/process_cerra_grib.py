@@ -27,15 +27,15 @@ import xarray as xr
 DATA_DIR = Path("/mnt/data/weatherloss/WindPower/data")
 RAW_GRIB_DIR = DATA_DIR / "cerra_boz" / "raw_grib"
 OUT_DIR = DATA_DIR / "NorthSea" / "Cerra"
-OUT_ZARR = OUT_DIR / "cerra_crop.zarr"
+OUT_ZARR = OUT_DIR / "cerra_crop_2019.zarr"
 
 # Spatial window (same as crop.ipynb; larger than original BOZ)
 LAT_MIN, LAT_MAX = 49.0, 59.0
 LON_MIN, LON_MAX = -6.0, 12.0
 
 # Time window to keep
-T_START = "2020-01-01"
-T_END = "2025-07-31 21:00"
+T_START = "2019-01-01 00:00"
+T_END = "2019-12-31 21:00"
 
 
 # --- Utility Functions ---

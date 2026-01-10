@@ -1,10 +1,13 @@
-checkpoint: /mnt/data/weatherloss/WindPower/training/RegularWeather/checkpoint/Regular/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/99bea89a-0012-4f75-b5b8-bd65db4240b4/inference-last.ckpt
 lead_time: 72
-date: "2025-07-31T21:00:00"
-input: test
+date: "2024-07-31T21:00:00"
+input:
+  dataset:
+    dataset:
+      cutout:
+        - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_HR_A.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_LR_A.zarr
+      min_distance_km: 0
+      adjust: all
 output:
-  netcdf: Regular/forecast_20250731210000.nc
-runner:
-  external_graph:
-    graph: /mnt/data/weatherloss/WindPower/graphs/tryout.pt
-    updated_number_of_grid_points: x
+  netcdf: CI/Transformer/forecast_20240731210000.nc

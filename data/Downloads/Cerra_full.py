@@ -6,7 +6,7 @@ import xarray as xr
 import cfgrib
 
 # ===================== Config =====================
-OUT_ROOT = "/mnt/data/weatherloss/WindPower/data/cerra_boz"
+OUT_ROOT = "/mnt/weatherloss/WindPower/data/cerra_boz"
 RAW_DIR  = os.path.join(OUT_ROOT, "raw_grib")
 NC_DIR   = os.path.join(OUT_ROOT, "nc_boz")
 os.makedirs(RAW_DIR, exist_ok=True)
@@ -14,8 +14,8 @@ os.makedirs(NC_DIR,  exist_ok=True)
 # Toggle cropping/NetCDF generation
 DO_CROP = False
 # Years & cadence
-YEARS  = ["2025"]   # 2020..2025 inclusive
-MONTHS = [f"{m:02d}" for m in range(1, 8)]
+YEARS  = ["2018"]   # 2020..2025 inclusive
+MONTHS = [f"{m:02d}" for m in range(1, 13)]
 TIMES  = ["00:00","03:00","06:00","09:00","12:00","15:00","18:00","21:00"]
 
 # Training domain (deg)
