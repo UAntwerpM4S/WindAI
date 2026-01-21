@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/99bea89a-0012-4f75-b5b8-bd65db4240b4/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/d40d790a-fb4f-4f16-a785-2703030e4778/inference-anemoi-by_epoch-epoch_012-step_150000.ckpt
 lead_time: 72
-date: "2024-07-31T21:00:00"
+date: "2024-08-31T21:00:00"
 input:
   dataset:
     dataset:
@@ -10,4 +10,4 @@ input:
       min_distance_km: 0
       adjust: all
 output:
-  netcdf: CI/Transformer/forecast_20240731210000.nc
+  netcdf: CI/TFtest2/forecast_20240831210000.nc

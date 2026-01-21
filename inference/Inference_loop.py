@@ -3,13 +3,13 @@ import subprocess
 from datetime import datetime, timedelta
 
 # Common forecasting window
-start_date = datetime(2020, 10, 1, 0)
-end_date = datetime(2025, 7, 31, 21)
+start_date = datetime(2024, 8, 1, 0)
+end_date = datetime(2024, 8, 31, 21)
 interval = timedelta(hours=3)
 
-ckpt_dir = "/mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/8276a997-e9e2-4382-89ef-ae78f97ac47c"
+ckpt_dir = "/mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/d40d790a-fb4f-4f16-a785-2703030e4778"
 checkpoints = { 
-"CI/GraphTransformer": "inference-last.ckpt"
+"CI/TFtest2": "inference-anemoi-by_epoch-epoch_012-step_150000.ckpt",
 }
 
 for tag, ckpt_name in checkpoints.items():

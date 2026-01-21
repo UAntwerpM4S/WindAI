@@ -24,8 +24,8 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/Northsea.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/5f04ff8a-6e18-4f1e-82e4-57871016750e/last.ckpt
-    # /mnt/weatherloss/WindPower/training/synthetic/GraphTransformer/checkpoint/GraphTransformerLatePower/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/c99b8cca-8c60-4189-ae6b-c49711c21f7b/anemoi-by_epoch-epoch_012-step_150000.ckpt
+
 
   output:
     root: /mnt/weatherloss/WindPower/training/CI/GNN
@@ -173,8 +173,8 @@ dataloader:
     predict: 1
 
   limit_batches:
-    training: null
-    validation: null
+    training: 1000
+    validation: 10
     test: 20
     predict: 20
 
@@ -555,7 +555,7 @@ model:
 # TRAINING
 # ============================================================
 training:
-  run_id: 5f04ff8a-6e18-4f1e-82e4-57871016750e
+  run_id: c99b8cca-8c60-4189-ae6b-c49711c21f7b
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -618,16 +618,16 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 8
+    max: 6
 
   max_epochs: 25
-  max_steps: 185000
+  max_steps: 156000
 
   lr:
-    rate: 2.5e-4
-    iterations: ${training.max_steps}
+    rate: 8.0e-07
+    iterations: 6000
     min: 3.0e-07
-    warmup_t: 1000
+    warmup_t: 100
 
   variable_loss_scaling:
     default: 1

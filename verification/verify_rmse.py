@@ -10,12 +10,11 @@ import pandas as pd
 import xarray as xr
 
 # -------------------- USER SETTINGS --------------------
-TARGET_VAR = "t2m"  # "t2m", "ws10", "ws100"
+TARGET_VAR = "ws10" # "ws100"
 
 FORECAST_DIRS: List[Path] = [
-    Path("/mnt/weatherloss/WindPower/inference/CI/GraphTransformer"),
-    Path("/mnt/weatherloss/WindPower/inference/CI/Transformer"),
-    Path("/mnt/weatherloss/WindPower/inference/CI/GNN"),
+    Path("/mnt/weatherloss/WindPower/inference/CI/TFtest1"),
+    Path("/mnt/weatherloss/WindPower/inference/CI/TFtest2")
 ]
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Cerra/cerra_CI_HR.zarr")
@@ -23,7 +22,7 @@ PLOT_DIR = Path("CI_plots")
 
 LEAD_HOURS: List[int] = list(range(3, 73, 3))
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-28 21:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2024-08-31 21:00:00", tz="UTC")
 
 # Nearest-neighbor acceptance threshold (truth point kept only if ALL dirs have a forecast point within this distance)
 MAX_DIST_KM = 5.0
@@ -186,6 +185,38 @@ def plot_rmse(results: List[Tuple[str, pd.DataFrame]], out_path: Path) -> None:
     plt.savefig(out_path, dpi=200)
     print(f"Saved: {out_path}")
 
+def parse_pressure_level_var(name: str) -> tuple[str, float] | tuple[None, None]:
+    """
+    If name looks like 'z_500' or 'u_850', return ('z', 500.0).
+    Otherwise return (None, None).
+    """
+    m = re.match(r"^(?P<base>[A-Za-z]\w*)_(?P<lev>\d{3,4})$", name)
+    if not m:
+        return (None, None)
+    return (m.group("base"), float(m.group("lev")))
+
+def truth_dataarray(ds_truth: xr.Dataset, target_var: str) -> xr.DataArray:
+    """
+    Returns a DataArray shaped (time, y, x) for truth, regardless of whether
+    target_var is surface (e.g. ws100) or pressure-level (e.g. z_500).
+    """
+    base, lev = parse_pressure_level_var(target_var)
+
+    # Surface-style variable exists directly
+    if target_var in ds_truth.data_vars:
+        return ds_truth[target_var]
+
+    # Pressure-level style: ds_truth has base var with 'level' dim
+    if base is not None and base in ds_truth.data_vars and "level" in ds_truth[base].dims:
+        # Prefer exact match; if float formatting differs, nearest is safer
+        # (you can remove method="nearest" if you want strict exact matching)
+        return ds_truth[base].sel(level=lev, method="nearest")
+
+    raise KeyError(
+        f"Truth dataset has no variable '{target_var}'. "
+        f"Tried direct '{target_var}', and level mapping '{base}' @ {lev}."
+    )
+
 
 def main() -> None:
     start, end = to_utc(INIT_START), to_utc(INIT_END)
@@ -236,8 +267,19 @@ def main() -> None:
             ds_fc.close()
 
             # Truth: select only needed times, then stack y,x, then pick truth_keep_idx
+            tr_da = truth_dataarray(ds_truth, TARGET_VAR)
+            tr_da = truth_dataarray(ds_truth, TARGET_VAR)
+
             tr = (
-                ds_truth[TARGET_VAR]
+                tr_da
+                .sel(time=times_sel)
+                .stack(values=("y", "x"))
+                .isel(values=truth_keep_idx)
+    .values
+)
+
+            tr = (
+                tr_da
                 .sel(time=times_sel)
                 .stack(values=("y", "x"))
                 .isel(values=truth_keep_idx)
