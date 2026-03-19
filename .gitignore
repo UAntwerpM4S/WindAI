@@ -9,6 +9,8 @@
 *.html
 *.pt
 *.pyc
+*.npy 
+*.png 
 
 #Checkpoints
 *.ckpt
@@ -39,8 +41,16 @@ data/NorthSea/Power/Belgium
 data/NorthSea/Power/UK
 graphs/tryout_viz
 inference/*
-
-
+training/CI/GNN/checkpoint
+training/CI/GNN/logs
+training/CI/GNN/outputs
+training/CI/GraphTransformer/checkpoint
+training/CI/GraphTransformer/logs
+training/CI/GraphTransformer/outputs
+training/CI/Transformer/checkpoint
+training/CI/Transformer/logs
+training/CI/Transformer/outputs
+training/EGU26
 
 #Env 
 .env

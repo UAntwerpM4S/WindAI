@@ -1,0 +1,163 @@
+description: ERA5 (raw zarr) -> Anemoi
+allow_nans: true
+dates:
+  start: "2015-01-01T00:00:00"
+  end:   "2025-07-31T21:00:00"
+  frequency: 3h
+
+build:
+  group_by: daily
+  variable_naming: param_levelist
+
+input:
+  join:
+
+    # ------------------------------------------------------------------
+    # 1) Static fields: lsm + z_sfc, repeated over time
+    # IMPORTANT: use z_sfc (surface geopotential), NOT z (pressure-level geopotential)
+    # ------------------------------------------------------------------
+    - repeated-dates:
+        mode: constant
+        source:
+          pipe:
+            - xarray-zarr:
+                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+                param: [lsm, z_sfc]
+                flavour:
+                  levtype: sfc
+                  rules:
+                    time:      { name: time }
+                    latitude:  { name: latitude }
+                    longitude: { name: longitude }
+
+    # ------------------------------------------------------------------
+    # 2) Pressure-level fields
+    # Explicit levtype so Anemoi doesn't try to infer it and fail
+    # ------------------------------------------------------------------
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            param: [z, t, u, v, q]
+            flavour:
+              levtype: pl
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+                level:     { name: level }   # or isobaricInhPa if you didn't rename
+
+    # ------------------------------------------------------------------
+    # 3) Surface + 100m winds: u/v -> ws + wdir (degrees) -> radians -> sin/cos
+    # ------------------------------------------------------------------
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            param: [t2m, mcc, msl, u10, v10, u100, v100]
+            flavour:
+              levtype: sfc
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+
+        - uv-to-ddff:
+            u_component: u10
+            v_component: v10
+            wind_speed: ws10
+            wind_direction: wdir10
+            convention: meteo
+            radians: false
+
+        - uv-to-ddff:
+            u_component: u100
+            v_component: v100
+            wind_speed: ws100
+            wind_direction: wdir100
+            convention: meteo
+            radians: false
+
+        # degrees -> radians
+        - rescale:
+            param: wdir10
+            scale: 0.017453292519943295
+            offset: 0.0
+        - rescale:
+            param: wdir100
+            scale: 0.017453292519943295
+            offset: 0.0
+
+        # OPTIONAL nudge
+        - rescale:
+            param: wdir10
+            scale: 1.0
+            offset: -0.0001
+        - rescale:
+            param: wdir100
+            scale: 1.0
+            offset: -0.0001
+
+        - cos-sin-from-rad:
+            param: wdir10
+            cos_param: wdir10_cos
+            sin_param: wdir10_sin
+        - cos-sin-from-rad:
+            param: wdir100
+            cos_param: wdir100_cos
+            sin_param: wdir100_sin
+
+    # ------------------------------------------------------------------
+    # 4) Forcings
+    # ------------------------------------------------------------------
+    - pipe:
+        - forcings:
+            template: ${input.join.1.pipe.0.xarray-zarr}
+            param:
+              - cos_latitude
+              - cos_longitude
+              - sin_latitude
+              - sin_longitude
+              - sin_julian_day
+              - cos_julian_day
+              - insolation
+
+    # ------------------------------------------------------------------
+    # 5) Turbine / capacity / power variables
+    # ------------------------------------------------------------------
+    - repeated-dates:
+        mode: constant
+        source:
+          pipe:
+            - xarray-zarr:
+                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+                param: [capacity, turbinemask, turbinecount]
+                flavour:
+                  levtype: sfc
+                  rules:
+                    time:      { name: time }
+                    latitude:  { name: latitude }
+                    longitude: { name: longitude }
+
+    # 5b) power already has time
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            param: [power]
+            flavour:
+              levtype: sfc
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+output:
+  remapping:
+    param_level: "{param}_{levelist}"
+
+statistics:
+    start: "2020-01-01T00:00:00"
+    end:   "2023-12-31T21:00:00"
+    allow_nans: [power, turbinecount, turbinemask, capacity]
+
+
+
+
+

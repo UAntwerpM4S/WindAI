@@ -1,6 +1,6 @@
 checkpoint: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW/inference-anemoi-by_time-epoch_011-step_156000.ckpt
 lead_time: 72
-date: "2024-08-06T12:00:00"
+date: "2024-08-11T09:00:00"
 input:
   dataset:
     dataset:
@@ -10,4 +10,4 @@ input:
       min_distance_km: 0
       adjust: all
 output:
-  netcdf: CI/GT156/forecast_20240806120000.nc
+  netcdf: CI/GT156/forecast_20240811090000.nc

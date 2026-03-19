@@ -1,0 +1,23 @@
+AlstomHaliade -> https://en.wind-turbine-models.com/turbines/139-alstom-haliade-150, https://www.thewindpower.net/turbine_en_815_alstom-power_haliade-150.php 
+https://www.sciencedirect.com/topics/earth-and-planetary-sciences/offshore-wind (no rated, took 13.5 as an average)
+MHI Vestas V164-8.4  -> https://en.wind-turbine-models.com/turbines/1706-mhi-vestas-offshore-v164-8-3-mw (from 8.3!)
+MHIVestas-9.5-V164 -> https://www.thewindpower.net/turbine_en_1476_vestas_v164-9500
+MHIVestas-8.25-V164 -> https://en.wind-turbine-models.com/turbines/1706-mhi-vestas-offshore-v164-8-3-mw (from 8.3!)
+Repower-5 -> https://www.thewindpower.net/turbine_en_14_repower_5m.php?
+Repower 6.15 -> https://en.wind-turbine-models.com/turbines/885-senvion-6-2m126-offshore
+SiemensGamesaSG-8.4  https://www.thewindpower.net/turbine_en_1558_siemens-gamesa_sg-8.0-167-dd.php (same as 8 below)
+SiemensSG-8.0-167DD,  https://www.thewindpower.net/turbine_en_1558_siemens-gamesa_sg-8.0-167-dd.php 
+SiemensSWT-3.6-107 https://www.thewindpower.net/turbine_en_20_siemens_swt-3.6-107.php
+SiemensSWT-3.6-120 https://www.thewindpower.net/turbine_en_79_siemens_swt-3.6-120.php
+SiemensSWT-6.0-120 https://www.thewindpower.net/turbine_en_770_siemens_swt-6.0-120.php
+SiemensSWT-6.0-154 https://www.thewindpower.net/turbine_en_807_siemens_swt-6.0-154.php
+SiemensSWT-7.0-154 https://www.thewindpower.net/turbine_en_1031_siemens_swt-7.0-154.php
+SiemensSWT-7.35-154 (same as https://www.thewindpower.net/turbine_en_1031_siemens_swt-7.0-154.php)
+Vestas-3.0-V112,3 https://www.thewindpower.net/turbine_en_413_vestas_v112-3000.php 
+Vestas-3.3-V112,3 https://www.thewindpower.net/turbine_en_351_mhi-vestas-offshore_v112-3300.php 
+Vestas-3.4-V112,3 https://www.thewindpower.net/turbine_en_1051_vestas_v112-3450.php 
+Vestas-8-V164,4 https://www.thewindpower.net/scripts/fpdf181/turbine.php?id=1056& 
+Vestas-9.5-V164 https://www.thewindpower.net/turbine_en_1476_vestas_v164-9500.php 
+Vestas-3-V90,3.5 https://www.thewindpower.net/turbine_en_33_vestas_v90-3000.php 
+
+https://osuked.github.io/Power-Station-Dictionary/objects/10233.html

@@ -1,0 +1,168 @@
+description: CERRA (raw zarr) -> Anemoi
+allow_nans: true
+
+dates:
+  start: "2024-01-01T00:00:00"
+  end:   "2024-01-31T21:00:00"
+  frequency: 3h
+
+build:
+  group_by: daily
+  variable_naming: param_levelist
+
+input:
+  join:
+
+    # ------------------------------------------------------------------
+    # 1) Static fields: lsm + z_sfc derived from orog, repeated over time
+    #    Ensure surface geopotential is named z_sfc (ERA5 convention)
+    # ------------------------------------------------------------------
+    - repeated-dates:
+        mode: constant
+        source:
+          pipe:
+            - xarray-zarr:
+                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+                param: [lsm, orog]
+                flavour:
+                  levtype: sfc
+                  rules:
+                    time:      { name: time }
+                    latitude:  { name: latitude }
+                    longitude: { name: longitude }
+
+            - orog-to-z:
+                orog: orog
+                output: z_sfc
+
+    # ------------------------------------------------------------------
+    # 2) Pressure-level fields (r -> q conversion)
+    # ------------------------------------------------------------------
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            param: [z, t, u, v, r]
+            flavour:
+              levtype: pl
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+                level:     { name: level }
+
+        - r-to-q:
+            humidity: q
+            relative_humidity: r
+            temperature: t
+            return_inputs: [temperature]
+
+    # ------------------------------------------------------------------
+    # 3) Surface + 100m winds
+    #    si10 -> ws10
+    #    wdir degrees -> radians -> sin/cos
+    #    mcc: percent -> fraction (match ERA5)
+    # ------------------------------------------------------------------
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            param: [t2m, mcc, msl, si10, wdir10, ws100, wdir100]
+            flavour:
+              levtype: sfc
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+
+        - rename:
+            param:
+              si10: ws10
+
+        # mcc % -> fraction (0..1)
+        - rescale:
+            param: mcc
+            scale: 0.01
+            offset: 0.0
+
+        # degrees -> radians
+        - rescale:
+            param: wdir10
+            scale: 0.017453292519943295
+            offset: 0.0
+
+        - rescale:
+            param: wdir100
+            scale: 0.017453292519943295
+            offset: 0.0
+
+        # Optional tiny nudge
+        - rescale:
+            param: wdir10
+            scale: 1.0
+            offset: -0.0001
+
+        - rescale:
+            param: wdir100
+            scale: 1.0
+            offset: -0.0001
+
+        - cos-sin-from-rad:
+            param: wdir10
+            cos_param: wdir10_cos
+            sin_param: wdir10_sin
+
+        - cos-sin-from-rad:
+            param: wdir100
+            cos_param: wdir100_cos
+            sin_param: wdir100_sin
+
+    # ------------------------------------------------------------------
+    # 4) Forcings
+    # ------------------------------------------------------------------
+    - pipe:
+        - forcings:
+            template: ${input.join.1.pipe.0.xarray-zarr}
+            param:
+              - cos_latitude
+              - cos_longitude
+              - sin_latitude
+              - sin_longitude
+              - sin_julian_day
+              - cos_julian_day
+              - insolation
+
+
+    # 5a) Static turbine fields repeated over time
+    - repeated-dates:
+        mode: constant
+        source:
+          pipe:
+            - xarray-zarr:
+                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+                param: [capacity, turbinemask, turbinecount]
+                flavour:
+                  levtype: sfc
+                  rules:
+                    time:      { name: time }
+                    latitude:  { name: latitude }
+                    longitude: { name: longitude }
+
+    # 5b) Time-varying power
+    - pipe:
+        - xarray-zarr:
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            param: [power]
+            flavour:
+              levtype: sfc
+              rules:
+                time:      { name: time }
+                latitude:  { name: latitude }
+                longitude: { name: longitude }
+
+output:
+  remapping:
+    param_level: "{param}_{levelist}"
+
+statistics:
+    # start: "2020-01-01T00:00:00"
+    # end:   "2023-12-31T21:00:00"
+    allow_nans: [power, turbinecount, turbinemask, capacity]

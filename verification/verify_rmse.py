@@ -1,302 +1,211 @@
-from __future__ import annotations
-import re
-from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
-from scipy.spatial import cKDTree  # type: ignore
 
-import matplotlib.pyplot as plt
+"""
+Verify RMSE vs lead time against CERRA truth.
+Nearest-neighbor mapping built once (CERRA -> forecast), then reused.
+Supports multiple variables and multiple forecast directories.
+One plot per variable; each directory is a separate curve.
+Only init times present in ALL directories are used (fair comparison).
+"""
+
+from pathlib import Path
+import re
 import numpy as np
 import pandas as pd
 import xarray as xr
+import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 
-# -------------------- USER SETTINGS --------------------
-TARGET_VAR = "ws10" # "ws100"
+# -------------------- SETTINGS --------------------
+TARGET_VARS = ["ws100"] #, "ws100","z_500"]   # <-- add/remove variables here
 
-FORECAST_DIRS: List[Path] = [
-    Path("/mnt/weatherloss/WindPower/inference/CI/TFtest1"),
-    Path("/mnt/weatherloss/WindPower/inference/CI/TFtest2")
-]
+# Dict of label -> directory.  Each entry becomes one curve per plot.
+FORECAST_DIRS = {
+    "GraphTransformer":  Path("/mnt/weatherloss/WindPower/inference/CI/GraphTransformerNew"),
+    #"Transformer":  Path("/mnt/weatherloss/WindPower/inference/CI/TransformerNew"),
+        "GNN150":    Path("/mnt/weatherloss/WindPower/inference/CI/GNN150"),
+         "GNN156":    Path("/mnt/weatherloss/WindPower/inference/CI/GNN156"),
+}
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Cerra/cerra_CI_HR.zarr")
-PLOT_DIR = Path("CI_plots")
+CERRA_PATH  = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+OUT_DIR     = Path("CI_plots")
 
-LEAD_HOURS: List[int] = list(range(3, 73, 3))
-INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2024-08-31 21:00:00", tz="UTC")
-
-# Nearest-neighbor acceptance threshold (truth point kept only if ALL dirs have a forecast point within this distance)
-MAX_DIST_KM = 5.0
-# -------------------------------------------------------
+INIT_START  = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
+INIT_END    = pd.Timestamp("2024-9-15 21:00:00", tz="UTC")
+LEAD_HOURS  = list(range(3, 73, 3))
+MAX_DIST_KM = 2.0   # drop CERRA points with no nearby forecast point
+# --------------------------------------------------
 
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")
 
 
-def parse_init_time(path: Path) -> pd.Timestamp:
-    return pd.to_datetime(FORECAST_FILE_RE.search(path.name).group(1), format="%Y%m%d%H%M%S", utc=True)
-
-
-def to_utc(ts: pd.Timestamp) -> pd.Timestamp:
-    ts = pd.Timestamp(ts)
-    return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
-
-
-def list_forecast_files(d: Path, start: pd.Timestamp, end: pd.Timestamp) -> List[Path]:
-    start, end = to_utc(start), to_utc(end)
-    out = []
-    for f in sorted(d.glob("forecast_*.nc")):
-        it = parse_init_time(f)
-        if start <= it <= end:
-            out.append(f)
-    return out
-
-
-def common_init_times(dirs: Sequence[Path], start: pd.Timestamp, end: pd.Timestamp) -> List[pd.Timestamp]:
-    sets = []
-    for d in dirs:
-        sets.append({parse_init_time(f) for f in list_forecast_files(d, start, end)})
-    return sorted(set.intersection(*sets))
-
-
-def init_to_file_map(d: Path, inits: Sequence[pd.Timestamp], start: pd.Timestamp, end: pd.Timestamp) -> Dict[pd.Timestamp, Path]:
-    files = list_forecast_files(d, start, end)
-    m = {parse_init_time(f): f for f in files}
-    return {it: m[it] for it in inits}
-
-
-def lonlat_to_xy_km(lon: np.ndarray, lat: np.ndarray, lat0: float) -> np.ndarray:
-    """
-    Fast local projection (equirectangular) to kilometers.
-    Good for regional domains like North Sea.
-    """
-    R_km = 6371.0
-    lon = np.asarray(lon, float)
-    lat = np.asarray(lat, float)
-    lat0_rad = np.deg2rad(lat0)
-
-    x = R_km * np.deg2rad(lon) * np.cos(lat0_rad)
-    y = R_km * np.deg2rad(lat)
-    return np.column_stack([x, y])
-
-
-def build_truth_points(ds_truth: xr.Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Returns:
-      truth_lat_flat (N,)
-      truth_lon_flat (N,)
-      truth_xy_km (N,2)
-    """
-    lat2d = ds_truth["latitude"].values
-    lon2d = ds_truth["longitude"].values
-    lat = lat2d.reshape(-1)
-    lon = lon2d.reshape(-1)
-    lat0 = float(np.nanmean(lat))
-    xy = lonlat_to_xy_km(lon, lat, lat0)
-    return lat, lon, xy
-
-
-def build_forecast_points(sample_file: Path, lat0: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Returns:
-      fc_lat (M,)
-      fc_lon (M,)
-      fc_xy_km (M,2)
-    """
-    with xr.open_dataset(sample_file) as ds:
-        lat = ds["latitude"].values
-        lon = ds["longitude"].values
-    xy = lonlat_to_xy_km(lon, lat, lat0)
-    return lat, lon, xy
-
-
-def nearest_mapping_all_dirs(
-    ds_truth: xr.Dataset,
-    files_by_dir: Dict[Path, Dict[pd.Timestamp, Path]],
-    inits: Sequence[pd.Timestamp],
-    max_dist_km: float,
-) -> Tuple[np.ndarray, Dict[Path, np.ndarray], np.ndarray]:
-    """
-    Build nearest-neighbor mapping from truth points -> forecast 'values' indices for each directory.
-    Keeps only truth points where ALL directories have nearest distance <= max_dist_km.
-
-    Returns:
-      truth_keep_idx (K,) indices into flattened truth (y,x)
-      dir_fc_idx[d]  (K,) indices into forecast 'values' for that directory
-      keep_dist_km   (K,) max distance across dirs for each kept truth point
-    """
-    truth_lat, truth_lon, truth_xy = build_truth_points(ds_truth)
-    lat0 = float(np.nanmean(truth_lat))
-
-    # Build a KD-tree per dir using its grid from a representative forecast file (first init)
-    first_init = inits[0]
-    dir_fc_idx_full: Dict[Path, np.ndarray] = {}
-    dir_dist_full: Dict[Path, np.ndarray] = {}
-
-    
-
-    for d in files_by_dir:
-        sample = files_by_dir[d][first_init]
-        _, _, fc_xy = build_forecast_points(sample, lat0)
-        tree = cKDTree(fc_xy)
-        dist, idx = tree.query(truth_xy, k=1)
-        dir_fc_idx_full[d] = idx.astype(np.int64)
-        dir_dist_full[d] = dist.astype(np.float64)
-
-
-
-    # Keep truth points that are close enough in *all* dirs
-    max_dist = np.zeros(truth_xy.shape[0], dtype=np.float64)
-    ok = np.ones(truth_xy.shape[0], dtype=bool)
-    for d in files_by_dir:
-        ok &= dir_dist_full[d] <= max_dist_km
-        max_dist = np.maximum(max_dist, dir_dist_full[d])
-
-    truth_keep_idx = np.where(ok)[0].astype(np.int64)
-    keep_dist_km = max_dist[truth_keep_idx]
-
-    dir_fc_idx = {d: dir_fc_idx_full[d][truth_keep_idx] for d in files_by_dir}
-
-    return truth_keep_idx, dir_fc_idx, keep_dist_km
-
-
-def aggregate_by_lead(dfs: List[pd.DataFrame], lead_hours: Sequence[int]) -> pd.DataFrame:
-    all_df = pd.concat(dfs, ignore_index=True)
-    out = all_df.groupby("lead_hours", as_index=False).agg(count=("RMSE", "size"), RMSE=("RMSE", "mean"))
-    req = pd.DataFrame({"lead_hours": sorted(set(map(int, lead_hours)))})
-    return req.merge(out, on="lead_hours", how="left").sort_values("lead_hours")
-
-def save_rmse_csv(results: List[Tuple[str, pd.DataFrame]], out_dir: Path, var: str) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for label, df in results:
-        out_path = out_dir / f"rmse_{var}_{label}.csv"
-        df.to_csv(out_path, index=False)
-        print(f"Saved RMSE table: {out_path}")
-
-def plot_rmse(results: List[Tuple[str, pd.DataFrame]], out_path: Path) -> None:
-    plt.figure(figsize=(7.5, 4.2))
-    for label, df in results:
-        plt.plot(df["lead_hours"], df["RMSE"], marker="o", lw=1.8, label=label)
-    plt.title(f"RMSE vs Lead Time for {TARGET_VAR}", fontsize=12)
-    plt.xlabel("Lead time [hours]")
-    plt.ylabel("RMSE")
-    plt.grid(True, ls="--", alpha=0.6)
-    plt.legend()
-    plt.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_path, dpi=200)
-    print(f"Saved: {out_path}")
-
-def parse_pressure_level_var(name: str) -> tuple[str, float] | tuple[None, None]:
-    """
-    If name looks like 'z_500' or 'u_850', return ('z', 500.0).
-    Otherwise return (None, None).
-    """
-    m = re.match(r"^(?P<base>[A-Za-z]\w*)_(?P<lev>\d{3,4})$", name)
-    if not m:
-        return (None, None)
-    return (m.group("base"), float(m.group("lev")))
-
-def truth_dataarray(ds_truth: xr.Dataset, target_var: str) -> xr.DataArray:
-    """
-    Returns a DataArray shaped (time, y, x) for truth, regardless of whether
-    target_var is surface (e.g. ws100) or pressure-level (e.g. z_500).
-    """
-    base, lev = parse_pressure_level_var(target_var)
-
-    # Surface-style variable exists directly
-    if target_var in ds_truth.data_vars:
-        return ds_truth[target_var]
-
-    # Pressure-level style: ds_truth has base var with 'level' dim
-    if base is not None and base in ds_truth.data_vars and "level" in ds_truth[base].dims:
-        # Prefer exact match; if float formatting differs, nearest is safer
-        # (you can remove method="nearest" if you want strict exact matching)
-        return ds_truth[base].sel(level=lev, method="nearest")
-
-    raise KeyError(
-        f"Truth dataset has no variable '{target_var}'. "
-        f"Tried direct '{target_var}', and level mapping '{base}' @ {lev}."
+def parse_init(path: Path) -> pd.Timestamp:
+    return pd.to_datetime(
+        FORECAST_FILE_RE.search(path.name).group(1),
+        format="%Y%m%d%H%M%S", utc=True
     )
 
 
-def main() -> None:
-    start, end = to_utc(INIT_START), to_utc(INIT_END)
+def to_xy(lon, lat):
+    lat0 = np.deg2rad(np.mean(lat))
+    R = 6371.0
+    return np.column_stack([
+        R * np.deg2rad(lon) * np.cos(lat0),
+        R * np.deg2rad(lat)
+    ])
 
-    # 1) Common init times
-    inits = common_init_times(FORECAST_DIRS, start, end)
-    print(f"Common init runs across all dirs: {len(inits)}")
 
-    filemaps = {d: init_to_file_map(d, inits, start, end) for d in FORECAST_DIRS}
+def build_index_mapping(fc_lat, fc_lon, cerra_lat, cerra_lon, max_dist_km):
+    tree = cKDTree(to_xy(fc_lon, fc_lat))
+    dist, fc_idx = tree.query(to_xy(cerra_lon, cerra_lat), k=1)
+    ok = dist <= max_dist_km
+    print(f"  CERRA cells matched within {max_dist_km} km: {ok.sum()} / {len(ok)}")
+    print(f"  Max distance among matched points: {dist[ok].max():.4f} km")
+    return np.where(ok)[0], fc_idx[ok]
 
-    # 2) Open truth once
-    ds_truth = xr.open_zarr(CERRA_PATH)
 
-    # 3) Build nearest mapping truth->forecast per dir, keep only points close in all dirs
-    truth_keep_idx, dir_fc_idx, keep_dist_km = nearest_mapping_all_dirs(ds_truth, filemaps, inits, MAX_DIST_KM)
-    print(f"Truth grid points total: {ds_truth.dims['y'] * ds_truth.dims['x']}")
-    print(f"Kept truth points (<= {MAX_DIST_KM} km in all dirs): {len(truth_keep_idx)}")
-    print(f"Nearest-distance stats over kept points [km]: min={keep_dist_km.min():.3f}, "
-          f"median={np.median(keep_dist_km):.3f}, max={keep_dist_km.max():.3f}")
+def collect_rmse(files, var, cerra_keep, fc_indices, cerra_dates, ds_cerra, var_idx):
+    """Loop over forecast files and collect per-lead RMSE for one variable."""
+    lead_rmse = {lh: [] for lh in LEAD_HOURS}
 
-    # Precompute truth variable stacked (but only select needed times per run below)
-    lead_keep = set(map(int, LEAD_HOURS))
-    results: List[Tuple[str, pd.DataFrame]] = []
+    for fpath in files:
+        init = parse_init(fpath)
+        ds_fc = xr.open_dataset(fpath)
+        fc_times = pd.to_datetime(ds_fc["time"].values).tz_localize("UTC")
 
-    for d in FORECAST_DIRS:
-        per_run: List[pd.DataFrame] = []
-
-        fc_values_idx = dir_fc_idx[d]  # (K,)
-
-        for it in inits:
-            fpath = filemaps[d][it]
-            ds_fc = xr.open_dataset(fpath)
-
-            valid_times = pd.to_datetime(ds_fc["time"].values)  # naive
-            valid_utc = valid_times.tz_localize("UTC")
-            leads = ((valid_utc - it) / np.timedelta64(1, "h")).astype(int)
-
-            tmask = np.isin(leads, list(lead_keep))
-            if not np.any(tmask):
-                ds_fc.close()
+        for lh in LEAD_HOURS:
+            valid = init + pd.Timedelta(hours=lh)
+            if valid not in fc_times:
+                continue
+            if valid not in cerra_dates:
                 continue
 
-            times_sel = valid_times[tmask]
-            leads_sel = leads[tmask].astype(int)
+            t_fc = int(np.where(fc_times == valid)[0][0])
+            t_tr = int(np.where(cerra_dates == valid)[0][0])
 
-            # Forecast: (time, values) -> pick our nearest-mapped values
-            fc = ds_fc[TARGET_VAR].isel(time=tmask, values=fc_values_idx).values  # (T, K)
-            ds_fc.close()
+            fc_vals = ds_fc[var].isel(time=t_fc).values[fc_indices]
+            tr_vals = ds_cerra["data"].isel(
+                time=t_tr, variable=var_idx, ensemble=0
+            ).values[cerra_keep]
 
-            # Truth: select only needed times, then stack y,x, then pick truth_keep_idx
-            tr_da = truth_dataarray(ds_truth, TARGET_VAR)
-            tr_da = truth_dataarray(ds_truth, TARGET_VAR)
+            rmse = float(np.sqrt(np.nanmean((fc_vals - tr_vals) ** 2)))
+            lead_rmse[lh].append(rmse)
 
-            tr = (
-                tr_da
-                .sel(time=times_sel)
-                .stack(values=("y", "x"))
-                .isel(values=truth_keep_idx)
-    .values
-)
+        ds_fc.close()
 
-            tr = (
-                tr_da
-                .sel(time=times_sel)
-                .stack(values=("y", "x"))
-                .isel(values=truth_keep_idx)
-                .values
-            )  # (T, K)
+    leads     = sorted(lead_rmse)
+    mean_rmse = [np.mean(lead_rmse[lh]) if lead_rmse[lh] else np.nan for lh in leads]
+    counts    = [len(lead_rmse[lh]) for lh in leads]
+    return pd.DataFrame({"lead_hours": leads, "RMSE": mean_rmse, "n_inits": counts})
 
-            rmse = np.sqrt(np.nanmean((fc - tr) ** 2, axis=1))
-            per_run.append(pd.DataFrame({"lead_hours": leads_sel, "RMSE": rmse.astype(float)}))
 
-        results.append((d.name, aggregate_by_lead(per_run, LEAD_HOURS)))
+def main():
+    # --- open CERRA once ---
+    ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
+    cerra_vars  = list(ds_cerra.attrs["variables"])
+    cerra_lat   = ds_cerra["latitudes"].values
+    cerra_lon   = ds_cerra["longitudes"].values
+    cerra_dates = pd.to_datetime(ds_cerra["dates"].values).tz_localize("UTC")
 
-    ds_truth.close()
+    for var in TARGET_VARS:
+        if var not in cerra_vars:
+            raise ValueError(f"Variable '{var}' not found in CERRA. Available: {cerra_vars}")
 
-    stamp = pd.Timestamp.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    out = PLOT_DIR / f"rmse_{TARGET_VAR}_{stamp}.png"
-    save_rmse_csv(results, PLOT_DIR, TARGET_VAR)
-    plot_rmse(results, out)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # --- build mapping once (shared grid) ---
+    print("\n--- Building nearest-neighbour mapping (shared grid) ---")
+    first_file = None
+    for fc_dir in FORECAST_DIRS.values():
+        candidates = sorted(fc_dir.glob("forecast_*.nc"))
+        candidates = [f for f in candidates
+                      if len(xr.open_dataset(f).data_vars) > 0
+                      and INIT_START <= parse_init(f) <= INIT_END]
+        if candidates:
+            first_file = candidates[0]
+            break
+
+    if first_file is None:
+        raise RuntimeError("No valid forecast files found in any directory.")
+
+    ds0 = xr.open_dataset(first_file)
+    cerra_keep, fc_indices = build_index_mapping(
+        ds0["latitude"].values, ds0["longitude"].values,
+        cerra_lat, cerra_lon, MAX_DIST_KM
+    )
+    ds0.close()
+
+    # --- collect file lists per directory (init -> path) ---
+    dir_file_maps = {}
+    for label, fc_dir in FORECAST_DIRS.items():
+        print(f"\n--- Directory: {label} ({fc_dir}) ---")
+        files = sorted(fc_dir.glob("forecast_*.nc"))
+        files = [f for f in files
+                 if len(xr.open_dataset(f).data_vars) > 0
+                 and INIT_START <= parse_init(f) <= INIT_END]
+        print(f"  Valid forecast files in period: {len(files)}")
+        if not files:
+            print("  WARNING: no files found, skipping.")
+            continue
+        dir_file_maps[label] = {parse_init(f): f for f in files}
+
+    if not dir_file_maps:
+        raise RuntimeError("No valid forecast files found in any directory.")
+
+    # --- intersect init times across all directories ---
+    common_inits = sorted(set.intersection(*(set(m.keys()) for m in dir_file_maps.values())))
+    print(f"\n--- Overlapping init times across all directories: {len(common_inits)} ---")
+    for label, fmap in dir_file_maps.items():
+        n_dropped = len(fmap) - len(common_inits)
+        print(f"  {label}: {len(fmap)} total, {n_dropped} dropped (not in all dirs)")
+
+    dir_data = {
+        label: [fmap[t] for t in common_inits]
+        for label, fmap in dir_file_maps.items()
+    }
+
+    colors = plt.cm.tab10.colors
+    markers = ["o", "s", "^", "D", "v", "P", "X", "*", "<", ">"]
+
+    for var in TARGET_VARS:
+        var_idx = cerra_vars.index(var)
+        print(f"\n=== Variable: {var} ===")
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        dfs = {}
+        for i, (label, files) in enumerate(dir_data.items()):
+            print(f"  Processing directory: {label}")
+            df = collect_rmse(files, var, cerra_keep, fc_indices,
+                            cerra_dates, ds_cerra, var_idx)
+            dfs[label] = df
+            print(df.to_string(index=False))
+
+            ax.plot(
+                df["lead_hours"], df["RMSE"],
+                marker=markers[i % len(markers)],   # different marker
+                lw=1,
+                color=colors[i % len(colors)],
+                label=label
+            )
+
+        ax.set_title(f"RMSE vs Lead Time — {var}  (n={len(common_inits)} inits)", fontsize=13)
+        ax.set_xlabel("Lead time [hours]")
+        ax.set_ylabel("RMSE [m/s]")
+        ax.legend(title="Run", framealpha=0.8)
+        ax.grid(True, ls="--", alpha=0.5)
+        fig.tight_layout()
+
+        out_png = OUT_DIR / f"rmse_test_{var}.png"
+        fig.savefig(out_png, dpi=150)
+        plt.close(fig)
+        print(f"  Saved: {out_png}")
+
+    for label, df in dfs.items():
+            safe_label = label.replace(" ", "_")
+            out_npy = OUT_DIR / f"rmse_{var}_{safe_label}.npy"
+            np.save(out_npy, df[["lead_hours", "RMSE"]].values)
+            print(f"  Saved: {out_npy}")
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":

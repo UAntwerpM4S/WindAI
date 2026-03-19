@@ -1,0 +1,62 @@
+projection: CERRA
+sup_title:
+  title: "UK BOZ"
+  y: 0.92
+  size: 30
+
+plot_info:
+  - sub_title:
+      title: "Overview: nodes only"
+      size: 20
+    extent: [1250000, -1500000, -500000, 250000]
+    zoom_box:
+      extent: [25000, -1125000, -175000, -925000]
+      linewidth: 1
+      edgecolor: "r"
+      facecolor: "none"
+    CERRA:
+      c: "green"
+      marker: "."
+      linestyle: "None"
+      s: 1
+      alpha: 0.5
+    ERA5:
+      c: "blue"
+      marker: "."
+      linestyle: "None"
+      s: 5
+      alpha: 0.5
+    HIDDEN:
+      c: "black"
+      marker: "."
+      linestyle: "None"
+      s: 0.1
+      alpha: 0.5
+
+  - sub_title:
+      title: "Zoom: nodes & edges"
+      size: 20
+    extent: [25000, -1125000, -175000, -925000]
+    zoom_box:
+      extent: [25000, -1125000, -175000, -925000]
+      linewidth: 10
+      edgecolor: "r"
+      facecolor: "none"
+    CERRA:
+      c: "green"
+      marker: "o"
+      linestyle: "None"
+      s: 1
+    ERA5:
+      c: "blue"
+      marker: "o"
+      linestyle: "None"
+      s: 10
+    HIDDEN:
+      c: "black"
+      marker: "o"
+      linestyle: "None"
+      s: 0.75
+    EDGES:
+      c: "gray"
+      lw: 1
