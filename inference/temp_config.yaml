@@ -1,13 +1,13 @@
-checkpoint: /mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/d40d790a-fb4f-4f16-a785-2703030e4778/inference-anemoi-by_epoch-epoch_012-step_150000.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW/inference-anemoi-by_time-epoch_011-step_156000.ckpt
 lead_time: 72
-date: "2024-08-31T21:00:00"
+date: "2024-08-06T12:00:00"
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_HR_A.zarr
-        - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_LR_A.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
       min_distance_km: 0
       adjust: all
 output:
-  netcdf: CI/TFtest2/forecast_20240831210000.nc
+  netcdf: CI/GT156/forecast_20240806120000.nc

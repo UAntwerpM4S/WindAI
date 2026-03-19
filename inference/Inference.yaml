@@ -1,10 +1,107 @@
-checkpoint: "/mnt/weatherloss/WindPower/training/GraphTransformer/checkpoint/RegularLatePower/inference-last.ckpt"
-lead_time: 24
-date: "2024-08-15T09:00:00"
+# checkpoint: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW/inference-last.ckpt
+# lead_time: 24
+# date: "2025-04-15T06:00:00"
+# input:
+#   dataset:
+#     dataset:
+#       cutout:
+#         - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_HR_A.zarr
+#         - dataset: /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_CI_LR_A.zarr
+#       min_distance_km: 0
+#       adjust: all
+# output:
+#   netcdf: test.nc
+
+checkpoint: /mnt/weatherloss/WindPower/training/EGU26/checkpoint/NoPower/inference-last.ckpt
+lead_time: 12
+date: "2025-04-15T06:00:00"
+
 input:
   dataset:
     cutout:
-      - /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_HR_A.zarr
-      - /mnt/weatherloss/WindPower/data/NorthSea/Anemoidatasets/Cerra_LR_A.zarr
+      - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
+      - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
+    min_distance_km: 0
+    adjust: all
+
 output:
   netcdf: test.nc
+
+# checkpoint: /mnt/weatherloss/WindPower/training/EGU26/checkpoint/NoPower/inference-last.ckpt
+# lead_time: 12
+# date: "2025-04-15T06:00:00"
+
+# input: 
+#     dataset:
+#       dataset:
+#         cutout:
+#           - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
+#           - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
+#         min_distance_km: 0
+#         adjust: all
+#       select:
+#       - cos_julian_day
+#       - cos_latitude
+#       - cos_longitude
+#       - insolation
+#       - lsm
+#       - mcc
+#       - msl
+#       - q_1000
+#       - q_500
+#       - q_600
+#       - q_700
+#       - q_750
+#       - q_800
+#       - q_850
+#       - q_900
+#       - q_950
+#       - sin_julian_day
+#       - sin_latitude
+#       - sin_longitude
+#       - t2m
+#       - t_1000
+#       - t_500
+#       - t_600
+#       - t_700
+#       - t_750
+#       - t_800
+#       - t_850
+#       - t_900
+#       - t_950
+#       - u_1000
+#       - u_500
+#       - u_600
+#       - u_700
+#       - u_750
+#       - u_800
+#       - u_850
+#       - u_900
+#       - u_950
+#       - v_1000
+#       - v_500
+#       - v_600
+#       - v_700
+#       - v_750
+#       - v_800
+#       - v_850
+#       - v_900
+#       - v_950
+#       - wdir100_cos
+#       - wdir100_sin
+#       - wdir10_cos
+#       - wdir10_sin
+#       - ws10
+#       - ws100
+#       - z_1000
+#       - z_500
+#       - z_600
+#       - z_700
+#       - z_750
+#       - z_800
+#       - z_850
+#       - z_900
+#       - z_950
+#       - z_sfc
+# output:
+#   netcdf: test.nc
