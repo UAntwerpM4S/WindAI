@@ -99,6 +99,7 @@ def main() -> None:
         # per-cell threshold: value above which we consider "extreme"
         threshold = np.nanpercentile(truth_all, EXTREME_PERCENTILE, axis=0)  # (n_cells,)
         print(f"  Threshold range: {threshold.min():.3f} – {threshold.max():.3f}")
+        print(f"  Threshold mean across cells: {threshold.mean():.3f} m/s")
         del truth_all  # free memory
 
         for label in FORECAST_DIRS:
@@ -140,25 +141,14 @@ def main() -> None:
                 spatial_rmse = np.where(count > 0, np.sqrt(sum_sq / count), np.nan)
             spatial_rmse = spatial_rmse.astype(np.float32)
 
-            leads_arr = np.array(sorted(lead_to_idx))
-            ds_out = xr.Dataset(
-                {"rmse": (("lead_time", "cell"), spatial_rmse)},
-                coords={
-                    "lead_time": leads_arr,
-                    "latitude":  ("cell", ds_cerra["latitudes"].values.astype(np.float32)),
-                    "longitude": ("cell", ds_cerra["longitudes"].values.astype(np.float32)),
-                },
-                attrs={
-                    "model":      label,
-                    "variable":   var,
-                    "n_inits":    len(common_inits),
-                    "percentile": EXTREME_PERCENTILE,
-                    "definition": f"RMSE only where truth >= {EXTREME_PERCENTILE}th percentile per cell",
-                },
-            )
-            out_path = OUT_DIR / f"spatial_rmse_extreme_{var}_{label}.nc"
-            ds_out.to_netcdf(out_path)
-            print(f"  Saved: {out_path}")
+            # diagnostics only — no nc file saved
+            avg_count_per_cell = count.mean(axis=0)   # mean over leads -> (n_cells,)
+            print(f"  Avg count per cell (mean over leads):  {avg_count_per_cell.mean():.1f}")
+            print(f"  Avg count per cell (min  over leads):  {avg_count_per_cell.min():.1f}")
+            print(f"  Count at lead=3h  — mean/min over cells: "
+                  f"{count[lead_to_idx[3]].mean():.1f} / {count[lead_to_idx[3]].min()}")
+            print(f"  Count at lead=72h — mean/min over cells: "
+                  f"{count[lead_to_idx[72]].mean():.1f} / {count[lead_to_idx[72]].min()}")
 
     ds_cerra.close()
     print("\nDone.")
