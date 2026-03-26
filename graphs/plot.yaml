@@ -1,13 +1,13 @@
 projection: CERRA
 sup_title:
-  title: "UK BOZ"
+  title: ""
   y: 0.92
   size: 30
 
 plot_info:
   - sub_title:
       title: "Overview: nodes only"
-      size: 20
+      size: 25
     extent: [1250000, -1500000, -500000, 250000]
     zoom_box:
       extent: [25000, -1125000, -175000, -925000]
@@ -35,7 +35,7 @@ plot_info:
 
   - sub_title:
       title: "Zoom: nodes & edges"
-      size: 20
+      size: 25
     extent: [25000, -1125000, -175000, -925000]
     zoom_box:
       extent: [25000, -1125000, -175000, -925000]

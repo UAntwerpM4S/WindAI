@@ -24,7 +24,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTCIFINAL/last.ckpt
 
 
   output:
@@ -451,7 +451,7 @@ graph:
       edge_builders:
         - _target_: anemoi.graphs.edges.KNNEdges
           num_nearest_neighbours: 12
-
+          source_mask_attr_name: cutout
         - _target_: anemoi.graphs.edges.CutOffEdges
           #cutoff_factor: 0.75
           cutoff_distance_km: 15
@@ -593,7 +593,7 @@ model:
 # ============================================================
 
 training:
-  run_id: GTNEW
+  run_id: GTCIFINAL
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -649,6 +649,8 @@ training:
         w: 0.001
         z: 12
         mcc: 0.1
+        ws10: 2
+        ws100: 2 
 
 
     pressure_level:

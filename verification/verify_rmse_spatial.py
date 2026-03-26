@@ -1,7 +1,7 @@
 """
-Bias maps per lead time against CERRA truth.
-Grids are identical (24444 cells), so no spatial mapping needed.
+Spatial RMSE per lead time against CERRA truth.
 Output: one NetCDF per (variable, model) with shape (lead_time, cell).
+RMSE at each cell is computed across all common init times.
 """
 from __future__ import annotations
 
@@ -16,16 +16,16 @@ import xarray as xr
 TARGET_VARS = ["ws10", "ws100"]
 
 FORECAST_DIRS = {
-    "GNNCIFINAL": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCIFINAL"),
-    "GTCIFINAL":  Path("/mnt/weatherloss/WindPower/inference/CI/GTCIFINAL"),
-    "TFCIFINAL":  Path("/mnt/weatherloss/WindPower/inference/CI/TFCIFINAL"),
+    "GNNCI": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCI"),
+    "GTCI":  Path("/mnt/weatherloss/WindPower/inference/CI/GTCI"),
+    "TFCI":  Path("/mnt/weatherloss/WindPower/inference/CI/TFCI"),
 }
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(0, 73, 3))
-OUT_DIR    = Path("CI_bias_plots")
+OUT_DIR    = Path("CI_spatial_rmse")
 # --------------------------------------------------
 
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")
@@ -51,14 +51,12 @@ def main() -> None:
 
     ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
     cerra_vars  = list(ds_cerra.attrs["variables"])
-    cerra_dates = pd.to_datetime(ds_cerra["dates"].values)  # tz-naive
+    cerra_dates = pd.to_datetime(ds_cerra["dates"].values)
     n_cells     = ds_cerra.sizes["cell"]
 
     lead_to_idx = {lh: i for i, lh in enumerate(sorted(set(LEAD_HOURS)))}
     n_leads     = len(lead_to_idx)
 
-    # --- common init times across all directories ---
-    # iterate .items() so we use Path values, not label strings
     file_maps = {label: list_files(path, INIT_START, INIT_END)
                  for label, path in FORECAST_DIRS.items()}
 
@@ -67,17 +65,7 @@ def main() -> None:
     )
     print(f"Common init times: {len(common_inits)}")
 
-    # --- check CERRA coverage ---
     cerra_time_set = set(cerra_dates)
-    all_valid = {
-        init.replace(tzinfo=None) + pd.Timedelta(hours=lh)
-        for init in common_inits
-        for lh in LEAD_HOURS
-    }
-    missing = all_valid - cerra_time_set
-    if missing:
-        print(f"WARNING: {len(missing)} valid times missing from CERRA "
-              f"(e.g. {sorted(missing)[0]})")
 
     for var in TARGET_VARS:
         if var not in cerra_vars:
@@ -88,12 +76,14 @@ def main() -> None:
 
         for label in FORECAST_DIRS:
             print(f"  Processing: {label}")
-            sum_bias = np.zeros((n_leads, n_cells), dtype=np.float64)
-            count    = np.zeros((n_leads, n_cells), dtype=np.int64)
+
+            # accumulate squared errors and counts per (lead, cell)
+            sum_sq = np.zeros((n_leads, n_cells), dtype=np.float64)
+            count  = np.zeros((n_leads, n_cells), dtype=np.int64)
 
             for init in common_inits:
                 with xr.open_dataset(file_maps[label][init]) as ds_fc:
-                    fc_times = pd.to_datetime(ds_fc["time"].values)  # tz-naive
+                    fc_times = pd.to_datetime(ds_fc["time"].values)
                     leads_h  = (
                         (fc_times - init.replace(tzinfo=None)) / np.timedelta64(1, "h")
                     ).astype(int)
@@ -106,37 +96,36 @@ def main() -> None:
 
                         t_idx = int(np.where(cerra_dates == fc_times[i])[0][0])
 
-                        fc = ds_fc[var].isel(time=i).values  # (24444,)
+                        fc = ds_fc[var].isel(time=i).values        # (n_cells,)
                         tr = ds_cerra["data"].isel(
                             time=t_idx, variable=var_idx, ensemble=0
-                        ).values                              # (24444,)
+                        ).values                                    # (n_cells,)
 
-                        bias   = fc - tr
-                        finite = np.isfinite(bias)
+                        sq_err = (fc - tr) ** 2
+                        finite = np.isfinite(sq_err)
                         l_idx  = lead_to_idx[lh]
-                        sum_bias[l_idx] += np.where(finite, bias, 0.0)
-                        count[l_idx]    += finite.astype(np.int64)
+                        sum_sq[l_idx] += np.where(finite, sq_err, 0.0)
+                        count[l_idx]  += finite.astype(np.int64)
 
             with np.errstate(invalid="ignore"):
-                mean_bias = np.where(count > 0, sum_bias / count, np.nan)
-            mean_bias = mean_bias.astype(np.float32)  # (n_leads, n_cells)
+                spatial_rmse = np.where(count > 0, np.sqrt(sum_sq / count), np.nan)
+            spatial_rmse = spatial_rmse.astype(np.float32)  # (n_leads, n_cells)
 
             leads_arr = np.array(sorted(lead_to_idx))
             ds_out = xr.Dataset(
-                {"bias": (("lead_time", "cell"), mean_bias)},
+                {"rmse": (("lead_time", "cell"), spatial_rmse)},
                 coords={
                     "lead_time": leads_arr,
                     "latitude":  ("cell", ds_cerra["latitudes"].values.astype(np.float32)),
                     "longitude": ("cell", ds_cerra["longitudes"].values.astype(np.float32)),
                 },
                 attrs={
-                    "model":           label,
-                    "variable":        var,
-                    "bias_definition": "forecast - truth",
-                    "n_inits":         len(common_inits),
+                    "model":    label,
+                    "variable": var,
+                    "n_inits":  len(common_inits),
                 },
             )
-            out_path = OUT_DIR / f"bias_per_lead_{var}_{label}.nc"
+            out_path = OUT_DIR / f"spatial_rmse_{var}_{label}.nc"
             ds_out.to_netcdf(out_path)
             print(f"  Saved: {out_path}")
 

@@ -3,13 +3,11 @@ import subprocess
 from datetime import datetime, timedelta
 
 start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2024, 9, 15, 21)
+end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    "CI/GT156": ("/mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW", "inference-anemoi-by_time-epoch_011-step_156000.ckpt"),
-     "CI/GT150": ("/mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTNEW", "inference-anemoi-by_time-epoch_005-step_150000.ckpt"),
-
+    "CI/GTCIFINAL": ("/mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTCIFINAL", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -33,6 +31,7 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
 checkpoint: {checkpoint_path}
 lead_time: 72
 date: "{date_str}"
+device: cuda
 input:
   dataset:
     dataset:
@@ -42,7 +41,9 @@ input:
       min_distance_km: 0
       adjust: all
 output:
-  netcdf: {output_file}
+  extract_lam:      
+    output:
+      netcdf: {output_file}
 """)
 
         print(f"[{tag}] Running forecast for {date_str}")
