@@ -12,7 +12,7 @@ from scipy.spatial import cKDTree
 FORECAST_DIRS = {
    # "NoPower2":     Path("/mnt/weatherloss/WindPower/inference/EGU/NoPower2"),
     "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
-    #"LowPower":     Path("/mnt/weatherloss/WindPower/inference/EGU/LowPower"),
+    "Finetune":     Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
     "TinyPower":    Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
 }
 
@@ -21,8 +21,8 @@ METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_me
 OUT_DIR       = Path("power_plots")
 
 INIT_START  = pd.Timestamp("2024-08-03 00:00:00", tz="UTC")
-INIT_END    = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
-LEAD_HOURS  = list(range(3, 73, 3))
+INIT_END    = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
+LEAD_HOURS  = list(range(3, 31, 3))
 MAX_DIST_KM = 2.0
 # --------------------------------------------------
 

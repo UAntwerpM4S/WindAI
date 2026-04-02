@@ -19,15 +19,18 @@ from scipy.spatial import cKDTree
 START     = "2015-01-01T00:00:00"
 END       = "2025-09-30T21:00:00"
 
+2
 RAW_DIR   = Path("/mnt/weatherloss/WindPower/data/cerra_boz/raw_grib")
-OUT_ZARR  = Path("/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr")
+OUT_ZARR  = Path("/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr")
 
 POWER_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/BE_UK_offshore_per_unit_3H_meanMW_shifted.csv")
 META_CSV  = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 
 CROP      = True
-LAT_MIN, LAT_MAX = 48.5, 57.5
-LON_MIN, LON_MAX = -6.0, 5.0
+#LAT_MIN, LAT_MAX = 48.5, 57.5 #OLD
+#LON_MIN, LON_MAX = -6.0, 5.0
+LAT_MIN, LAT_MAX = 46, 60
+LON_MIN, LON_MAX = -11, 10
 
 VAR_MASK, VAR_TURB, VAR_CAP, VAR_POW          = "turbinemask", "turbinecount", "capacity", "power"
 COL_FARM, COL_LAT, COL_LON, COL_CAP, COL_TURB = "farm", "lat", "lon", "capacity_mw", "turbines"

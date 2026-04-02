@@ -26,9 +26,9 @@ from scipy.spatial import cKDTree
 # ---------------------------------------------------------------------------
 
 FORECAST_DIRS: List[Path] = [
-    Path("/mnt/weatherloss/WindPower/inference/EGU/NoPower"),
+  #  Path("/mnt/weatherloss/WindPower/inference/EGU/NoPower"),
     Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
-   # Path("/mnt/weatherloss/WindPower/inference/EGU/LowPower"),
+    Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
     Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
 ]
 

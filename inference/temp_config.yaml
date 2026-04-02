@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTCIFINAL/inference-last.ckpt
+checkpoint: //mnt/weatherloss/WindPower/training/EGU26/TinyPower/checkpoint/TinyPower/inference-last.ckpt
 lead_time: 72
-date: "2024-12-27T18:00:00"
+date: "2024-10-25T09:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: CI/GTCIFINAL/forecast_20241227180000.nc
+      netcdf: EGU/TinyPower/forecast_20241025090000.nc

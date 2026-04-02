@@ -3,11 +3,11 @@ import subprocess
 from datetime import datetime, timedelta
 
 start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2025, 7, 31, 21)
+end_date = datetime(2024, 10, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    "CI/GTCIFINAL": ("/mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTCIFINAL", "inference-last.ckpt"),
+    "EGU/TinyPower": ("//mnt/weatherloss/WindPower/training/EGU26/TinyPower/checkpoint/TinyPower", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():

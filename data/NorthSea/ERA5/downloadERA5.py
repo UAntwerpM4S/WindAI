@@ -24,7 +24,7 @@ import cdsapi
 # ===================== Config =====================
 # Put raw_grib next to this script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-RAW_DIR = os.path.join(SCRIPT_DIR, "raw_grib")
+RAW_DIR = os.path.join(SCRIPT_DIR, "raw_grib_large")
 os.makedirs(RAW_DIR, exist_ok=True)
 
 # ERA5 datasets
@@ -38,7 +38,7 @@ MONTHS = [f"{m:02d}" for m in range(1, 13)]
 TIMES  = ["00:00","03:00","06:00","09:00","12:00","15:00","18:00","21:00"]
 
 # Bounding box in CDS order: [North, West, South, East]
-AREA = [65, -15, 35, 25]
+AREA = [70, -25, 35, 25]
 
 # Pressure levels (hPa) as strings
 PRESSURE_LEVELS = ["500","600","700","750","800","850","900","950","1000"]
