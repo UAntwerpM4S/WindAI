@@ -48,8 +48,6 @@ def list_files(d: Path, start: pd.Timestamp, end: pd.Timestamp) -> dict[pd.Times
 
 
 def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
     ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
     cerra_vars  = list(ds_cerra.attrs["variables"])
     cerra_dates = pd.to_datetime(ds_cerra["dates"].values)
@@ -102,53 +100,40 @@ def main() -> None:
         print(f"  Threshold mean across cells: {threshold.mean():.3f} m/s")
         del truth_all  # free memory
 
-        for label in FORECAST_DIRS:
-            print(f"  Processing: {label}")
+        # count is model-independent (only depends on truth vs threshold)
+        # so compute it once using any one forecast for the timing/lead structure
+        first_label = next(iter(FORECAST_DIRS))
+        count = np.zeros((n_leads, n_cells), dtype=np.int64)
 
-            sum_sq = np.zeros((n_leads, n_cells), dtype=np.float64)
-            count  = np.zeros((n_leads, n_cells), dtype=np.int64)
+        for init in common_inits:
+            with xr.open_dataset(file_maps[first_label][init]) as ds_fc:
+                fc_times = pd.to_datetime(ds_fc["time"].values)
+                leads_h  = (
+                    (fc_times - init.replace(tzinfo=None)) / np.timedelta64(1, "h")
+                ).astype(int)
 
-            for init in common_inits:
-                with xr.open_dataset(file_maps[label][init]) as ds_fc:
-                    fc_times = pd.to_datetime(ds_fc["time"].values)
-                    leads_h  = (
-                        (fc_times - init.replace(tzinfo=None)) / np.timedelta64(1, "h")
-                    ).astype(int)
+                for i, lh in enumerate(leads_h):
+                    if lh not in lead_to_idx:
+                        continue
+                    if fc_times[i] not in cerra_time_set:
+                        continue
 
-                    for i, lh in enumerate(leads_h):
-                        if lh not in lead_to_idx:
-                            continue
-                        if fc_times[i] not in cerra_time_set:
-                            continue
+                    t_idx = int(np.where(cerra_dates == fc_times[i])[0][0])
+                    tr = ds_cerra["data"].isel(
+                        time=t_idx, variable=var_idx, ensemble=0
+                    ).values                              # (n_cells,)
 
-                        t_idx = int(np.where(cerra_dates == fc_times[i])[0][0])
+                    extreme_mask = tr >= threshold        # (n_cells,)
+                    l_idx = lead_to_idx[lh]
+                    count[l_idx] += extreme_mask.astype(np.int64)
 
-                        fc = ds_fc[var].isel(time=i).values   # (n_cells,)
-                        tr = ds_cerra["data"].isel(
-                            time=t_idx, variable=var_idx, ensemble=0
-                        ).values                              # (n_cells,)
-
-                        # mask: only cells where truth exceeds per-cell threshold
-                        extreme_mask = tr >= threshold        # (n_cells,)
-
-                        sq_err = (fc - tr) ** 2
-                        finite = np.isfinite(sq_err) & extreme_mask
-                        l_idx  = lead_to_idx[lh]
-                        sum_sq[l_idx] += np.where(finite, sq_err, 0.0)
-                        count[l_idx]  += finite.astype(np.int64)
-
-            with np.errstate(invalid="ignore"):
-                spatial_rmse = np.where(count > 0, np.sqrt(sum_sq / count), np.nan)
-            spatial_rmse = spatial_rmse.astype(np.float32)
-
-            # diagnostics only — no nc file saved
-            avg_count_per_cell = count.mean(axis=0)   # mean over leads -> (n_cells,)
-            print(f"  Avg count per cell (mean over leads):  {avg_count_per_cell.mean():.1f}")
-            print(f"  Avg count per cell (min  over leads):  {avg_count_per_cell.min():.1f}")
-            print(f"  Count at lead=3h  — mean/min over cells: "
-                  f"{count[lead_to_idx[3]].mean():.1f} / {count[lead_to_idx[3]].min()}")
-            print(f"  Count at lead=72h — mean/min over cells: "
-                  f"{count[lead_to_idx[72]].mean():.1f} / {count[lead_to_idx[72]].min()}")
+        avg_count_per_cell = count.mean(axis=0)   # mean over leads -> (n_cells,)
+        print(f"  Avg count per cell (mean over leads): {avg_count_per_cell.mean():.1f}")
+        print(f"  Avg count per cell (min  over leads): {avg_count_per_cell.min():.1f}")
+        print(f"  Count at lead=3h  — mean/min over cells: "
+              f"{count[lead_to_idx[3]].mean():.1f} / {count[lead_to_idx[3]].min()}")
+        print(f"  Count at lead=72h — mean/min over cells: "
+              f"{count[lead_to_idx[72]].mean():.1f} / {count[lead_to_idx[72]].min()}")
 
     ds_cerra.close()
     print("\nDone.")
