@@ -1,0 +1,6 @@
+[2026-03-17 08:53:15,781][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-03-17 08:53:15,781][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-03-17 08:53:15,782][anemoi.training.train.train][INFO] - Run id: 3b615ac2-b719-4dae-a46a-9abf2423a873
+[2026-03-17 08:53:15,782][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/3b615ac2-b719-4dae-a46a-9abf2423a873'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-03-17 08:53:15,782][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/NoPower/plots/3b615ac2-b719-4dae-a46a-9abf2423a873
+[2026-03-17 08:53:15,954][anemoi.training.train.train][INFO] - Loading graph data from /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph075.pt

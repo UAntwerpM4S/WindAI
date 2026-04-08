@@ -2,8 +2,8 @@ description: CERRA (raw zarr) -> Anemoi
 allow_nans: true
 
 dates:
-  start: "2024-01-01T00:00:00"
-  end:   "2024-01-31T21:00:00"
+  start: "2015-01-01T00:00:00"
+  end:   "2025-07-31T21:00:00"
   frequency: 3h
 
 build:
@@ -22,7 +22,7 @@ input:
         source:
           pipe:
             - xarray-zarr:
-                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
                 param: [lsm, orog]
                 flavour:
                   levtype: sfc
@@ -40,7 +40,7 @@ input:
     # ------------------------------------------------------------------
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
             param: [z, t, u, v, r]
             flavour:
               levtype: pl
@@ -64,7 +64,7 @@ input:
     # ------------------------------------------------------------------
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
             param: [t2m, mcc, msl, si10, wdir10, ws100, wdir100]
             flavour:
               levtype: sfc
@@ -137,7 +137,7 @@ input:
         source:
           pipe:
             - xarray-zarr:
-                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+                url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
                 param: [capacity, turbinemask, turbinecount]
                 flavour:
                   levtype: sfc
@@ -149,7 +149,7 @@ input:
     # 5b) Time-varying power
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGU_xy.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
             param: [power]
             flavour:
               levtype: sfc
@@ -163,6 +163,6 @@ output:
     param_level: "{param}_{levelist}"
 
 statistics:
-    # start: "2020-01-01T00:00:00"
-    # end:   "2023-12-31T21:00:00"
+    start: "2020-01-01T00:00:00"
+    end:   "2023-12-31T21:00:00"
     allow_nans: [power, turbinecount, turbinemask, capacity]

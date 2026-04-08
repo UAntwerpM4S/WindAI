@@ -1,0 +1,24 @@
+[2026-03-17 08:50:47,503][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-03-17 08:50:47,503][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-03-17 08:50:47,503][anemoi.training.train.train][INFO] - Run id: cfffb953-8080-475f-acba-ce91f104d823
+[2026-03-17 08:50:47,504][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/cfffb953-8080-475f-acba-ce91f104d823'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-03-17 08:50:47,504][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/NoPower/plots/cfffb953-8080-475f-acba-ce91f104d823
+[2026-03-17 08:50:47,622][anemoi.training.train.train][INFO] - Loading graph data from /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph075.pt
+[2026-03-17 08:50:48,068][anemoi.training.data.datamodule][WARNING] - Falling back rollout to: 1
+[2026-03-17 08:50:48,069][anemoi.training.data.datamodule][INFO] - Timeincrement set to 1 for data with frequency, 10800, and timestep, 10800
+[2026-03-17 08:50:48,069][anemoi.training.data.grid_indices][INFO] - The graph attribute indices_connected_nodes of the data nodes will be used to masking the spatial dimension.
+[2026-03-17 08:50:48,070][anemoi.training.train.train][INFO] - Number of data variables: 63
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Variables: ['cos_julian_day', 'cos_latitude', 'cos_longitude', 'insolation', 'lsm', 'mcc', 'msl', 'q_1000', 'q_500', 'q_600', 'q_700', 'q_750', 'q_800', 'q_850', 'q_900', 'q_950', 'sin_julian_day', 'sin_latitude', 'sin_longitude', 't2m', 't_1000', 't_500', 't_600', 't_700', 't_750', 't_800', 't_850', 't_900', 't_950', 'u_1000', 'u_500', 'u_600', 'u_700', 'u_750', 'u_800', 'u_850', 'u_900', 'u_950', 'v_1000', 'v_500', 'v_600', 'v_700', 'v_750', 'v_800', 'v_850', 'v_900', 'v_950', 'wdir100_cos', 'wdir100_sin', 'wdir10_cos', 'wdir10_sin', 'ws10', 'ws100', 'z_1000', 'z_500', 'z_600', 'z_700', 'z_750', 'z_800', 'z_850', 'z_900', 'z_950', 'z_sfc']
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Total number of prognostic variables: 51
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Total number of auxiliary variables: 12
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Total GPU count / model group size: 1 - NB: the learning rate will be scaled by this factor!
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Effective learning rate: 3.125e-05
+[2026-03-17 08:50:48,071][anemoi.training.train.train][INFO] - Training limits: max_epochs=20, max_steps=150000. Training will stop when either limit is reached first. Learning rate scheduler will run for 150000 steps.
+[2026-03-17 08:50:48,091][anemoi.models.migrations.migrator][INFO] - Loading migration 1755530253_initial
+[2026-03-17 08:50:48,091][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857427_deprecate_eda
+[2026-03-17 08:50:48,091][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857428_chunking_fix
+[2026-03-17 08:50:48,091][anemoi.models.migrations.migrator][INFO] - Loading migration 1763479917_hardware_schema_update
+[2026-03-17 08:50:48,123][anemoi.training.train.train][INFO] - TensorBoard logger enabled
+[2026-03-17 08:50:48,125][pytorch_lightning.utilities.rank_zero][INFO] - Using 16bit Automatic Mixed Precision (AMP)
+[2026-03-17 08:50:48,133][pytorch_lightning.utilities.rank_zero][INFO] - GPU available: True (cuda), used: True
+[2026-03-17 08:50:48,133][pytorch_lightning.utilities.rank_zero][INFO] - TPU available: False, using: 0 TPU cores

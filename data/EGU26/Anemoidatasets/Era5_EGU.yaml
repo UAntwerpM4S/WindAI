@@ -21,7 +21,7 @@ input:
         source:
           pipe:
             - xarray-zarr:
-                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr"
                 param: [lsm, z_sfc]
                 flavour:
                   levtype: sfc
@@ -36,7 +36,7 @@ input:
     # ------------------------------------------------------------------
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr"
             param: [z, t, u, v, q]
             flavour:
               levtype: pl
@@ -51,7 +51,7 @@ input:
     # ------------------------------------------------------------------
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr"
             param: [t2m, mcc, msl, u10, v10, u100, v100]
             flavour:
               levtype: sfc
@@ -128,7 +128,7 @@ input:
         source:
           pipe:
             - xarray-zarr:
-                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+                url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr"
                 param: [capacity, turbinemask, turbinecount]
                 flavour:
                   levtype: sfc
@@ -140,7 +140,7 @@ input:
     # 5b) power already has time
     - pipe:
         - xarray-zarr:
-            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr"
+            url: "/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr"
             param: [power]
             flavour:
               levtype: sfc

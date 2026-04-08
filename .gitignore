@@ -50,7 +50,7 @@ training/CI/GraphTransformer/outputs
 training/CI/Transformer/checkpoint
 training/CI/Transformer/logs
 training/CI/Transformer/outputs
-training/EGU26
+
 
 #Env 
 .env

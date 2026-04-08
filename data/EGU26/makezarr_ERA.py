@@ -12,12 +12,12 @@ from scipy.spatial import cKDTree
 xr.set_options(use_new_combine_kwarg_defaults=True)
 
 
-LAT_MIN, LAT_MAX = 42.5, 63.5
-LON_MIN, LON_MAX = -12.0, 11.0
+LAT_MIN, LAT_MAX = 40, 66
+LON_MIN, LON_MAX = -17, 16
 
 
-RAW_DIR   = Path("/mnt/weatherloss/WindPower/data/NorthSea/ERA5/raw_grib")
-OUT_ZARR  = Path("/mnt/weatherloss/WindPower/data/EGU26/era5_EGU.zarr")
+RAW_DIR   = Path("/mnt/weatherloss/WindPower/data/NorthSea/ERA5/raw_grib_large")
+OUT_ZARR  = Path("/mnt/weatherloss/WindPower/data/EGU26/era5_EGU_large2.zarr")
 POWER_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/BE_UK_offshore_per_unit_3H_meanMW_shifted.csv")
 META_CSV  = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 
