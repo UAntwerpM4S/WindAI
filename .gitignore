@@ -50,8 +50,10 @@ training/CI/GraphTransformer/outputs
 training/CI/Transformer/checkpoint
 training/CI/Transformer/logs
 training/CI/Transformer/outputs
-
-
+training/EGU26/Finetune/outputs
+training/EGU26/NoPower/outputs
+training/EGU26/TinyPower/outputs
+training/EGU26/VanillaPower/outputs
 #Env 
 .env
 WindPower/
