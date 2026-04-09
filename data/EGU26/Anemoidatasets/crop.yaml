@@ -7,14 +7,14 @@ dates:
 input:
   pipe:
     - anemoi-dataset:
-        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_xy_large.zarr"
+        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/power.zarr"
         area: [60, -11, 46, 10]
 
-    - rename:
-        param:
-          z: z_sfc
+    # - rename:
+    #     param:
+    #       z: z_sfc
 
 statistics:
     start: "2020-01-01T00:00:00"
     end:   "2023-12-31T21:00:00"
-    allow_nans: [power, turbinecount, turbinemask, capacity]
+    allow_nans: [power]#, turbinecount, turbinemask, capacity]
