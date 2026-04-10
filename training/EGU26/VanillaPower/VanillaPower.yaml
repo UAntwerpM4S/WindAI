@@ -166,14 +166,14 @@ dataloader:
   read_group_size: ${hardware.num_gpus_per_model}
 
   num_workers:
-    training: 2
-    validation: 2
+    training: 8
+    validation: 8
     test: 2
     predict: 2
 
   batch_size:
-    training: 1
-    validation: 1
+    training: 4
+    validation: 4
     test: 1
     predict: 1
 
@@ -263,11 +263,11 @@ dataloader:
             turbinemask: 66 
 
         - dataset: ${hardware.files.datasets.outer}
-          # drop: ["power", "capacity", "turbinecount", "turbinemask"]
+          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
       min_distance_km: 0
-      adjust: all
+      adjust: dates
 
     select:
       - cos_julian_day
@@ -726,7 +726,7 @@ training:
 
   lr:
     warmup: 1000
-    rate: 0.00025 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+    rate: 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
     iterations: ${training.max_steps}
     min: 3.0e-07
   
