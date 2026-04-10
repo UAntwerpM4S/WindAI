@@ -1,5 +1,5 @@
 # power_patched.yaml
-description: power only - patched zarr
+description: power only - filled zarr
 allow_nans: true
 
 dates:
@@ -13,7 +13,7 @@ build:
 input:
   pipe:
     - xarray-zarr:
-        url: "/mnt/weatherloss/WindPower/data/EGU26/cerra_EGULarge_xy.zarr"
+        url: "/mnt/weatherloss/WindPower/data/EGU26/filledpower.zarr"
         param: [power]
         flavour:
           levtype: sfc

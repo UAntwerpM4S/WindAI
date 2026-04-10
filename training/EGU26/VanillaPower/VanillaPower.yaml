@@ -19,12 +19,12 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/Cerra_A_large.zarr
+      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
       outer: ${hardware.paths.data}/era5_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: null #/mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPower/last.ckpt
+    warm_start: null #/mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPowerLarge/last.ckpt
 
 
   output:
@@ -191,12 +191,8 @@ dataloader:
   dataset:
     dataset:
       cutout:
-        - dataset:
-          # drop: ["power", "capacity", "turbinecount", "turbinemask"]
-            join:
-              - dataset:  ${hardware.files.datasets.inner}
-                drop: [power]
-              - dataset: ${hardware.paths.data}/power_only.zarr
+        - dataset: ${hardware.files.datasets.inner}
+        #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -445,7 +441,7 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
             - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
@@ -624,7 +620,7 @@ model:
 # ============================================================
 
 training:
-  run_id: null
+  run_id: null #VanillaPowerLarge
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null

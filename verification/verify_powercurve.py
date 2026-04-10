@@ -143,12 +143,24 @@ class TurbineSpec:
     rated_power: float
 
 
+# def power_curve(ws: np.ndarray, spec: TurbineSpec) -> np.ndarray:
+#     ws = np.asarray(ws, dtype=float)
+#     out = np.zeros_like(ws, dtype=np.float32)
+#     ramp = (ws >= spec.cut_in) & (ws < spec.rated_ws)
+#     out[ramp] = spec.rated_power * ((ws[ramp] - spec.cut_in) / (spec.rated_ws - spec.cut_in)) ** 3
+#     out[(ws >= spec.rated_ws) & (ws < spec.cut_out)] = spec.rated_power
+#     return out
 def power_curve(ws: np.ndarray, spec: TurbineSpec) -> np.ndarray:
     ws = np.asarray(ws, dtype=float)
     out = np.zeros_like(ws, dtype=np.float32)
     ramp = (ws >= spec.cut_in) & (ws < spec.rated_ws)
-    out[ramp] = spec.rated_power * ((ws[ramp] - spec.cut_in) / (spec.rated_ws - spec.cut_in)) ** 3
-    out[(ws >= spec.rated_ws) & (ws < spec.cut_out)] = spec.rated_power
+    #out[ramp] = spec.rated_power_mw * ((ws[ramp] - spec.cut_in) / (spec.rated_ws - spec.cut_in)) ** 3
+    denom = (spec.rated_ws**3 - spec.cut_in**3)
+    a = 1 / denom
+    b = spec.cut_in**3 / denom
+    out[ramp] = spec.rated_power_mw * (a * ws[ramp]**3 - b) 
+    rated = (ws >= spec.rated_ws) & (ws < spec.cut_out)
+    out[rated] = spec.rated_power_mw
     return out
 
 

@@ -1,16 +1,16 @@
-checkpoint: //mnt/weatherloss/WindPower/training/EGU26/TinyPower/checkpoint/TinyPower/inference-last.ckpt
-lead_time: 72
-date: "2024-10-25T09:00:00"
+checkpoint: /mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPowerLarge/inference-anemoi-by_time-epoch_025-step_210000.ckpt
+lead_time: 30
+date: "2024-08-04T09:00:00"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all
 output:
   extract_lam:      
     output:
-      netcdf: EGU/TinyPower/forecast_20241025090000.nc
+      netcdf: EGU/NoPowerLarge2/forecast_20240804090000.nc

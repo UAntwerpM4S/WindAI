@@ -13,16 +13,16 @@ import xarray as xr
 import matplotlib.pyplot as plt
  
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100","ws10","z_500","q_700","t_850"]
+TARGET_VARS = ["ws10"]
  
 FORECAST_DIRS = {
-    "TinyPower": Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
-    "NoPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/NoPower"),
-    "VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
-    "Finetune":  Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
+#    "TinyPower": Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
+    "NoPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerLarge"),
+ #   "VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
+  #  "Finetune":  Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
 }
  
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr")
 OUT_DIR    = Path("EGU_plots")
  
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")

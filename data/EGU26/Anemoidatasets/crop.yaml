@@ -7,7 +7,7 @@ dates:
 input:
   pipe:
     - anemoi-dataset:
-        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/power.zarr"
+        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/filledpower_A.zarr"
         area: [60, -11, 46, 10]
 
     # - rename:

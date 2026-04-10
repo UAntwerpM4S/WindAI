@@ -15,12 +15,12 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/Cerra_A_large.zarr
+      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
       outer: ${hardware.paths.data}/era5_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: null # /mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPower/last.ckpt
+    warm_start: null #/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPowerLarge/last.ckpt
 
 
   output:
@@ -174,7 +174,7 @@ dataloader:
     predict: 1
 
   limit_batches:
-    training: null
+    training: null 
     validation: null
     test: 20
     predict: 20
@@ -437,7 +437,7 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
             - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
@@ -616,7 +616,7 @@ model:
 # ============================================================
 
 training:
-  run_id: null #NoPower
+  run_id: null
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -718,7 +718,7 @@ training:
     epoch_increment: 0
     max: 1
 
-  max_epochs: 20
+  max_epochs: 30
   max_steps: 200000
 
   lr:
@@ -729,10 +729,9 @@ training:
   
   # lr:
   #   warmup: 1000
-  #   rate: 8.0e-07
-  #   iterations: 6000
+  #   rate: 6.4e-06
+  #   iterations: 10000
   #   min: 3.0e-07
   #   warmup_t: 100
-
 
   submodules_to_freeze: []
