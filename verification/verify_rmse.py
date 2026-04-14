@@ -13,7 +13,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
  
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10","ws100", "t_850","q_700","t2m"]
+TARGET_VARS = ["ws10","ws100", "t_850","q_700","t2m","z_500"]
  
 FORECAST_DIRS = {
     "NoPowerGT": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGT"),

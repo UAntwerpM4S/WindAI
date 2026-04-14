@@ -11,12 +11,12 @@ from scipy.spatial import cKDTree
 # -------------------- SETTINGS --------------------
 FORECAST_DIRS = {
    # "NoPower2":     Path("/mnt/weatherloss/WindPower/inference/EGU/NoPower2"),
-    "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
-    "Finetune":     Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
-    "TinyPower":    Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
+    "TF": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
+    "GT":     Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
+    #"TinyPower":    Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
 }
 
-CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 OUT_DIR       = Path("power_plots")
 
