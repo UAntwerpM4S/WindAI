@@ -92,12 +92,12 @@ def build_cells(ds_cerra: xr.Dataset, farms_df: pd.DataFrame) -> list[dict]:
             'farms':          list[str],
         }
     """
-    lat2d = ds_cerra["latitudes"].values    # (y, x)
-    lon2d = ds_cerra["longitudes"].values  # (y, x)
-    ny, nx = lat2d.shape
+    # Anemoi datasets store lat/lon as 1-D arrays over the "values" dimension
+    lat1d = ds_cerra["latitudes"].values    # (n_points,)
+    lon1d = ds_cerra["longitudes"].values   # (n_points,)
 
     # Build tree over full grid — same as original script (lon, lat order)
-    tree = cKDTree(np.c_[lon2d.ravel(), lat2d.ravel()])
+    tree = cKDTree(np.c_[lon1d, lat1d])
 
     # Query with farm (lon, lat) — same order as original
     farm_lonlat = farms_df[["lon", "lat"]].values
@@ -107,12 +107,11 @@ def build_cells(ds_cerra: xr.Dataset, farms_df: pd.DataFrame) -> list[dict]:
     cell_map: dict[int, dict] = {}
     for i, row in farms_df.iterrows():
         flat_idx = int(flat_indices[i])
-        iy, ix   = np.unravel_index(flat_idx, (ny, nx))
         if flat_idx not in cell_map:
             cell_map[flat_idx] = {
                 "cerra_flat_idx": flat_idx,
-                "cerra_lat":      float(lat2d[iy, ix]),
-                "cerra_lon":      float(lon2d[iy, ix]),
+                "cerra_lat":      float(lat1d[flat_idx]),
+                "cerra_lon":      float(lon1d[flat_idx]),
                 "fc_value_idx":   -1,
                 "total_cap_mw":   0.0,
                 "farms":          [],

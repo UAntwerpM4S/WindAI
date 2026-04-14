@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/EGU26/VanillaPowerTF/checkpoint/VanillaPowerTF/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerTF/inference-last.ckpt
 lead_time: 36
-date: "2025-02-20T06:00:00"
+date: "2025-07-09T09:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: EGU/VanillaPowerTF/forecast_20250220060000.nc
+      netcdf: EGU/NoPowerTF/forecast_20250709090000.nc
