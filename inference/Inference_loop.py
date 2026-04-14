@@ -3,13 +3,12 @@ import subprocess
 from datetime import datetime, timedelta
 
 start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2024, 8, 31, 21)
+end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    #"EGU/NoPowerLarge": ("/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPowerLarge", "inference-last.ckpt"),
-     #"EGU/NoPowerLarge2": ("/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPowerLarge", "inference-anemoi-by_time-epoch_025-step_210000.ckpt"),
-        "EGU/NoPowerLargeNoRollout": ("/mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPowerLarge", "inference-anemoi-by_epoch-epoch_015-step_200000.ckpt"),
+
+        "EGU/VanillaPowerTF": ("/mnt/weatherloss/WindPower/training/EGU26/VanillaPowerTF/checkpoint/VanillaPowerTF", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -31,14 +30,14 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
         with open(temp_yaml, "w") as f:
             f.write(f"""\
 checkpoint: {checkpoint_path}
-lead_time: 30
+lead_time: 36
 date: "{date_str}"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
         - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all

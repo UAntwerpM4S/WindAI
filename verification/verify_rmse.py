@@ -13,21 +13,21 @@ import xarray as xr
 import matplotlib.pyplot as plt
  
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10"]
+TARGET_VARS = ["ws10","ws100", "t_850","q_700","t2m"]
  
 FORECAST_DIRS = {
-#    "TinyPower": Path("/mnt/weatherloss/WindPower/inference/EGU/TinyPower"),
-    "NoPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerLarge"),
- #   "VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPower"),
-  #  "Finetune":  Path("/mnt/weatherloss/WindPower/inference/EGU/Finetune"),
+    "NoPowerGT": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGT"),
+    "NoPowerTF":  Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTF"),
+    "VanillaPowerGT":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
+    "VanillaPowerTF":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
 }
  
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A_large.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("EGU_plots")
  
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 73, 3))
+INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 39, 3))
 # --------------------------------------------------
  
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")

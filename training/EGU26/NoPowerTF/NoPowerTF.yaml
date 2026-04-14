@@ -20,11 +20,11 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPower/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerTF/last.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/EGU26/NoPower
+    root: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF
     logs:
       root: logs
       wandb: wandb
@@ -547,14 +547,16 @@ model:
       bias: false
 
   processor:
-    _target_: anemoi.models.layers.processor.GraphTransformerProcessor
-    trainable_size: ${model.trainable_parameters.hidden2hidden}
-    sub_graph_edge_attributes: ${model.attributes.edges}
+    _target_: anemoi.models.layers.processor.TransformerProcessor
     num_layers: 8
     num_chunks: 2
-    mlp_hidden_ratio: 2
-    num_heads: 8
-    qk_norm: false
+    mlp_hidden_ratio: 2 # GraphTransformer or Transformer only
+    num_heads: 8 # GraphTransformer or Transformer only
+    window_size: 128
+    dropout_p: 0.0 # GraphTransformer
+    attention_implementation:  flash_attention #scaled_dot_product_attention # Possible values:      scaled_dot_product_attention, flash_attention
+    qk_norm: False # Transformer and GraphTransformer only
+    softcap: 0.0 # Transformer only
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
 
@@ -616,7 +618,7 @@ model:
 # ============================================================
 
 training:
-  run_id: NoPower
+  run_id: NoPowerTF
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -721,12 +723,12 @@ training:
   max_epochs: 30
   max_steps: 210000
 
-#   lr:
-#     warmup: 1000
-#     rate:  0.00025
-# # 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
-#     iterations: ${training.max_steps}
-#     min: 3.0e-07
+  # lr:
+  #   warmup: 1000
+  #   rate:  0.00025 
+  #   #0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+  #   iterations: ${training.max_steps}
+  #   min: 3.0e-07
   
   lr:
     warmup: 1000

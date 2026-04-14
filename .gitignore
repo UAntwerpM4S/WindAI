@@ -57,6 +57,9 @@ training/EGU26/Finetune/outputs
 training/EGU26/NoPower/outputs
 training/EGU26/TinyPower/outputs
 training/EGU26/VanillaPower/outputs
+training/EGU26/NoPowerTF/outputs
+training/EGU26/VanillaPowerTF/outputs
+
 #Env 
 .env
 WindPower/
