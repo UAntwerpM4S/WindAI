@@ -1,16 +1,5 @@
 """
-verify_power_forecasts.py
-=========================
-MAE vs lead time for wind-power forecasts against CERRA truth.
-
-Cell-to-farm matching replicates append_turbine_vars_xy() exactly:
-  - KD-tree is built over the FULL CERRA grid (all y*x points)
-  - Each farm is matched to its nearest CERRA cell globally
-  - Farms sharing the same cell have their capacities summed
-This ensures the verified cells are identical to those used during training.
-
-MAE is expressed as % of grand total capacity.
-Only init times present in ALL directories are used (fair comparison).
+verify_power_forecasts_sequential.py
 """
 
 from pathlib import Path
@@ -18,34 +7,29 @@ import re
 import numpy as np
 import pandas as pd
 import xarray as xr
+import h5py
+import netCDF4 as nc4
 import matplotlib.pyplot as plt
-from scipy.spatial import cKDTree
-
 
 # -------------------- SETTINGS --------------------
 
-# Region filter: None           → all farms in the CSV
-#                ["Belgium"]    → Belgian farms only
-#                ["UK"]         → UK only
-#                ["Belgium","UK"] → both explicitly
-REGIONS = None
-# REGIONS = ["Belgium"]
+REGIONS = ["BE"]
 
 METADATA_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 
 FORECAST_DIRS = {
-    # "NoPowerGT":      Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGT"),
-    # "NoPowerTF":      Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTF"),
-    "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
-    "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
+    "GT": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
+    "TF": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
+    "GTROllout": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
+    "Synthetic": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticGT"),
 }
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
-OUT_DIR    = Path("EGU_plots")
+OUT_DIR    = Path("EGU_large")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 39, 3))   # 3 h … 36 h
+INIT_END   = pd.Timestamp("2025-02-28 18:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 37, 3))
 
 # --------------------------------------------------
 
@@ -61,216 +45,194 @@ def parse_init(path: Path) -> pd.Timestamp:
 
 def load_farms(csv_path: Path, regions=None) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
-    needed = ["region", "farm", "capacity_mw", "lat", "lon"]
+    needed = ["region", "farm", "capacity_mw", "lat", "lon",
+              "cerra_y", "cerra_grid_lat", "cerra_grid_lon"]
     df = df[needed].dropna(subset=["lat", "lon", "capacity_mw"])
     df["capacity_mw"] = pd.to_numeric(df["capacity_mw"], errors="coerce")
     df = df.dropna(subset=["capacity_mw"])
     if regions is not None:
-        df = df[df["region"].isin(regions)]
-        if df.empty:
-            raise ValueError(
-                f"No farms found for regions: {regions}. "
-                f"Available: {pd.read_csv(csv_path)['region'].unique().tolist()}"
-            )
+        df = df[df["region"].str.lower().isin([r.lower() for r in regions])]
     return df.reset_index(drop=True)
 
 
-def build_cells(ds_cerra: xr.Dataset, farms_df: pd.DataFrame) -> list[dict]:
-    """
-    Replicates append_turbine_vars_xy() exactly:
-      - KD-tree over the FULL (y, x) CERRA grid in (lon, lat) space
-      - Each farm snaps to its globally nearest CERRA cell
-      - Cells are grouped by flat index; capacities summed per cell
+def read_forecast(nc_path: Path, init: pd.Timestamp,
+                  lead_hours: list, cell_cerra_idxs: np.ndarray,
+                  cell_caps: np.ndarray, valid_iso_set: set) -> dict:
+    result = {}
+    with h5py.File(str(nc_path), "r") as f:
+        tv  = f["time"]
+        raw = nc4.num2date(
+            tv[:],
+            tv.attrs["units"].decode(),
+            tv.attrs.get("calendar", b"standard").decode(),
+        )
+        fc_times       = [pd.Timestamp(str(t)).tz_localize("UTC") for t in raw]
+        fc_time_to_idx = {t.isoformat(): j for j, t in enumerate(fc_times)}
+        power_all = f["power"][:, :]
 
-    Returns a list of dicts, one per unique matched cell:
-        {
-            'cerra_flat_idx': int,
-            'cerra_lat':      float,
-            'cerra_lon':      float,
-            'fc_value_idx':   int,    # filled later by match_to_forecast()
-            'total_cap_mw':   float,
-            'farms':          list[str],
-        }
-    """
-    # Anemoi datasets store lat/lon as 1-D arrays over the "values" dimension
-    lat1d = ds_cerra["latitudes"].values    # (n_points,)
-    lon1d = ds_cerra["longitudes"].values   # (n_points,)
+    power_sel = power_all[:, cell_cerra_idxs]
 
-    # Build tree over full grid — same as original script (lon, lat order)
-    tree = cKDTree(np.c_[lon1d, lat1d])
+    for lh in lead_hours:
+        viso = (init + pd.Timedelta(hours=lh)).isoformat()
+        if viso in fc_time_to_idx and viso in valid_iso_set:
+            tidx       = fc_time_to_idx[viso]
+            result[lh] = float(np.sum(power_sel[tidx]))
 
-    # Query with farm (lon, lat) — same order as original
-    farm_lonlat = farms_df[["lon", "lat"]].values
-    _, flat_indices = tree.query(farm_lonlat, k=1)
-
-    # Group farms by matched flat index
-    cell_map: dict[int, dict] = {}
-    for i, row in farms_df.iterrows():
-        flat_idx = int(flat_indices[i])
-        if flat_idx not in cell_map:
-            cell_map[flat_idx] = {
-                "cerra_flat_idx": flat_idx,
-                "cerra_lat":      float(lat1d[flat_idx]),
-                "cerra_lon":      float(lon1d[flat_idx]),
-                "fc_value_idx":   -1,
-                "total_cap_mw":   0.0,
-                "farms":          [],
-            }
-        cell_map[flat_idx]["total_cap_mw"] += float(row["capacity_mw"])
-        cell_map[flat_idx]["farms"].append(row["farm"])
-
-    return list(cell_map.values())
-
-
-def match_to_forecast(cells: list[dict], fc_lat: np.ndarray, fc_lon: np.ndarray) -> None:
-    """
-    For each CERRA cell, find the nearest point in the forecast grid
-    (1-D values dim) and store its index in cell['fc_value_idx'].
-    Modifies cells in-place.
-    """
-    tree = cKDTree(np.c_[fc_lon, fc_lat])
-    cell_coords = np.array([[c["cerra_lon"], c["cerra_lat"]] for c in cells])
-    _, indices  = tree.query(cell_coords, k=1)
-    for cell, idx in zip(cells, indices):
-        cell["fc_value_idx"] = int(idx)
+    return result
 
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # ── observations ──────────────────────────────────────────────────────────
+    # --- 1. Load Metadata ---
+    farms_df = load_farms(METADATA_CSV, regions=REGIONS)
+    cell_map = {}
+    for _, row in farms_df.iterrows():
+        idx = int(row["cerra_y"])
+        cell_map[idx] = cell_map.get(idx, 0.0) + float(row["capacity_mw"])
+
+    grand_total_cap = sum(cell_map.values())
+    cell_cerra_idxs = np.array(list(cell_map.keys()))
+    cell_caps       = np.array(list(cell_map.values()))
+    print(f"Region: {REGIONS} | Capacity: {grand_total_cap:.1f} MW")
+
+    # --- 2. Load CERRA ---
     ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
     cerra_vars  = list(ds_cerra.attrs["variables"])
     cerra_dates = pd.to_datetime(ds_cerra["dates"].values).tz_localize("UTC")
+    cerra_date_to_idx = {d: i for i, d in enumerate(cerra_dates)}
     power_idx   = cerra_vars.index("power")
 
-    # ── build cell map (mirrors original zarr-building script) ────────────────
-    farms_df = load_farms(METADATA_CSV, regions=REGIONS)
-    region_label = (
-        "Belgium only" if REGIONS == ["Belgium"]
-        else (", ".join(REGIONS) if REGIONS else "All regions")
-    )
-    print(f"\nRegion filter : {region_label}  ({len(farms_df)} farms)")
-
-    cells = build_cells(ds_cerra, farms_df)
-    grand_total_cap = sum(c["total_cap_mw"] for c in cells)
-
-    print(f"Unique CERRA cells matched : {len(cells)}")
-    print(f"Grand total capacity       : {grand_total_cap:.1f} MW\n")
-    print(f"{'Flat idx':<12}  {'Lat':>8}  {'Lon':>8}  {'Cap (MW)':>10}  Farms")
-    for c in cells:
-        print(f"  {c['cerra_flat_idx']:<12}  {c['cerra_lat']:>8.3f}  "
-              f"{c['cerra_lon']:>8.3f}  {c['total_cap_mw']:>10.1f}  "
-              f"{', '.join(c['farms'])}")
-
-    # ── match CERRA cells → forecast grid (done once) ─────────────────────────
-    first_dir   = next(iter(FORECAST_DIRS.values()))
-    sample_file = sorted(first_dir.glob("forecast_*.nc"))[0]
-    ds_sample   = xr.open_dataset(sample_file)
-    fc_lat = ds_sample["latitude"].values.astype(float)
-    fc_lon = ds_sample["longitude"].values.astype(float)
-    ds_sample.close()
-
-    match_to_forecast(cells, fc_lat, fc_lon)
-
-    # ── collect file maps per directory ───────────────────────────────────────
+    # --- 3. File maps ---
     dir_file_maps = {}
     for label, fc_dir in FORECAST_DIRS.items():
-        fmap = {
-            parse_init(f): f
-            for f in sorted(fc_dir.glob("forecast_*.nc"))
-            if INIT_START <= parse_init(f) <= INIT_END
-        }
-        print(f"{label}: {len(fmap)} files")
+        fmap = {parse_init(f): f for f in sorted(fc_dir.glob("forecast_*.nc"))
+                if INIT_START <= parse_init(f) <= INIT_END}
         if fmap:
             dir_file_maps[label] = fmap
+            print(f"{label}: {len(fmap)} files")
 
-    if not dir_file_maps:
-        raise RuntimeError("No forecast files found.")
+    common_inits = sorted(set.intersection(*(set(m) for m in dir_file_maps.values())))
+    print(f"Common inits: {len(common_inits)}")
+    print(f"Init range: {common_inits[0]} to {common_inits[-1]}")
 
-    # ── intersect init times across all directories (fair comparison) ─────────
-    common_inits = sorted(
-        set.intersection(*(set(m) for m in dir_file_maps.values()))
-    )
-    print(f"\nCommon init times: {len(common_inits)}")
+    # --- 4. Preload CERRA ---
+    needed_valid = sorted({
+        i + pd.Timedelta(hours=lh)
+        for i in common_inits for lh in LEAD_HOURS
+        if (i + pd.Timedelta(hours=lh)) in cerra_date_to_idx
+    })
+    print(f"Preloading CERRA ({len(needed_valid)} steps)...")
+    cerra_bulk = ds_cerra["data"].isel(
+        time=[cerra_date_to_idx[t] for t in needed_valid],
+        variable=power_idx, ensemble=0,
+    ).values[:, cell_cerra_idxs]
+    cerra_obs_cache = {t.isoformat(): cerra_bulk[i] for i, t in enumerate(needed_valid)}
+    ds_cerra.close()
+    del cerra_bulk
 
-    colors  = plt.cm.tab10.colors
-    markers = ["o", "s", "^", "D", "v"]
+    # Only keep timesteps with valid (non-NaN) observations
+    valid_iso_set = {
+        iso for iso, arr in cerra_obs_cache.items()
+        if not np.all(np.isnan(arr))
+    }
+    # Only keep inits where ALL lead hours have valid obs
+    common_inits = [
+        init for init in common_inits
+        if all(
+            (init + pd.Timedelta(hours=lh)).isoformat() in valid_iso_set
+            for lh in LEAD_HOURS
+        )
+    ]
+    print(f"Inits with full lead hour coverage: {len(common_inits)}")
+    print(f"Valid obs timesteps: {len(valid_iso_set)}/{len(cerra_obs_cache)}")
 
-    fname_suffix = (
-        "belgium" if REGIONS == ["Belgium"]
-        else ("_".join(REGIONS).lower() if REGIONS else "all")
-    )
+    # Per-lead-hour coverage
+    for lh in LEAD_HOURS:
+        count = sum(
+            1 for init in common_inits
+            if (init + pd.Timedelta(hours=lh)).isoformat() in valid_iso_set
+        )
+        print(f"  Lead {lh:2d}h: {count} valid obs timesteps")
 
+    print("CERRA preload done.")
+    # Check a few raw values to detect time shifts
+    test_init = common_inits[100]
+    print(f"\nTime shift check — init: {test_init}")
+    with h5py.File(str(dir_file_maps["GT"][test_init]), "r") as f:
+        tv  = f["time"]
+        raw = nc4.num2date(tv[:], tv.attrs["units"].decode(),
+                           tv.attrs.get("calendar", b"standard").decode())
+        fc_times = [pd.Timestamp(str(t)).tz_localize("UTC") for t in raw]
+        fc_time_to_idx = {t.isoformat(): j for j, t in enumerate(fc_times)}
+        power_all = f["power"][:, :]
+
+    power_sel = power_all[:, cell_cerra_idxs]
+
+    for lh in [3, 15, 30]:
+        valid     = test_init + pd.Timedelta(hours=lh)
+        viso      = valid.isoformat()
+        tidx      = fc_time_to_idx.get(viso)
+        fc_mw     = float(np.sum(power_sel[tidx])) if tidx is not None else None
+        obs_arr   = cerra_obs_cache.get(viso)
+        obs_mw    = float(np.nansum(obs_arr)) if obs_arr is not None else None
+        print(f"  +{lh:2d}h  valid={valid}  fc={fc_mw:.0f} MW  obs={obs_mw:.0f} MW  err={abs(fc_mw-obs_mw):.0f} MW")
+
+    # Also check obs at adjacent timesteps to detect offset
+    valid3 = test_init + pd.Timedelta(hours=3)
+    for offset in [-6, -3, 0, 3, 6]:
+        t   = valid3 + pd.Timedelta(hours=offset)
+        arr = cerra_obs_cache.get(t.isoformat())
+        mw  = float(np.nansum(arr)) if arr is not None else None
+        print(f"  obs at valid+{offset:+d}h ({t}): {mw:.0f} MW" if mw is not None else f"  obs at {t}: None")
+    # --- 5. Process sequentially ---
     fig, ax = plt.subplots(figsize=(9, 5))
 
-    for i, (label, fmap) in enumerate(dir_file_maps.items()):
+    for label, fmap in dir_file_maps.items():
+        print(f"\nProcessing {label}...")
         lead_errors = {lh: [] for lh in LEAD_HOURS}
 
-        for init in common_inits:
-            ds_fc    = xr.open_dataset(fmap[init])
-            fc_times = pd.to_datetime(ds_fc["time"].values).tz_localize("UTC")
+        for count, init in enumerate(common_inits):
+            if count % 200 == 0:
+                print(f"  {count}/{len(common_inits)}...", flush=True)
+            try:
+                fc = read_forecast(
+                    fmap[init], init, LEAD_HOURS,
+                    cell_cerra_idxs, cell_caps, valid_iso_set,
+                )
+                for lh, fc_mw in fc.items():
+                    viso   = (init + pd.Timedelta(hours=lh)).isoformat()
+                    obs_mw = float(np.nansum(cerra_obs_cache[viso]))
+                    lead_errors[lh].append(abs(fc_mw - obs_mw))
 
-            for lh in LEAD_HOURS:
-                valid = init + pd.Timedelta(hours=lh)
-                if valid not in fc_times or valid not in cerra_dates:
-                    continue
+            except Exception as e:
+                print(f"  Skipping {fmap[init].name}: {e}")
 
-                # forecast power [per unit, shape (values,)]
-                fc_power = ds_fc["power"].sel(
-                    time=valid.replace(tzinfo=None)
-                ).values
+        leads   = sorted(lead_errors)
+        mae_mw  = [np.mean(lead_errors[lh]) if lead_errors[lh] else np.nan for lh in leads]
+        mae_pct = [x / grand_total_cap * 100 if not np.isnan(x) else np.nan for x in mae_mw]
 
-                # observed power [per unit, shape (values,)]
-                obs_power = ds_cerra["data"].isel(
-                    time=np.where(cerra_dates == valid)[0][0],
-                    variable=power_idx,
-                    ensemble=0,
-                ).values
+        print(f"{label} sample sizes: { {lh: len(lead_errors[lh]) for lh in leads} }")
+        print(f"{label} MAE MW:  {[round(x, 1) for x in mae_mw]}")
+        print(f"{label} MAE %:   {[round(x, 2) for x in mae_pct]}")
 
-                # capacity-weighted aggregate [MW] over all matched cells
-                fc_mw  = sum(fc_power[c["fc_value_idx"]]  * c["total_cap_mw"] for c in cells)
-                obs_mw = sum(obs_power[c["fc_value_idx"]] * c["total_cap_mw"] for c in cells)
+        ax.plot(leads, mae_pct, marker="o", label=label)
+        np.save(OUT_DIR / f"mae_{label}.npy", np.column_stack([leads, mae_pct]))
 
-                lead_errors[lh].append(abs(fc_mw - obs_mw))
-
-            ds_fc.close()
-
-        leads    = sorted(lead_errors)
-        mean_mae = [
-            np.mean(lead_errors[lh]) / grand_total_cap * 100
-            if lead_errors[lh] else np.nan
-            for lh in leads
-        ]
-
-        df = pd.DataFrame({"lead_hours": leads, "MAE_pct": mean_mae})
-        print(f"\n{label} — power ({region_label})\n{df.to_string(index=False)}")
-
-        ax.plot(
-            df["lead_hours"], df["MAE_pct"],
-            marker=markers[i % len(markers)],
-            color=colors[i % len(colors)],
-            lw=1.5, label=label,
-        )
-
-        np.save(OUT_DIR / f"mae_power_{label}_{fname_suffix}.npy",
-                df[["lead_hours", "MAE_pct"]].values)
-
+    # --- 6. Finalise ---
+    region_str = ", ".join(REGIONS) if REGIONS else "All"
     ax.set_title(
-        f"Power MAE vs Lead Time  ({region_label})  (n={len(common_inits)} inits)\n"
-        f"Total capacity: {grand_total_cap:.0f} MW  |  {len(cells)} grid cells",
-        fontsize=12,
+        f"Power MAE Comparison\nRegion: {region_str}  "
+        f"({common_inits[0].date()} – {common_inits[-1].date()})"
     )
     ax.set_xlabel("Lead time [hours]")
-    ax.set_ylabel("MAE  [% of total capacity]")
+    ax.set_ylabel("MAE [% of Total Capacity]")
     ax.set_xticks(LEAD_HOURS)
-    ax.legend(title="Run", framealpha=0.8)
+    ax.legend()
     ax.grid(True, ls="--", alpha=0.5)
     fig.tight_layout()
-    fig.savefig(OUT_DIR / f"mae_power_{fname_suffix}.png", dpi=150)
-    plt.close(fig)
-    print(f"\nSaved: {OUT_DIR / f'mae_power_{fname_suffix}.png'}")
-    print("Done.")
+    fig.savefig(OUT_DIR / "mae_comparison.png", dpi=150)
+    print(f"\nDone. Plot saved to {OUT_DIR}/mae_comparison.png")
 
 
 if __name__ == "__main__":

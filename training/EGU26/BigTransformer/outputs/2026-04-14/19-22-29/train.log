@@ -1,0 +1,378 @@
+[2026-04-14 19:22:29,613][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-04-14 19:22:29,613][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-04-14 19:22:29,614][anemoi.training.train.train][INFO] - Run id: 2d1d80d1-b355-4423-b66b-834673f3536a
+[2026-04-14 19:22:29,614][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-04-14 19:22:29,614][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/plots/2d1d80d1-b355-4423-b66b-834673f3536a
+[2026-04-14 19:22:30,245][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'cutout': [{'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr'}, {'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr'}], 'min_distance_km': 0, 'adjust': 'all'}.
+[2026-04-14 19:22:32,821][anemoi.graphs.generate.masks][INFO] - Fitting KNNAreaMaskBuilder with 72668 reference nodes from "data (cutout)".
+[2026-04-14 19:22:55,212][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 12 nearest neighbours) between data and hidden.
+[2026-04-14 19:22:55,220][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 19:22:55,397][anemoi.graphs.edges.builders.cutoff][INFO] - Using CutOff-Edges (with radius = 15.0 km [direct]) between data and hidden.
+[2026-04-14 19:22:55,397][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 19:23:43,265][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 3 nearest neighbours) between hidden and data.
+[2026-04-14 19:23:43,266][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - Cleaning graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _dataset deleted from graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _area_mask_builder deleted from graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _resolutions deleted from graph.
+[2026-04-14 19:23:43,487][anemoi.graphs.create][INFO] - _nx_graph deleted from graph.
+[2026-04-14 19:23:43,488][anemoi.graphs.create][INFO] - _node_ordering deleted from graph.
+[2026-04-14 19:23:43,493][anemoi.graphs.processors.post_process][INFO] - Removing 120985 edges from ('data', 'to', 'hidden').
+[2026-04-14 19:23:43,495][anemoi.graphs.processors.post_process][INFO] - Recomputing edge attribute edge_length.
+[2026-04-14 19:23:43,497][anemoi.graphs.processors.post_process][INFO] - Recomputing edge attribute edge_dirs.
+[2026-04-14 19:23:43,566][anemoi.graphs.processors.post_process][INFO] - Removing 4649 nodes from data.
+[2026-04-14 19:23:44,392][anemoi.graphs.processors.post_process][INFO] - An attribute indices_connected_nodes has been added with the indices to mask the nodes from the original graph.
+[2026-04-14 19:23:44,485][anemoi.graphs.create][INFO] - Graph saved at /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt.
+[2026-04-14 19:23:45,290][anemoi.training.data.datamodule][WARNING] - Falling back rollout to: 1
+[2026-04-14 19:23:45,290][anemoi.training.data.datamodule][INFO] - Timeincrement set to 1 for data with frequency, 10800, and timestep, 10800
+[2026-04-14 19:23:45,291][anemoi.training.data.grid_indices][INFO] - The graph attribute indices_connected_nodes of the data nodes will be used to masking the spatial dimension.
+[2026-04-14 19:23:45,292][anemoi.training.train.train][INFO] - Number of data variables: 67
+[2026-04-14 19:23:45,293][anemoi.training.train.train][INFO] - Variables: ['cos_julian_day', 'cos_latitude', 'cos_longitude', 'insolation', 'lsm', 'mcc', 'msl', 'q_1000', 'q_500', 'q_600', 'q_700', 'q_750', 'q_800', 'q_850', 'q_900', 'q_950', 'sin_julian_day', 'sin_latitude', 'sin_longitude', 't2m', 't_1000', 't_500', 't_600', 't_700', 't_750', 't_800', 't_850', 't_900', 't_950', 'u_1000', 'u_500', 'u_600', 'u_700', 'u_750', 'u_800', 'u_850', 'u_900', 'u_950', 'v_1000', 'v_500', 'v_600', 'v_700', 'v_750', 'v_800', 'v_850', 'v_900', 'v_950', 'wdir100_cos', 'wdir100_sin', 'wdir10_cos', 'wdir10_sin', 'ws10', 'ws100', 'z_1000', 'z_500', 'z_600', 'z_700', 'z_750', 'z_800', 'z_850', 'z_900', 'z_950', 'z_sfc', 'power', 'capacity', 'turbinecount', 'turbinemask']
+[2026-04-14 19:23:45,294][anemoi.training.train.train][INFO] - Total number of prognostic variables: 55
+[2026-04-14 19:23:45,294][anemoi.training.train.train][INFO] - Total number of auxiliary variables: 12
+[2026-04-14 19:23:45,294][anemoi.training.train.train][INFO] - Total GPU count / model group size: 2 - NB: the learning rate will be scaled by this factor!
+[2026-04-14 19:23:45,294][anemoi.training.train.train][INFO] - Effective learning rate: 2.500e-04
+[2026-04-14 19:23:45,294][anemoi.training.train.train][INFO] - Training limits: max_epochs=30, max_steps=200000. Training will stop when either limit is reached first. Learning rate scheduler will run for 200000 steps.
+[2026-04-14 19:23:45,324][anemoi.models.migrations.migrator][INFO] - Loading migration 1755530253_initial
+[2026-04-14 19:23:45,324][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857427_deprecate_eda
+[2026-04-14 19:23:45,325][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857428_chunking_fix
+[2026-04-14 19:23:45,325][anemoi.models.migrations.migrator][INFO] - Loading migration 1763479917_hardware_schema_update
+[2026-04-14 19:23:45,709][anemoi.training.train.train][INFO] - TensorBoard logger enabled
+[2026-04-14 19:23:45,711][pytorch_lightning.utilities.rank_zero][INFO] - Using 16bit Automatic Mixed Precision (AMP)
+[2026-04-14 19:23:45,722][pytorch_lightning.utilities.rank_zero][INFO] - GPU available: True (cuda), used: True
+[2026-04-14 19:23:45,723][pytorch_lightning.utilities.rank_zero][INFO] - TPU available: False, using: 0 TPU cores
+[2026-04-14 19:23:45,780][lightning_fabric.utilities.seed][INFO] - Seed set to 4552
+[2026-04-14 19:23:45,781][anemoi.training.train.train][INFO] - Initial seed: Rank 0, initial seed 4552, running with random seed: 4552
+[2026-04-14 19:23:47,701][anemoi.models.preprocessing.imputer][WARNING] - If placement of NaNs for diagnostic variables in inference output is desired, this needs to be handled by postprocessors: power
+[2026-04-14 19:23:47,701][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in power with value 0.0
+[2026-04-14 19:23:47,701][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in capacity with value 0.0
+[2026-04-14 19:23:47,701][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in turbinecount with value 0.0
+[2026-04-14 19:23:47,701][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in turbinemask with value 0.0
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: cos_latitude is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: cos_longitude is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: lsm is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: mcc is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: sin_latitude is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: sin_longitude is not normalized.
+[2026-04-14 19:23:47,704][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: turbinemask is not normalized.
+[2026-04-14 19:23:48,475][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 19:23:48,476][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 19:23:48,476][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 19:23:48,477][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:48,478][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:48,689][anemoi.models.layers.block][INFO] - GraphTransformerMapperBlock using triton graph attention backend.
+[2026-04-14 19:23:48,695][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 19:23:48,695][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 19:23:48,696][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 19:23:48,697][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:48,697][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:48,876][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:48,900][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:48,920][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:48,941][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:48,962][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:48,985][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,005][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,025][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,045][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,067][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,097][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,124][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 19:23:49,155][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 19:23:49,156][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 19:23:49,156][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 19:23:49,157][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:49,157][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 19:23:49,194][anemoi.models.layers.block][INFO] - GraphTransformerMapperBlock using triton graph attention backend.
+[2026-04-14 19:23:49,651][anemoi.training.losses.scalers.variable_level][INFO] - Variable Level Scaling: Applying ReluVariableLevelScaler scaling to pl variables (['q', 't', 'u', 'v', 'z'])
+[2026-04-14 19:23:49,651][anemoi.training.losses.scalers.variable_level][INFO] - with slope = 0.001 and y-intercept/minimum = 0.2.
+[2026-04-14 19:23:49,768][anemoi.training.data.grid_indices][INFO] - The graph attribute indices_connected_nodes of the data nodes will be used to masking the spatial dimension.
+[2026-04-14 19:23:49,770][anemoi.training.train.train][INFO] - The following submodules will NOT be trained: []
+[2026-04-14 19:23:50,074][lightning_fabric.utilities.distributed][INFO] - Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+[2026-04-14 19:25:13,041][pytorch_lightning.utilities.rank_zero][INFO] - ----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+[2026-04-14 19:25:13,502][pytorch_lightning.accelerators.cuda][INFO] - LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+[2026-04-14 19:25:13,695][lightning_fabric.utilities.seed][INFO] - [rank: 0] Seed set to 4552
+[2026-04-14 19:25:30,415][anemoi.training.data.datamodule][WARNING] - Falling back rollout to: 1
+[2026-04-14 19:25:30,418][anemoi.training.data.dataset][INFO] - NativeGridDataset.set_group_info(): global_rank 0, model_comm_group_id 0, model_comm_group_rank 0, model_comm_num_groups 2, reader_group_rank 0
+[2026-04-14 19:25:30,865][anemoi.training.data.dataset][INFO] - Worker 0 (pid 28656, global_rank 0, model comm group 0)  has low/high range 0 / 90
+[2026-04-14 19:25:30,868][anemoi.training.data.dataset][INFO] - Worker 0 (validation, pid 28656, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:31,468][anemoi.training.data.dataset][INFO] - Worker 1 (pid 28745, global_rank 0, model comm group 0)  has low/high range 90 / 180
+[2026-04-14 19:25:31,565][anemoi.training.data.dataset][INFO] - Worker 1 (validation, pid 28745, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:32,168][anemoi.training.data.dataset][INFO] - Worker 2 (pid 28850, global_rank 0, model comm group 0)  has low/high range 180 / 270
+[2026-04-14 19:25:32,265][anemoi.training.data.dataset][INFO] - Worker 2 (validation, pid 28850, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:32,966][anemoi.training.data.dataset][INFO] - Worker 3 (pid 28948, global_rank 0, model comm group 0)  has low/high range 270 / 360
+[2026-04-14 19:25:33,064][anemoi.training.data.dataset][INFO] - Worker 3 (validation, pid 28948, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:33,963][anemoi.training.data.dataset][INFO] - Worker 4 (pid 29044, global_rank 0, model comm group 0)  has low/high range 360 / 450
+[2026-04-14 19:25:33,965][anemoi.training.data.dataset][INFO] - Worker 4 (validation, pid 29044, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:34,065][anemoi.training.data.dataset][INFO] - Worker 5 (pid 29145, global_rank 0, model comm group 0)  has low/high range 450 / 540
+[2026-04-14 19:25:34,168][anemoi.training.data.dataset][INFO] - Worker 5 (validation, pid 29145, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:34,867][anemoi.training.data.dataset][INFO] - Worker 6 (pid 29241, global_rank 0, model comm group 0)  has low/high range 540 / 630
+[2026-04-14 19:25:34,869][anemoi.training.data.dataset][INFO] - Worker 6 (validation, pid 29241, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:35,570][anemoi.training.data.dataset][INFO] - Worker 7 (pid 29346, global_rank 0, model comm group 0)  has low/high range 630 / 720
+[2026-04-14 19:25:35,666][anemoi.training.data.dataset][INFO] - Worker 7 (validation, pid 29346, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:35,768][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 19:25:40,167][anemoi.training.data.dataset][INFO] - NativeGridDataset.set_group_info(): global_rank 0, model_comm_group_id 0, model_comm_group_rank 0, model_comm_num_groups 2, reader_group_rank 0
+[2026-04-14 19:25:40,765][anemoi.training.data.dataset][INFO] - Worker 0 (pid 29459, global_rank 0, model comm group 0)  has low/high range 0 / 1658
+[2026-04-14 19:25:40,768][anemoi.training.data.dataset][INFO] - Worker 0 (train, pid 29459, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:41,269][anemoi.training.data.dataset][INFO] - Worker 1 (pid 29602, global_rank 0, model comm group 0)  has low/high range 1658 / 3316
+[2026-04-14 19:25:41,272][anemoi.training.data.dataset][INFO] - Worker 1 (train, pid 29602, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:41,869][anemoi.training.data.dataset][INFO] - Worker 2 (pid 29700, global_rank 0, model comm group 0)  has low/high range 3316 / 4974
+[2026-04-14 19:25:41,966][anemoi.training.data.dataset][INFO] - Worker 2 (train, pid 29700, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:42,773][anemoi.training.data.dataset][INFO] - Worker 3 (pid 29798, global_rank 0, model comm group 0)  has low/high range 4974 / 6632
+[2026-04-14 19:25:42,865][anemoi.training.data.dataset][INFO] - Worker 3 (train, pid 29798, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:43,168][anemoi.training.data.dataset][INFO] - Worker 4 (pid 29894, global_rank 0, model comm group 0)  has low/high range 6632 / 8290
+[2026-04-14 19:25:43,265][anemoi.training.data.dataset][INFO] - Worker 4 (train, pid 29894, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:44,067][anemoi.training.data.dataset][INFO] - Worker 5 (pid 30026, global_rank 0, model comm group 0)  has low/high range 8290 / 9948
+[2026-04-14 19:25:44,069][anemoi.training.data.dataset][INFO] - Worker 5 (train, pid 30026, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:44,573][anemoi.training.data.dataset][INFO] - Worker 6 (pid 30143, global_rank 0, model comm group 0)  has low/high range 9948 / 11606
+[2026-04-14 19:25:44,667][anemoi.training.data.dataset][INFO] - Worker 6 (train, pid 30143, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:45,075][anemoi.training.data.dataset][INFO] - Worker 7 (pid 30199, global_rank 0, model comm group 0)  has low/high range 11606 / 13264
+[2026-04-14 19:25:45,169][anemoi.training.data.dataset][INFO] - Worker 7 (train, pid 30199, glob. rank 0, model comm group 0, group_rank 0, seed group id 0, base_seed 4552, sanity rnd 0.767620)
+[2026-04-14 19:25:47,192][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 20:58:36,183][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 21:08:18,679][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-anemoi-by_epoch-epoch_000-step_013264.ckpt
+[2026-04-14 21:08:18,679][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/anemoi.json
+[2026-04-14 21:08:18,682][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:18,683][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:18,684][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 21:08:18,684][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 21:08:18,685][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:18,685][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:18,686][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:18,686][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:18,686][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-anemoi-by_epoch-epoch_000-step_013264/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 21:08:21,841][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/anemoi-by_epoch-epoch_000-step_013264.ckpt
+[2026-04-14 21:08:21,841][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 21:08:21,845][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:21,846][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:21,847][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 21:08:21,848][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 21:08:21,848][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:21,849][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:21,850][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:21,851][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:21,851][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 21:08:22,215][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-last.ckpt
+[2026-04-14 21:08:22,215][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-last/anemoi-metadata/anemoi.json
+[2026-04-14 21:08:22,217][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-last/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:22,218][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-last/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:22,218][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-last/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 21:08:22,219][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-last/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 21:08:22,219][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-last/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:22,219][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-last/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:22,220][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-last/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:22,220][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-last/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:22,220][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-last/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 21:08:25,094][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/last.ckpt
+[2026-04-14 21:08:25,094][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 21:08:25,096][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:25,097][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 21:08:25,098][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 21:08:25,098][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 21:08:25,098][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:25,099][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 21:08:25,100][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:25,100][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 21:08:25,100][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 22:25:12,087][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 22:27:30,569][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-anemoi-by_epoch-epoch_001-step_026528.ckpt
+[2026-04-14 22:27:30,569][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/anemoi.json
+[2026-04-14 22:27:30,572][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:30,573][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:30,574][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 22:27:30,574][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 22:27:30,574][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:30,575][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:30,576][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:30,576][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:30,576][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-anemoi-by_epoch-epoch_001-step_026528/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 22:27:33,913][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/anemoi-by_epoch-epoch_001-step_026528.ckpt
+[2026-04-14 22:27:33,913][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 22:27:33,915][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:33,916][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:33,917][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 22:27:33,918][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 22:27:33,918][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:33,918][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:33,919][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:33,919][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:33,920][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 22:27:34,483][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-last.ckpt
+[2026-04-14 22:27:34,483][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-last/anemoi-metadata/anemoi.json
+[2026-04-14 22:27:34,485][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-last/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:34,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-last/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:34,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-last/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 22:27:34,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-last/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 22:27:34,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-last/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:34,488][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-last/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:34,489][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-last/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:34,489][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-last/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:34,490][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-last/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 22:27:37,860][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/last.ckpt
+[2026-04-14 22:27:37,860][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 22:27:37,862][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:37,863][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 22:27:37,864][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 22:27:37,864][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 22:27:37,864][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:37,865][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 22:27:37,866][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:37,866][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 22:27:37,866][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 23:31:51,168][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 23:34:12,328][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-anemoi-by_epoch-epoch_002-step_039792.ckpt
+[2026-04-14 23:34:12,328][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/anemoi.json
+[2026-04-14 23:34:12,330][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:12,331][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:12,332][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 23:34:12,332][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 23:34:12,332][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:12,333][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:12,334][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:12,334][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:12,334][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-anemoi-by_epoch-epoch_002-step_039792/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 23:34:15,113][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/anemoi-by_epoch-epoch_002-step_039792.ckpt
+[2026-04-14 23:34:15,113][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 23:34:15,115][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:15,115][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:15,116][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 23:34:15,116][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 23:34:15,116][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:15,117][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:15,118][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:15,118][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:15,118][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 23:34:15,605][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-last.ckpt
+[2026-04-14 23:34:15,605][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-last/anemoi-metadata/anemoi.json
+[2026-04-14 23:34:15,607][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-last/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:15,608][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-last/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:15,609][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-last/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 23:34:15,609][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-last/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 23:34:15,609][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-last/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:15,609][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-last/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:15,610][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-last/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:15,610][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-last/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:15,610][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-last/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-14 23:34:18,603][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/last.ckpt
+[2026-04-14 23:34:18,603][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-14 23:34:18,605][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:18,605][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-14 23:34:18,606][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-14 23:34:18,606][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-14 23:34:18,606][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:18,607][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-14 23:34:18,608][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:18,608][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-14 23:34:18,608][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 00:39:58,665][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-15 00:42:08,482][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-anemoi-by_epoch-epoch_003-step_053056.ckpt
+[2026-04-15 00:42:08,483][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/anemoi.json
+[2026-04-15 00:42:08,484][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:08,485][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:08,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 00:42:08,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 00:42:08,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:08,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:08,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:08,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:08,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-anemoi-by_epoch-epoch_003-step_053056/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 00:42:10,885][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/anemoi-by_epoch-epoch_003-step_053056.ckpt
+[2026-04-15 00:42:10,886][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-15 00:42:10,887][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:10,888][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:10,889][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 00:42:10,889][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 00:42:10,889][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:10,890][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:10,891][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:10,891][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:10,891][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 00:42:11,389][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-last.ckpt
+[2026-04-15 00:42:11,389][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-last/anemoi-metadata/anemoi.json
+[2026-04-15 00:42:11,391][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-last/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:11,392][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-last/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:11,393][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-last/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 00:42:11,393][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-last/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 00:42:11,393][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-last/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:11,394][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-last/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:11,394][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-last/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:11,394][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-last/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:11,395][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-last/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 00:42:14,482][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/last.ckpt
+[2026-04-15 00:42:14,482][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-15 00:42:14,484][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:14,485][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 00:42:14,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 00:42:14,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 00:42:14,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:14,486][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 00:42:14,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:14,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 00:42:14,487][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 01:47:08,773][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-15 01:49:13,747][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-anemoi-by_epoch-epoch_004-step_066320.ckpt
+[2026-04-15 01:49:13,747][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/anemoi.json
+[2026-04-15 01:49:13,749][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:13,750][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:13,750][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 01:49:13,751][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 01:49:13,751][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:13,751][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:13,752][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:13,752][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:13,752][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-anemoi-by_epoch-epoch_004-step_066320/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 01:49:16,580][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/anemoi-by_epoch-epoch_004-step_066320.ckpt
+[2026-04-15 01:49:16,580][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-15 01:49:16,582][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:16,583][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:16,584][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 01:49:16,584][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 01:49:16,584][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:16,585][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:16,585][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:16,586][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:16,586][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 01:49:17,031][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/inference-last.ckpt
+[2026-04-15 01:49:17,031][anemoi.utils.checkpoints][INFO] - Saving metadata to inference-last/anemoi-metadata/anemoi.json
+[2026-04-15 01:49:17,033][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to inference-last/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:17,034][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to inference-last/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:17,035][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to inference-last/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 01:49:17,035][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to inference-last/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 01:49:17,035][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to inference-last/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:17,036][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to inference-last/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:17,037][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to inference-last/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:17,038][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to inference-last/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:17,038][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to inference-last/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 01:49:20,128][anemoi.utils.checkpoints][INFO] - Adding extra information to checkpoint /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/2d1d80d1-b355-4423-b66b-834673f3536a/last.ckpt
+[2026-04-15 01:49:20,129][anemoi.utils.checkpoints][INFO] - Saving metadata to archive/anemoi-metadata/anemoi.json
+[2026-04-15 01:49:20,131][anemoi.utils.checkpoints][INFO] - Saving supporting array `latitudes` to archive/anemoi-metadata/latitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:20,131][anemoi.utils.checkpoints][INFO] - Saving supporting array `longitudes` to archive/anemoi-metadata/longitudes.numpy (shape=(82068,), dtype=float64)
+[2026-04-15 01:49:20,132][anemoi.utils.checkpoints][INFO] - Saving supporting array `lam_0/cutout_mask` to archive/anemoi-metadata/lam_0/cutout_mask.numpy (shape=(72668,), dtype=bool)
+[2026-04-15 01:49:20,132][anemoi.utils.checkpoints][INFO] - Saving supporting array `global/cutout_mask` to archive/anemoi-metadata/global/cutout_mask.numpy (shape=(13965,), dtype=bool)
+[2026-04-15 01:49:20,132][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/latitudes` to archive/anemoi-metadata/source0/latitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:20,133][anemoi.utils.checkpoints][INFO] - Saving supporting array `source0/longitudes` to archive/anemoi-metadata/source0/longitudes.numpy (shape=(72668,), dtype=float64)
+[2026-04-15 01:49:20,134][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/latitudes` to archive/anemoi-metadata/source1/latitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:20,134][anemoi.utils.checkpoints][INFO] - Saving supporting array `source1/longitudes` to archive/anemoi-metadata/source1/longitudes.numpy (shape=(13965,), dtype=float64)
+[2026-04-15 01:49:20,134][anemoi.utils.checkpoints][INFO] - Saving supporting array `grid_indices` to archive/anemoi-metadata/grid_indices.numpy (shape=(77419,), dtype=int64)
+[2026-04-15 06:58:25,148][lightning_fabric.strategies.launchers.subprocess_script][INFO] - [rank: 1] Child process with PID 27463 terminated with code -6. Forcefully terminating all other processes to avoid zombies 🧟

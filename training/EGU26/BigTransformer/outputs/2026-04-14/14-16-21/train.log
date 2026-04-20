@@ -1,0 +1,21 @@
+[2026-04-14 14:16:21,251][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-04-14 14:16:21,251][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-04-14 14:16:21,251][anemoi.training.train.train][INFO] - Run id: 17b01910-db73-419c-a64c-cccbf0ffbf0d
+[2026-04-14 14:16:21,252][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/17b01910-db73-419c-a64c-cccbf0ffbf0d'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-04-14 14:16:21,252][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/plots/17b01910-db73-419c-a64c-cccbf0ffbf0d
+[2026-04-14 14:16:21,761][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'cutout': [{'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr'}, {'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr'}], 'min_distance_km': 0, 'adjust': 'all'}.
+[2026-04-14 14:16:23,772][anemoi.graphs.generate.masks][INFO] - Fitting KNNAreaMaskBuilder with 72668 reference nodes from "data (cutout)".
+[2026-04-14 14:16:40,901][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 12 nearest neighbours) between data and hidden.
+[2026-04-14 14:16:40,911][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 14:16:41,155][anemoi.graphs.edges.builders.cutoff][INFO] - Using CutOff-Edges (with radius = 15.0 km [direct]) between data and hidden.
+[2026-04-14 14:16:41,155][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+

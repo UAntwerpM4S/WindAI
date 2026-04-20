@@ -1,3 +1,6 @@
+# GraphTransformerEGU.yaml
+# Top-level `system: {hardware, input, output}` with a backward-compat `${hardware.*}` shim.
+# Includes Anemoi's LAM scaler preset correctly via Hydra config group.
 
 defaults:
   - _self_
@@ -16,15 +19,16 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/Cerra_A.zarr
-      outer: ${hardware.paths.data}/era5_A2.zarr
+      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
+      outer: ${hardware.paths.data}/era5_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start:  /mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPower/anemoi-by_time-epoch_005-step_150000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/BigTransformer/last.ckpt
+
 
   output:
-    root: /mnt/weatherloss/WindPower/training/EGU26
+    root: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer
     logs:
       root: logs
       wandb: wandb
@@ -99,12 +103,12 @@ data:
     - turbinecount
     - turbinemask
 
-  diagnostic:
+  diagnostic: 
     - power
 
   remapped: null
 
-  imputer:
+  imputer: 
     0.0:
       - power
       - capacity 
@@ -141,7 +145,7 @@ data:
     default: none
 
   processors:
-    imputer:
+    imputer: 
       _target_: anemoi.models.preprocessing.imputer.ConstantImputer
       config: ${data.imputer}
 
@@ -162,8 +166,8 @@ dataloader:
   read_group_size: ${hardware.num_gpus_per_model}
 
   num_workers:
-    training: 2
-    validation: 2
+    training: 8
+    validation: 8
     test: 2
     predict: 2
 
@@ -174,8 +178,8 @@ dataloader:
     predict: 1
 
   limit_batches:
-    training: null #1000
-    validation: null 10
+    training: 1000
+    validation: 10
     test: 20
     predict: 20
 
@@ -188,6 +192,7 @@ dataloader:
     dataset:
       cutout:
         - dataset: ${hardware.files.datasets.inner}
+        #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -258,6 +263,7 @@ dataloader:
             turbinemask: 66 
 
         - dataset: ${hardware.files.datasets.outer}
+          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
       min_distance_km: 0
@@ -425,7 +431,7 @@ diagnostics:
 # GRAPH
 # ============================================================
 graph:
-  overwrite: false
+  overwrite: true
   data: data
   hidden: hidden
 
@@ -435,8 +441,8 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -449,9 +455,9 @@ graph:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
           masks:
             _target_: anemoi.graphs.nodes.attributes.CutOutMask
-        turbine_mask:
-          _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
-          variable: turbinemask
+        # turbine_mask:
+        #   _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
+        #   variable: turbinemask
 
     hidden:
       node_builder:
@@ -522,7 +528,7 @@ graph:
 # MODEL
 # ============================================================
 model:
-  num_channels: 512
+  num_channels: 768
   cpu_offload: false
 
   model:
@@ -545,14 +551,16 @@ model:
       bias: false
 
   processor:
-    _target_: anemoi.models.layers.processor.GraphTransformerProcessor
-    trainable_size: ${model.trainable_parameters.hidden2hidden}
-    sub_graph_edge_attributes: ${model.attributes.edges}
-    num_layers: 8
+    _target_: anemoi.models.layers.processor.TransformerProcessor
+    num_layers: 12
     num_chunks: 2
-    mlp_hidden_ratio: 2
-    num_heads: 8
-    qk_norm: false
+    mlp_hidden_ratio: 2 # GraphTransformer or Transformer only
+    num_heads: 8 # GraphTransformer or Transformer only
+    window_size: 512
+    dropout_p: 0.0 # GraphTransformer
+    attention_implementation:  flash_attention #scaled_dot_product_attention # Possible values:      scaled_dot_product_attention, flash_attention
+    qk_norm: False # Transformer and GraphTransformer only
+    softcap: 0.0 # Transformer only
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
 
@@ -601,21 +609,21 @@ model:
     - _target_: anemoi.models.layers.bounding.ReluBounding
       variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
 
-
     - _target_: anemoi.models.layers.bounding.HardtanhBounding
       variables:
         - power
       min_val: 0.0
       max_val: 1.0
 
+
 # ============================================================
 # TRAINING
 # ============================================================
 
 training:
-  run_id: Finetune
-  fork_run_id: Finetune
-  load_weights_only: true
+  run_id: BigTransformer
+  fork_run_id: null
+  load_weights_only: false
   transfer_learning: null
 
   deterministic: false
@@ -648,7 +656,7 @@ training:
 
   training_loss:
     _target_: anemoi.training.losses.MSELoss
-    scalers: ['general_variable', 'node_weights', 'nan_mask_weights', 'turbine_node_weights']
+    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
     ignore_nans: true
 
   validation_metrics:
@@ -656,21 +664,6 @@ training:
       _target_: anemoi.training.losses.MSELoss
       scalers: ['node_weights']
       ignore_nans: true
-    mse_turbines:                          # second metric: turbine nodes only
-      _target_: anemoi.training.losses.MSELoss
-      scalers: ['turbine_node_weights']
-      ignore_nans: true
-  # training_loss:
-  #   _target_: anemoi.training.losses.MSELoss
-  #   scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
-  #   ignore_nans: true
-
-  # validation_metrics:
-  #   mse:
-  #     _target_: anemoi.training.losses.MSELoss
-  #     scalers: ['node_weights']
-  #     ignore_nans: true
-
 
   scalers:
     general_variable:
@@ -684,6 +677,11 @@ training:
         w: 0.001
         z: 12
         mcc: 0.1
+        ws10: 2
+        ws100: 2 
+        
+        # power: 0.0001
+
 
     pressure_level:
       _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
@@ -693,12 +691,6 @@ training:
 
     nan_mask_weights:
       _target_: anemoi.training.losses.scalers.NaNMaskScaler
-    
-    limited_area_mask:
-      _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
-      nodes_name: ${graph.data}
-      nodes_attribute_name: cutout
-      norm: null
 
     node_weights:
       _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
@@ -706,13 +698,13 @@ training:
       nodes_attribute_name: area_weight
       norm: "unit-sum"
 
-    turbine_node_weights:                  # replaces limited_area_mask
+    limited_area_mask:
       _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
       nodes_name: ${graph.data}
-      nodes_attribute_name: turbine_mask
+      nodes_attribute_name: cutout
       norm: null
-  variable_groups:
 
+  variable_groups:
     default: sfc
     pl: [q, t, u, v, z]
 
@@ -730,23 +722,26 @@ training:
 
   rollout:
     start: 1
-    epoch_increment: 0
-    max: 1
+    epoch_increment: 1
+    max: 12
 
-  max_epochs: 20
-  max_steps: 6000
+  max_epochs: 40
+  max_steps: 210000
 
+#   lr:
+#     warmup: 1000
+#     rate:  0.000125
+# # 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+#     iterations: ${training.max_steps}
+#     min: 3.0e-07
+  
   lr:
-    warmup: 100
-    rate: 3.125e-06
-    iterations: ${training.max_steps}
-    min: 3.0e-08
+    warmup: 1000
+    rate: 0.0000032 #8.0e-07
+    iterations: 10000
+    min: 3.0e-07
+    warmup_t: 100
 
-  # lr:
-  #   warmup: 1000
-  #   rate: 8.0e-07
-  #   iterations: 6000
-  #   min: 3.0e-07
-  #   warmup_t: 100
 
-  submodules_to_freeze: [encoder,processor]
+
+  submodules_to_freeze: []

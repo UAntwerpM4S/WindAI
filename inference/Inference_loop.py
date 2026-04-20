@@ -2,13 +2,13 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 
-start_date = datetime(2025, 5, 1, 0)
+start_date = datetime(2024, 8, 1, 0)
 end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
 
-        "EGU/VanillaPowerTF": ("/mnt/weatherloss/WindPower/training/EGU26/VanillaPowerTF/checkpoint/VanillaPowerTF", "inference-last.ckpt"),
+        "EGU/SyntheticGT": ("/mnt/weatherloss/WindPower/training/EGU26/SyntheticGT/checkpoint/SyntheticGT", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -30,14 +30,14 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
         with open(temp_yaml, "w") as f:
             f.write(f"""\
 checkpoint: {checkpoint_path}
-lead_time: 36
+lead_time: 39
 date: "{date_str}"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/NewFilled_Cerra_A_large.zarr
         - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all

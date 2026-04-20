@@ -197,27 +197,26 @@ def append_cerra_coords(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Opening CERRA zarr: {CERRA_PATH}")
     ds = xr.open_zarr(CERRA_PATH, consolidated=False)
 
-    lat2d = ds["latitudes"].values   # (y, x)
-    lon2d = ds["longitudes"].values  # (y, x)
-    ny, nx = lat2d.shape
-    print(f"  Grid shape: {ny} x {nx} = {ny * nx} points")
+    # Anemoi datasets store lat/lon as 1-D arrays over the "values" dimension
+    lat1d = ds["latitudes"].values   # (n_points,)
+    lon1d = ds["longitudes"].values  # (n_points,)
+    print(f"  Grid size: {lat1d.size} points")
 
     # KD-tree in (lon, lat) over full grid — mirrors append_turbine_vars_xy
-    tree = cKDTree(np.c_[lon2d.ravel(), lat2d.ravel()])
+    tree = cKDTree(np.c_[lon1d, lat1d])
 
     farm_lon = df["lon"].astype(float).values
     farm_lat = df["lat"].astype(float).values
 
     _, flat_indices = tree.query(np.c_[farm_lon, farm_lat], k=1)
 
-    iy_arr, ix_arr = np.unravel_index(flat_indices, (ny, nx))
-    grid_lat = lat2d[iy_arr, ix_arr]
-    grid_lon = lon2d[iy_arr, ix_arr]
+    grid_lat = lat1d[flat_indices]
+    grid_lon = lon1d[flat_indices]
     dist_km  = haversine_km(farm_lat, farm_lon, grid_lat, grid_lon)
 
     df = df.copy()
-    df["cerra_y"]           = iy_arr
-    df["cerra_x"]           = ix_arr
+    df["cerra_y"]           = flat_indices   # flat index into 1-D values dim
+    df["cerra_x"]           = 0              # no x-axis in Anemoi 1-D grid
     df["cerra_grid_lat"]    = grid_lat
     df["cerra_grid_lon"]    = grid_lon
     df["cerra_distance_km"] = dist_km

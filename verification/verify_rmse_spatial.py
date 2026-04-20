@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import h5py
+import netCDF4 as nc4
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -16,12 +18,13 @@ import xarray as xr
 TARGET_VARS = ["ws10", "ws100"]
 
 FORECAST_DIRS = {
-    "GNNCI": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCI"),
-    "GTCI":  Path("/mnt/weatherloss/WindPower/inference/CI/GTCI"),
-    "TFCI":  Path("/mnt/weatherloss/WindPower/inference/CI/TFCI"),
+    "NoPowerTF":      Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTF"),
+    "NoPowerGT":      Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGT"),
+    "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
+    "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
 }
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(0, 39, 3))
@@ -51,11 +54,15 @@ def main() -> None:
 
     ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
     cerra_vars  = list(ds_cerra.attrs["variables"])
-    cerra_dates = pd.to_datetime(ds_cerra["dates"].values)
+    cerra_dates = pd.to_datetime(ds_cerra["dates"].values).tz_localize("UTC")
     n_cells     = ds_cerra.sizes["cell"]
 
-    lead_to_idx = {lh: i for i, lh in enumerate(sorted(set(LEAD_HOURS)))}
-    n_leads     = len(lead_to_idx)
+    # Fast lookup: valid_time ISO → cerra time index
+    cerra_date_to_idx = {d.isoformat(): i for i, d in enumerate(cerra_dates)}
+
+    lead_hours_sorted = sorted(set(LEAD_HOURS))
+    lead_to_idx       = {lh: i for i, lh in enumerate(lead_hours_sorted)}
+    n_leads           = len(lead_to_idx)
 
     file_maps = {label: list_files(path, INIT_START, INIT_END)
                  for label, path in FORECAST_DIRS.items()}
@@ -65,8 +72,6 @@ def main() -> None:
     )
     print(f"Common init times: {len(common_inits)}")
 
-    cerra_time_set = set(cerra_dates)
-
     for var in TARGET_VARS:
         if var not in cerra_vars:
             print(f"WARNING: '{var}' not in CERRA, skipping.")
@@ -74,44 +79,74 @@ def main() -> None:
         var_idx = cerra_vars.index(var)
         print(f"\n=== Variable: {var} ===")
 
+        # Preload all needed CERRA timesteps for this variable
+        needed_valid_times = sorted({
+            init + pd.Timedelta(hours=lh)
+            for init in common_inits
+            for lh in LEAD_HOURS
+            if (init + pd.Timedelta(hours=lh)).isoformat() in cerra_date_to_idx
+        })
+        needed_cerra_idxs = [cerra_date_to_idx[t.isoformat()] for t in needed_valid_times]
+        print(f"  Preloading {len(needed_cerra_idxs)} CERRA timesteps...")
+        cerra_bulk = ds_cerra["data"].isel(
+            time=needed_cerra_idxs,
+            variable=var_idx,
+            ensemble=0,
+        ).values  # (n_needed, n_cells)
+        cerra_cache = {
+            t.isoformat(): cerra_bulk[i]
+            for i, t in enumerate(needed_valid_times)
+        }
+        del cerra_bulk
+        print("  CERRA preload done.")
+
         for label in FORECAST_DIRS:
             print(f"  Processing: {label}")
 
-            # accumulate squared errors and counts per (lead, cell)
             sum_sq = np.zeros((n_leads, n_cells), dtype=np.float64)
             count  = np.zeros((n_leads, n_cells), dtype=np.int64)
 
-            for init in common_inits:
-                with xr.open_dataset(file_maps[label][init]) as ds_fc:
-                    fc_times = pd.to_datetime(ds_fc["time"].values)
-                    leads_h  = (
-                        (fc_times - init.replace(tzinfo=None)) / np.timedelta64(1, "h")
-                    ).astype(int)
+            for n_init, init in enumerate(common_inits):
+                if n_init % 500 == 0:
+                    print(f"    {n_init}/{len(common_inits)}...", flush=True)
 
-                    for i, lh in enumerate(leads_h):
-                        if lh not in lead_to_idx:
-                            continue
-                        if fc_times[i] not in cerra_time_set:
-                            continue
+                try:
+                    with h5py.File(str(file_maps[label][init]), "r") as f:
+                        tv  = f["time"]
+                        raw = nc4.num2date(
+                            tv[:],
+                            tv.attrs["units"].decode(),
+                            tv.attrs.get("calendar", b"standard").decode(),
+                        )
+                        fc_times = [pd.Timestamp(str(t)).tz_localize("UTC") for t in raw]
+                        var_all  = f[var][:, :]  # (n_times, n_cells) — plain slice
 
-                        t_idx = int(np.where(cerra_dates == fc_times[i])[0][0])
+                except Exception as e:
+                    print(f"    Skipping {file_maps[label][init].name}: {e}")
+                    continue
 
-                        fc = ds_fc[var].isel(time=i).values        # (n_cells,)
-                        tr = ds_cerra["data"].isel(
-                            time=t_idx, variable=var_idx, ensemble=0
-                        ).values                                    # (n_cells,)
+                # Pure numpy from here — no file handles open
+                for t_i, fc_time in enumerate(fc_times):
+                    lh = int((fc_time - init).total_seconds() / 3600)
+                    if lh not in lead_to_idx:
+                        continue
+                    viso = fc_time.isoformat()
+                    if viso not in cerra_cache:
+                        continue
 
-                        sq_err = (fc - tr) ** 2
-                        finite = np.isfinite(sq_err)
-                        l_idx  = lead_to_idx[lh]
-                        sum_sq[l_idx] += np.where(finite, sq_err, 0.0)
-                        count[l_idx]  += finite.astype(np.int64)
+                    fc     = var_all[t_i]
+                    tr     = cerra_cache[viso]
+                    sq_err = (fc - tr) ** 2
+                    finite = np.isfinite(sq_err)
+                    l_idx  = lead_to_idx[lh]
+                    sum_sq[l_idx] += np.where(finite, sq_err, 0.0)
+                    count[l_idx]  += finite.astype(np.int64)
 
             with np.errstate(invalid="ignore"):
                 spatial_rmse = np.where(count > 0, np.sqrt(sum_sq / count), np.nan)
-            spatial_rmse = spatial_rmse.astype(np.float32)  # (n_leads, n_cells)
+            spatial_rmse = spatial_rmse.astype(np.float32)
 
-            leads_arr = np.array(sorted(lead_to_idx))
+            leads_arr = np.array(lead_hours_sorted)
             ds_out = xr.Dataset(
                 {"rmse": (("lead_time", "cell"), spatial_rmse)},
                 coords={

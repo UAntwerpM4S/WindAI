@@ -1,0 +1,6 @@
+[2026-04-14 14:24:20,327][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-04-14 14:24:20,327][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-04-14 14:24:20,327][anemoi.training.train.train][INFO] - Run id: 762e604c-1b02-4d8d-9677-eaf4b58d38d6
+[2026-04-14 14:24:20,327][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/762e604c-1b02-4d8d-9677-eaf4b58d38d6'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-04-14 14:24:20,328][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/plots/762e604c-1b02-4d8d-9677-eaf4b58d38d6
+[2026-04-14 14:24:20,839][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'cutout': [{'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr'}, {'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr'}], 'min_distance_km': 0, 'adjust': 'all'}.

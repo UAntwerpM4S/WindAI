@@ -1,0 +1,136 @@
+[2026-04-14 14:36:51,440][anemoi.training.train.train][INFO] - Skipping config validation.
+[2026-04-14 14:36:51,440][anemoi.training.train.train][INFO] - Starting from checkpoint: False
+[2026-04-14 14:36:51,440][anemoi.training.train.train][INFO] - Run id: 551582be-c9ee-427a-a0b1-bf4c4b986850
+[2026-04-14 14:36:51,440][anemoi.training.train.train][INFO] - Checkpoints path: {'root': PosixPath('/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/551582be-c9ee-427a-a0b1-bf4c4b986850'), 'every_n_epochs': 'anemoi-by_epoch-epoch_{epoch:03d}-step_{step:06d}', 'every_n_train_steps': 'anemoi-by_step-epoch_{epoch:03d}-step_{step:06d}', 'every_n_minutes': 'anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}'}
+[2026-04-14 14:36:51,441][anemoi.training.train.train][INFO] - Plots path: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/plots/551582be-c9ee-427a-a0b1-bf4c4b986850
+[2026-04-14 14:36:51,742][anemoi.graphs.nodes.builders.from_file][INFO] - Reading the dataset from {'cutout': [{'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr'}, {'dataset': '/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr'}], 'min_distance_km': 0, 'adjust': 'all'}.
+[2026-04-14 14:36:53,932][anemoi.graphs.generate.masks][INFO] - Fitting KNNAreaMaskBuilder with 72668 reference nodes from "data (cutout)".
+[2026-04-14 14:37:09,011][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 12 nearest neighbours) between data and hidden.
+[2026-04-14 14:37:09,019][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 14:37:09,214][anemoi.graphs.edges.builders.cutoff][INFO] - Using CutOff-Edges (with radius = 15.0 km [direct]) between data and hidden.
+[2026-04-14 14:37:09,214][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 14:38:27,533][anemoi.graphs.edges.builders.knn][INFO] - Using KNN-Edges (with 3 nearest neighbours) between hidden and data.
+[2026-04-14 14:38:27,534][anemoi.graphs.edges.builders.base][WARNING] - The 'torch-cluster' library is not installed.
+Installing 'torch-cluster' can significantly improve performance for graph creation.
+You can install it using:
+    TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+    pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH_VERSION}.html
+
+[2026-04-14 14:38:27,834][anemoi.graphs.create][INFO] - Cleaning graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _dataset deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _grid_reference_distance deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _resolutions deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _node_ordering deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _nx_graph deleted from graph.
+[2026-04-14 14:38:27,835][anemoi.graphs.create][INFO] - _area_mask_builder deleted from graph.
+[2026-04-14 14:38:27,841][anemoi.graphs.processors.post_process][INFO] - Removing 120985 edges from ('data', 'to', 'hidden').
+[2026-04-14 14:38:27,864][anemoi.graphs.processors.post_process][INFO] - Recomputing edge attribute edge_length.
+[2026-04-14 14:38:27,866][anemoi.graphs.processors.post_process][INFO] - Recomputing edge attribute edge_dirs.
+[2026-04-14 14:38:27,964][anemoi.graphs.processors.post_process][INFO] - Removing 4649 nodes from data.
+[2026-04-14 14:38:28,481][anemoi.graphs.processors.post_process][INFO] - An attribute indices_connected_nodes has been added with the indices to mask the nodes from the original graph.
+[2026-04-14 14:38:28,579][anemoi.graphs.create][INFO] - Graph saved at /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt.
+[2026-04-14 14:38:29,412][anemoi.training.data.datamodule][WARNING] - Falling back rollout to: 1
+[2026-04-14 14:38:29,412][anemoi.training.data.datamodule][INFO] - Timeincrement set to 1 for data with frequency, 10800, and timestep, 10800
+[2026-04-14 14:38:29,413][anemoi.training.data.grid_indices][INFO] - The graph attribute indices_connected_nodes of the data nodes will be used to masking the spatial dimension.
+[2026-04-14 14:38:29,414][anemoi.training.train.train][INFO] - Number of data variables: 67
+[2026-04-14 14:38:29,415][anemoi.training.train.train][INFO] - Variables: ['cos_julian_day', 'cos_latitude', 'cos_longitude', 'insolation', 'lsm', 'mcc', 'msl', 'q_1000', 'q_500', 'q_600', 'q_700', 'q_750', 'q_800', 'q_850', 'q_900', 'q_950', 'sin_julian_day', 'sin_latitude', 'sin_longitude', 't2m', 't_1000', 't_500', 't_600', 't_700', 't_750', 't_800', 't_850', 't_900', 't_950', 'u_1000', 'u_500', 'u_600', 'u_700', 'u_750', 'u_800', 'u_850', 'u_900', 'u_950', 'v_1000', 'v_500', 'v_600', 'v_700', 'v_750', 'v_800', 'v_850', 'v_900', 'v_950', 'wdir100_cos', 'wdir100_sin', 'wdir10_cos', 'wdir10_sin', 'ws10', 'ws100', 'z_1000', 'z_500', 'z_600', 'z_700', 'z_750', 'z_800', 'z_850', 'z_900', 'z_950', 'z_sfc', 'power', 'capacity', 'turbinecount', 'turbinemask']
+[2026-04-14 14:38:29,415][anemoi.training.train.train][INFO] - Total number of prognostic variables: 55
+[2026-04-14 14:38:29,415][anemoi.training.train.train][INFO] - Total number of auxiliary variables: 12
+[2026-04-14 14:38:29,415][anemoi.training.train.train][INFO] - Total GPU count / model group size: 2 - NB: the learning rate will be scaled by this factor!
+[2026-04-14 14:38:29,416][anemoi.training.train.train][INFO] - Effective learning rate: 2.500e-04
+[2026-04-14 14:38:29,416][anemoi.training.train.train][INFO] - Training limits: max_epochs=30, max_steps=200000. Training will stop when either limit is reached first. Learning rate scheduler will run for 200000 steps.
+[2026-04-14 14:38:29,448][anemoi.models.migrations.migrator][INFO] - Loading migration 1755530253_initial
+[2026-04-14 14:38:29,448][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857427_deprecate_eda
+[2026-04-14 14:38:29,448][anemoi.models.migrations.migrator][INFO] - Loading migration 1762857428_chunking_fix
+[2026-04-14 14:38:29,448][anemoi.models.migrations.migrator][INFO] - Loading migration 1763479917_hardware_schema_update
+[2026-04-14 14:38:29,498][anemoi.training.train.train][INFO] - TensorBoard logger enabled
+[2026-04-14 14:38:29,500][pytorch_lightning.utilities.rank_zero][INFO] - Using 16bit Automatic Mixed Precision (AMP)
+[2026-04-14 14:38:29,512][pytorch_lightning.utilities.rank_zero][INFO] - GPU available: True (cuda), used: True
+[2026-04-14 14:38:29,512][pytorch_lightning.utilities.rank_zero][INFO] - TPU available: False, using: 0 TPU cores
+[2026-04-14 14:38:29,567][lightning_fabric.utilities.seed][INFO] - Seed set to 4552
+[2026-04-14 14:38:29,571][anemoi.training.train.train][INFO] - Initial seed: Rank 0, initial seed 4552, running with random seed: 4552
+[2026-04-14 14:38:32,045][anemoi.models.preprocessing.imputer][WARNING] - If placement of NaNs for diagnostic variables in inference output is desired, this needs to be handled by postprocessors: power
+[2026-04-14 14:38:32,045][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in power with value 0.0
+[2026-04-14 14:38:32,045][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in capacity with value 0.0
+[2026-04-14 14:38:32,045][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in turbinecount with value 0.0
+[2026-04-14 14:38:32,045][anemoi.models.preprocessing.imputer][INFO] - Imputer: replacing NaNs in turbinemask with value 0.0
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: cos_latitude is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: cos_longitude is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: lsm is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: mcc is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: sin_latitude is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: sin_longitude is not normalized.
+[2026-04-14 14:38:32,048][anemoi.models.preprocessing.normalizer][INFO] - Normalizing: turbinemask is not normalized.
+[2026-04-14 14:38:32,164][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 14:38:32,165][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 14:38:32,166][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 14:38:32,167][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,167][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,365][anemoi.models.layers.block][INFO] - GraphTransformerMapperBlock using triton graph attention backend.
+[2026-04-14 14:38:32,371][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 14:38:32,372][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 14:38:32,372][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 14:38:32,373][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,374][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,524][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,547][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,572][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,595][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,618][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,644][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,671][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,697][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,724][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,751][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,777][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,804][anemoi.models.layers.attention][INFO] - Using flash attention v2
+[2026-04-14 14:38:32,835][anemoi.models.layers.utils][INFO] - Linear kernel: torch.nn.Linear.
+[2026-04-14 14:38:32,835][anemoi.models.layers.utils][INFO] - LayerNorm kernel: torch.nn.LayerNorm.
+[2026-04-14 14:38:32,836][anemoi.models.layers.utils][INFO] - Activation kernel: torch.nn.GELU.
+[2026-04-14 14:38:32,837][anemoi.models.layers.utils][INFO] - QueryNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,837][anemoi.models.layers.utils][INFO] - KeyNorm kernel: anemoi.models.layers.normalization.AutocastLayerNorm.
+[2026-04-14 14:38:32,968][anemoi.models.layers.block][INFO] - GraphTransformerMapperBlock using triton graph attention backend.
+[2026-04-14 14:38:33,309][anemoi.training.losses.scalers.variable_level][INFO] - Variable Level Scaling: Applying ReluVariableLevelScaler scaling to pl variables (['q', 't', 'u', 'v', 'z'])
+[2026-04-14 14:38:33,309][anemoi.training.losses.scalers.variable_level][INFO] - with slope = 0.001 and y-intercept/minimum = 0.2.
+[2026-04-14 14:38:33,521][anemoi.training.data.grid_indices][INFO] - The graph attribute indices_connected_nodes of the data nodes will be used to masking the spatial dimension.
+[2026-04-14 14:38:33,522][anemoi.training.train.train][INFO] - The following submodules will NOT be trained: []
+[2026-04-14 14:38:33,866][lightning_fabric.utilities.distributed][INFO] - Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+[2026-04-14 14:40:16,656][pytorch_lightning.utilities.rank_zero][INFO] - ----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+[2026-04-14 14:40:16,855][pytorch_lightning.accelerators.cuda][INFO] - LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+[2026-04-14 14:40:17,048][lightning_fabric.utilities.seed][INFO] - [rank: 0] Seed set to 4552
+[2026-04-14 14:40:36,349][anemoi.training.data.datamodule][WARNING] - Falling back rollout to: 1
+[2026-04-14 14:40:36,351][anemoi.training.data.dataset][INFO] - NativeGridDataset.set_group_info(): global_rank 0, model_comm_group_id 0, model_comm_group_rank 0, model_comm_num_groups 2, reader_group_rank 0
+[2026-04-14 14:40:36,767][anemoi.training.data.dataset][INFO] - Worker 0 (pid 3080, global_rank 0, model comm group 0)  has low/high range 0 / 90
+[2026-04-14 14:40:37,468][anemoi.training.data.dataset][INFO] - Worker 1 (pid 3178, global_rank 0, model comm group 0)  has low/high range 90 / 180
+[2026-04-14 14:40:38,069][anemoi.training.data.dataset][INFO] - Worker 2 (pid 3275, global_rank 0, model comm group 0)  has low/high range 180 / 270
+[2026-04-14 14:40:38,874][anemoi.training.data.dataset][INFO] - Worker 3 (pid 3371, global_rank 0, model comm group 0)  has low/high range 270 / 360
+[2026-04-14 14:40:39,567][anemoi.training.data.dataset][INFO] - Worker 4 (pid 3473, global_rank 0, model comm group 0)  has low/high range 360 / 450
+[2026-04-14 14:40:40,074][anemoi.training.data.dataset][INFO] - Worker 5 (pid 3571, global_rank 0, model comm group 0)  has low/high range 450 / 540
+[2026-04-14 14:40:40,966][anemoi.training.data.dataset][INFO] - Worker 6 (pid 3670, global_rank 0, model comm group 0)  has low/high range 540 / 630
+[2026-04-14 14:40:41,278][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
+[2026-04-14 14:40:41,980][anemoi.training.data.dataset][INFO] - Worker 7 (pid 3766, global_rank 0, model comm group 0)  has low/high range 630 / 720
+[2026-04-14 14:41:27,876][anemoi.training.data.dataset][INFO] - NativeGridDataset.set_group_info(): global_rank 0, model_comm_group_id 0, model_comm_group_rank 0, model_comm_num_groups 2, reader_group_rank 0
+[2026-04-14 14:41:28,865][anemoi.training.data.dataset][INFO] - Worker 0 (pid 4218, global_rank 0, model comm group 0)  has low/high range 0 / 1658
+[2026-04-14 14:41:29,574][anemoi.training.data.dataset][INFO] - Worker 1 (pid 4314, global_rank 0, model comm group 0)  has low/high range 1658 / 3316
+[2026-04-14 14:41:30,765][anemoi.training.data.dataset][INFO] - Worker 2 (pid 4380, global_rank 0, model comm group 0)  has low/high range 3316 / 4974
+[2026-04-14 14:41:31,565][anemoi.training.data.dataset][INFO] - Worker 3 (pid 4486, global_rank 0, model comm group 0)  has low/high range 4974 / 6632
+[2026-04-14 14:41:32,671][anemoi.training.data.dataset][INFO] - Worker 4 (pid 4619, global_rank 0, model comm group 0)  has low/high range 6632 / 8290
+[2026-04-14 14:41:33,466][anemoi.training.data.dataset][INFO] - Worker 5 (pid 4691, global_rank 0, model comm group 0)  has low/high range 8290 / 9948
+[2026-04-14 14:41:34,463][anemoi.training.data.dataset][INFO] - Worker 6 (pid 4795, global_rank 0, model comm group 0)  has low/high range 9948 / 11606
+[2026-04-14 14:41:35,671][anemoi.training.data.dataset][INFO] - Worker 7 (pid 4891, global_rank 0, model comm group 0)  has low/high range 11606 / 13264
+[2026-04-14 14:41:59,877][anemoi.models.data_indices.collection][INFO] - The order of the variables in the model matches the order in the data.
