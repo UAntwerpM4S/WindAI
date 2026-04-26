@@ -20,11 +20,10 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/EGU26/NoPower/checkpoint/NoPower/last.ckpt
-
+    warm_start: null
 
   output:
-    root: /mnt/weatherloss/WindPower/training/EGU26/NoPower
+    root: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF
     logs:
       root: logs
       wandb: wandb
@@ -162,8 +161,8 @@ dataloader:
   read_group_size: ${hardware.num_gpus_per_model}
 
   num_workers:
-    training: 8
-    validation: 8
+    training: 2
+    validation: 2
     test: 2
     predict: 2
 
@@ -716,10 +715,10 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 12
+    max: 25
 
-  max_epochs: 30
-  max_steps: 210000
+  max_epochs: 40
+  max_steps: 220000
 
 #   lr:
 #     warmup: 1000
@@ -731,7 +730,7 @@ training:
   lr:
     warmup: 1000
     rate: 0.0000064 #8.0e-07
-    iterations: 10000
+    iterations: 20000
     min: 3.0e-07
     warmup_t: 100
 

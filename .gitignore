@@ -60,6 +60,8 @@ training/EGU26/VanillaPower/outputs
 training/EGU26/NoPowerTF/outputs
 training/EGU26/VanillaPowerTF/outputs
 training/EGU26/SyntheticGT/outputs 
+training/EGU26/Synthetic/outputs
+training/EGU26/VanillaPowerGTFinetune/outputs
 training/EGU26/BigTransformer/outputs 
 
 #Env 

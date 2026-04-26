@@ -1,3 +1,7 @@
+# GraphTransformerEGU.yaml
+# Top-level `system: {hardware, input, output}` with a backward-compat `${hardware.*}` shim.
+# Includes Anemoi's LAM scaler preset correctly via Hydra config group.
+
 defaults:
   - _self_
 
@@ -15,16 +19,16 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
-      outer: ${hardware.paths.data}/era5_A_large.zarr
+      inner: ${hardware.paths.data}/NewSynthetic_Cerra_A_large.zarr
+      outer: ${hardware.paths.data}/era5_synthetic_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: null #/mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerBigTF/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/EGU26/Synthetic/checkpoint/SyntheticTF/last.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF
+    root: /mnt/weatherloss/WindPower/training/EGU26/Synthetic
     logs:
       root: logs
       wandb: wandb
@@ -95,21 +99,23 @@ data:
     - cos_longitude
     - sin_longitude
     - z_sfc
-    # - capacity
-    # - turbinecount
-    # - turbinemask
+    - capacity
+    - turbinecount
+    - turbinemask
 
-  diagnostic: null 
-    #- power
+  diagnostic: 
+    - power
+    - synthetic_power
 
   remapped: null
 
-  imputer: {} #null
-    # 0.0:
-    #   - power
-    #   - capacity 
-    #   - turbinecount
-    #   - turbinemask
+  imputer: 
+    0.0:
+      - power
+      - capacity 
+      - turbinecount
+      - turbinemask
+      - synthetic_power
 
   normalizer:
     default: mean-std
@@ -125,9 +131,10 @@ data:
       - q_500
     max:
       - z_sfc
-      # - turbinecount
-    # min-max:
-    #   - power
+      - turbinecount
+    min-max:
+      - power
+      - synthetic_power
     none:
       - lsm
       - mcc
@@ -135,7 +142,7 @@ data:
       - sin_latitude
       - cos_longitude
       - sin_longitude
-      # - turbinemask
+      - turbinemask
 
   remapper:
     default: none
@@ -174,8 +181,8 @@ dataloader:
     predict: 1
 
   limit_batches:
-    training: null 
-    validation: null
+    training: 1000
+    validation: 10
     test: 20
     predict: 20
 
@@ -188,7 +195,7 @@ dataloader:
     dataset:
       cutout:
         - dataset: ${hardware.files.datasets.inner}
-          drop: ["power", "capacity", "turbinecount", "turbinemask"]
+        #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -253,17 +260,18 @@ dataloader:
             z_900: 60
             z_950: 61
             z_sfc: 62
-            # power: 63
-            # capacity: 64
-            # turbinecount: 65
-            # turbinemask: 66 
+            power: 63
+            capacity: 64
+            turbinecount: 65
+            turbinemask: 66 
+            synthetic_power: 67
 
         - dataset: ${hardware.files.datasets.outer}
-          drop: ["power", "capacity", "turbinecount", "turbinemask"]
+          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
       min_distance_km: 0
-      adjust: all
+      adjust: dates
 
     select:
       - cos_julian_day
@@ -329,10 +337,11 @@ dataloader:
       - z_900
       - z_950
       - z_sfc
-      # - power
-      # - capacity
-      # - turbinecount
-      # - turbinemask
+      - power
+      - capacity
+      - turbinecount
+      - turbinemask
+      - synthetic_power
 
   training:
     dataset: ${dataloader.dataset.dataset}
@@ -437,8 +446,8 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/NewSynthetic_Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_synthetic_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -519,6 +528,7 @@ graph:
     - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
       nodes_name: data
       save_mask_indices_to_attr: indices_connected_nodes
+
 
 # ============================================================
 # MODEL
@@ -605,11 +615,12 @@ model:
     - _target_: anemoi.models.layers.bounding.ReluBounding
       variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
 
-    # - _target_: anemoi.models.layers.bounding.HardtanhBounding
-    #   variables:
-    #     - power
-    #   min_val: 0.0
-    #   max_val: 1.0
+    - _target_: anemoi.models.layers.bounding.HardtanhBounding
+      variables:
+        - power
+        - synthetic_power
+      min_val: 0.0
+      max_val: 1.0
 
 
 # ============================================================
@@ -617,7 +628,7 @@ model:
 # ============================================================
 
 training:
-  run_id: null #NoPowerBigTF
+  run_id: SyntheticTF
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -673,9 +684,8 @@ training:
         w: 0.001
         z: 12
         mcc: 0.1
-       # power: 0.0001
-        # ws10: 2
-        # ws100: 2 
+        # power: 0.0001
+
 
     pressure_level:
       _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
@@ -708,7 +718,7 @@ training:
     - t_850
     - u_850
     - v_850
-    # - power
+    - power
 
   scale_validation_metrics:
     scalars_to_apply: []
@@ -716,24 +726,27 @@ training:
 
   rollout:
     start: 1
-    epoch_increment: 0
-    max: 1
+    epoch_increment: 1
+    max: 20
 
   max_epochs: 40
-  max_steps: 200000
+  max_steps: 220000
 
+#   lr:
+#     warmup: 1000
+#     rate:  0.00025
+# # 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+#     iterations: ${training.max_steps}
+#     min: 3.0e-07
+  
   lr:
     warmup: 1000
-    rate:  0.00025 
-    #0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
-    iterations: ${training.max_steps}
+    rate: 0.0000064 #8.0e-07
+    iterations: 20000
     min: 3.0e-07
-  
-  # lr:
-  #   warmup: 1000
-  #   rate: 0.0000064 #8.0e-07
-  #   iterations: 20000
-  #   min: 3.0e-07
-  #   warmup_t: 100
+    warmup_t: 100
+
+
+
 
   submodules_to_freeze: []

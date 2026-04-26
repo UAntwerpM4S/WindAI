@@ -1,5 +1,5 @@
 """
-verify_power_forecasts_sequential.py
+power_verify.py  —  Verify wind power forecasts against CERRA observations.
 """
 
 from pathlib import Path
@@ -13,23 +13,22 @@ import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
 
-REGIONS = ["BE"]
+REGIONS = ["Belgium"]
 
 METADATA_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 
 FORECAST_DIRS = {
-    "GT": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
-    "TF": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerTF"),
-    "GTROllout": Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    "Synthetic": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticGT"),
+    "BigTransformer (Vanilla + Synthetic power)":      Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
+    "BigTransformer (Vanilla power)":          Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
+  #  "GraphTransformer (Vanilla power)":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
 }
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("EGU_large")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-02-28 18:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 37, 3))
+INIT_END   = pd.Timestamp("2025-07-31 18:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 40, 3))
 
 # --------------------------------------------------
 
@@ -57,7 +56,7 @@ def load_farms(csv_path: Path, regions=None) -> pd.DataFrame:
 
 def read_forecast(nc_path: Path, init: pd.Timestamp,
                   lead_hours: list, cell_cerra_idxs: np.ndarray,
-                  cell_caps: np.ndarray, valid_iso_set: set) -> dict:
+                  valid_iso_set: set) -> dict:
     result = {}
     with h5py.File(str(nc_path), "r") as f:
         tv  = f["time"]
@@ -93,7 +92,6 @@ def main():
 
     grand_total_cap = sum(cell_map.values())
     cell_cerra_idxs = np.array(list(cell_map.keys()))
-    cell_caps       = np.array(list(cell_map.values()))
     print(f"Region: {REGIONS} | Capacity: {grand_total_cap:.1f} MW")
 
     # --- 2. Load CERRA ---
@@ -131,12 +129,10 @@ def main():
     ds_cerra.close()
     del cerra_bulk
 
-    # Only keep timesteps with valid (non-NaN) observations
     valid_iso_set = {
         iso for iso, arr in cerra_obs_cache.items()
-        if not np.all(np.isnan(arr))
+        if not np.any(np.isnan(arr))
     }
-    # Only keep inits where ALL lead hours have valid obs
     common_inits = [
         init for init in common_inits
         if all(
@@ -145,48 +141,10 @@ def main():
         )
     ]
     print(f"Inits with full lead hour coverage: {len(common_inits)}")
-    print(f"Valid obs timesteps: {len(valid_iso_set)}/{len(cerra_obs_cache)}")
+    print(f"CERRA preload done.")
 
-    # Per-lead-hour coverage
-    for lh in LEAD_HOURS:
-        count = sum(
-            1 for init in common_inits
-            if (init + pd.Timedelta(hours=lh)).isoformat() in valid_iso_set
-        )
-        print(f"  Lead {lh:2d}h: {count} valid obs timesteps")
-
-    print("CERRA preload done.")
-    # Check a few raw values to detect time shifts
-    test_init = common_inits[100]
-    print(f"\nTime shift check — init: {test_init}")
-    with h5py.File(str(dir_file_maps["GT"][test_init]), "r") as f:
-        tv  = f["time"]
-        raw = nc4.num2date(tv[:], tv.attrs["units"].decode(),
-                           tv.attrs.get("calendar", b"standard").decode())
-        fc_times = [pd.Timestamp(str(t)).tz_localize("UTC") for t in raw]
-        fc_time_to_idx = {t.isoformat(): j for j, t in enumerate(fc_times)}
-        power_all = f["power"][:, :]
-
-    power_sel = power_all[:, cell_cerra_idxs]
-
-    for lh in [3, 15, 30]:
-        valid     = test_init + pd.Timedelta(hours=lh)
-        viso      = valid.isoformat()
-        tidx      = fc_time_to_idx.get(viso)
-        fc_mw     = float(np.sum(power_sel[tidx])) if tidx is not None else None
-        obs_arr   = cerra_obs_cache.get(viso)
-        obs_mw    = float(np.nansum(obs_arr)) if obs_arr is not None else None
-        print(f"  +{lh:2d}h  valid={valid}  fc={fc_mw:.0f} MW  obs={obs_mw:.0f} MW  err={abs(fc_mw-obs_mw):.0f} MW")
-
-    # Also check obs at adjacent timesteps to detect offset
-    valid3 = test_init + pd.Timedelta(hours=3)
-    for offset in [-6, -3, 0, 3, 6]:
-        t   = valid3 + pd.Timedelta(hours=offset)
-        arr = cerra_obs_cache.get(t.isoformat())
-        mw  = float(np.nansum(arr)) if arr is not None else None
-        print(f"  obs at valid+{offset:+d}h ({t}): {mw:.0f} MW" if mw is not None else f"  obs at {t}: None")
     # --- 5. Process sequentially ---
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, (ax_mae, ax_rmse) = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
 
     for label, fmap in dir_file_maps.items():
         print(f"\nProcessing {label}...")
@@ -198,41 +156,45 @@ def main():
             try:
                 fc = read_forecast(
                     fmap[init], init, LEAD_HOURS,
-                    cell_cerra_idxs, cell_caps, valid_iso_set,
+                    cell_cerra_idxs, valid_iso_set,
                 )
                 for lh, fc_mw in fc.items():
                     viso   = (init + pd.Timedelta(hours=lh)).isoformat()
-                    obs_mw = float(np.nansum(cerra_obs_cache[viso]))
-                    lead_errors[lh].append(abs(fc_mw - obs_mw))
+                    obs_mw = float(np.sum(cerra_obs_cache[viso]))
+                    lead_errors[lh].append(fc_mw - obs_mw)  # signed for RMSE
 
             except Exception as e:
                 print(f"  Skipping {fmap[init].name}: {e}")
 
-        leads   = sorted(lead_errors)
-        mae_mw  = [np.mean(lead_errors[lh]) if lead_errors[lh] else np.nan for lh in leads]
-        mae_pct = [x / grand_total_cap * 100 if not np.isnan(x) else np.nan for x in mae_mw]
+        leads    = sorted(lead_errors)
+        errors   = [np.array(lead_errors[lh]) if lead_errors[lh] else np.array([np.nan]) for lh in leads]
 
-        print(f"{label} sample sizes: { {lh: len(lead_errors[lh]) for lh in leads} }")
-        print(f"{label} MAE MW:  {[round(x, 1) for x in mae_mw]}")
-        print(f"{label} MAE %:   {[round(x, 2) for x in mae_pct]}")
+        mae_pct  = [np.mean(np.abs(e)) / grand_total_cap * 100 for e in errors]
+        rmse_pct = [np.sqrt(np.mean(e ** 2)) / grand_total_cap * 100 for e in errors]
 
-        ax.plot(leads, mae_pct, marker="o", label=label)
-        np.save(OUT_DIR / f"mae_{label}.npy", np.column_stack([leads, mae_pct]))
+        ax_mae.plot(leads, mae_pct, marker="o", label=label)
+        ax_rmse.plot(leads, rmse_pct, marker="o", label=label)
+
+        np.save(OUT_DIR / f"mae_{label}.npy",  np.column_stack([leads, mae_pct]))
+        np.save(OUT_DIR / f"rmse_{label}.npy", np.column_stack([leads, rmse_pct]))
 
     # --- 6. Finalise ---
     region_str = ", ".join(REGIONS) if REGIONS else "All"
-    ax.set_title(
-        f"Power MAE Comparison\nRegion: {region_str}  "
-        f"({common_inits[0].date()} – {common_inits[-1].date()})"
-    )
-    ax.set_xlabel("Lead time [hours]")
-    ax.set_ylabel("MAE [% of Total Capacity]")
-    ax.set_xticks(LEAD_HOURS)
-    ax.legend()
-    ax.grid(True, ls="--", alpha=0.5)
+    date_range = f"{common_inits[0].date()} – {common_inits[-1].date()}"
+    suptitle   = f"Region: {region_str}  ({date_range})"
+
+    for ax, metric in [(ax_mae, "MAE"), (ax_rmse, "RMSE")]:
+        ax.set_title(f"Power {metric} Comparison")
+        ax.set_xlabel("Lead time [hours]")
+        ax.set_ylabel(f"{metric} [% of Total Capacity]")
+        ax.set_xticks(LEAD_HOURS)
+        ax.legend()
+        ax.grid(True, ls="--", alpha=0.5)
+
+    fig.suptitle(suptitle, fontsize=11, y=1.02)
     fig.tight_layout()
-    fig.savefig(OUT_DIR / "mae_comparison.png", dpi=150)
-    print(f"\nDone. Plot saved to {OUT_DIR}/mae_comparison.png")
+    fig.savefig(OUT_DIR / "mae_rmse_comparison.png", dpi=150, bbox_inches="tight")
+    print(f"\nDone. Plot saved to {OUT_DIR}/mae_rmse_comparison.png")
 
 
 if __name__ == "__main__":

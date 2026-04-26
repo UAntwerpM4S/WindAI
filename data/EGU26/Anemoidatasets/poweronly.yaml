@@ -13,8 +13,8 @@ build:
 input:
   pipe:
     - xarray-zarr:
-        url: "/mnt/weatherloss/WindPower/data/EGU26/filledpower.zarr"
-        param: [power]
+        url: "/mnt/weatherloss/WindPower/data/EGU26/era5_synthetic_only.zarr"
+        param: [synthetic_power]
         flavour:
           levtype: sfc
           rules:
@@ -25,4 +25,4 @@ input:
 statistics:
   start: "2020-01-01T00:00:00"
   end:   "2023-12-31T21:00:00"
-  allow_nans: [power]
+  allow_nans: [synthetic_power]

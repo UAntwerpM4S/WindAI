@@ -7,7 +7,7 @@ dates:
 input:
   pipe:
     - anemoi-dataset:
-        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/filledpower_A.zarr"
+        dataset: "/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/synthetic_power_xy.zarr"
         area: [60, -11, 46, 10]
 
     # - rename:
@@ -17,4 +17,4 @@ input:
 statistics:
     start: "2020-01-01T00:00:00"
     end:   "2023-12-31T21:00:00"
-    allow_nans: [power]#, turbinecount, turbinemask, capacity]
+    allow_nans: [synthetic_power]#, turbinecount, turbinemask, capacity]

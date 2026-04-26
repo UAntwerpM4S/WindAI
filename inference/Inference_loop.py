@@ -8,7 +8,7 @@ interval = timedelta(hours=3)
 
 checkpoints = {
 
-        "EGU/SyntheticGT": ("/mnt/weatherloss/WindPower/training/EGU26/SyntheticGT/checkpoint/SyntheticGT", "inference-last.ckpt"),
+        "EGU/NoPowerTFRollout":  ("/mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerBigTF", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -37,7 +37,7 @@ input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/NewFilled_Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
         - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all

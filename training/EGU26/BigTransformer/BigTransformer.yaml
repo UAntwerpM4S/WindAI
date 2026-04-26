@@ -723,10 +723,10 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 12
+    max: 20
 
   max_epochs: 40
-  max_steps: 210000
+  max_steps: 220000
 
 #   lr:
 #     warmup: 1000

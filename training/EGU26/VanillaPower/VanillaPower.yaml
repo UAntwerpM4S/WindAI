@@ -24,7 +24,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPower/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPowerMAE/last.ckpt
 
 
   output:
@@ -620,7 +620,7 @@ model:
 # ============================================================
 
 training:
-  run_id: VanillaPowerRollout
+  run_id: VanillaPowerMAE
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -654,13 +654,13 @@ training:
   loss_gradient_scaling: false
 
   training_loss:
-    _target_: anemoi.training.losses.MSELoss
+    _target_: anemoi.training.losses.MAELoss
     scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
     ignore_nans: true
 
   validation_metrics:
-    mse:
-      _target_: anemoi.training.losses.MSELoss
+    mae:
+      _target_: anemoi.training.losses.MAELoss
       scalers: ['node_weights']
       ignore_nans: true
 
@@ -719,10 +719,10 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 20
+    max: 12
 
   max_epochs: 40
-  max_steps: 220000
+  max_steps: 210000
 
 #   lr:
 #     warmup: 1000
