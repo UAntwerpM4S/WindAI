@@ -17,17 +17,25 @@ REGIONS = ["Belgium"]
 
 METADATA_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 
+# -------------------- SETTINGS --------------------
+# Keep same order/labels as rmse_vs_leadtime.py so colors match
+STYLE_ORDER = [
+    "Synthetic Power",
+    "Vanilla Power",
+]
+COLORS  = plt.cm.tab10.colors
+MARKERS = ["o", "s", "^", "D", "v"]
+
 FORECAST_DIRS = {
-    "BigTransformer (Vanilla + Synthetic power)":      Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
-    "BigTransformer (Vanilla power)":          Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
-  #  "GraphTransformer (Vanilla power)":  Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
+    "Synthetic Power": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
+    "Vanilla Power":             Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
 }
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("EGU_large")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-31 18:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 40, 3))
 
 # --------------------------------------------------
@@ -172,8 +180,13 @@ def main():
         mae_pct  = [np.mean(np.abs(e)) / grand_total_cap * 100 for e in errors]
         rmse_pct = [np.sqrt(np.mean(e ** 2)) / grand_total_cap * 100 for e in errors]
 
-        ax_mae.plot(leads, mae_pct, marker="o", label=label)
-        ax_rmse.plot(leads, rmse_pct, marker="o", label=label)
+        style_idx = STYLE_ORDER.index(label)
+        color     = COLORS[style_idx % len(COLORS)]
+        marker    = MARKERS[style_idx % len(MARKERS)]
+
+        ax_mae.plot(leads, mae_pct,  marker=marker, color=color, lw=1.5, label=label)
+        ax_rmse.plot(leads, rmse_pct, marker=marker, color=color, lw=1.5, label=label)
+
 
         np.save(OUT_DIR / f"mae_{label}.npy",  np.column_stack([leads, mae_pct]))
         np.save(OUT_DIR / f"rmse_{label}.npy", np.column_stack([leads, rmse_pct]))

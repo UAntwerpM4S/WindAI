@@ -20,11 +20,11 @@ system:
   input:
     dataset:
       inner: ${hardware.paths.data}/Cerra_A.zarr
-      outer: ${hardware.paths.data}/era5_A2.zarr
+      outer: ${hardware.paths.data}/era5_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTCIFINAL/last.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/GTLAM/anemoi-by_epoch-epoch_005-step_150000.ckpt
 
 
   output:
@@ -167,7 +167,7 @@ dataloader:
     predict: 1
 
   limit_batches:
-    training: 1000
+    training: 1000 
     validation: 10
     test: 20
     predict: 20
@@ -424,7 +424,7 @@ graph:
         dataset:
           cutout:
             - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A2.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -568,8 +568,12 @@ model:
     _target_: anemoi.models.layers.residual.SkipConnection
     step: -1
 
+  # output_mask:
+  #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
-    _target_: anemoi.training.utils.masks.NoOutputMask
+    _target_: anemoi.training.utils.masks.Boolean1DMask
+    nodes_name: data
+    attribute_name: cutout
 
   trainable_parameters:
     data: 8
@@ -593,7 +597,7 @@ model:
 # ============================================================
 
 training:
-  run_id: GTCIFINAL
+  run_id: GTLAM
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -700,7 +704,7 @@ training:
 
   # lr:
   #   warmup: 1000
-  #   rate: 3.125e-05
+  #   rate: 6.25e-05
   #   iterations: ${training.max_steps}
   #   min: 3.0e-07
   

@@ -15,25 +15,22 @@ import pandas as pd
 import xarray as xr
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100"]
+TARGET_VARS = ["ws10","ws100"]
 
 FORECAST_DIRS = {
-    "Transformer (No Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGTRollout"),
-    #"GraphTransformerRL" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    "Transformer (Vanilla Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
-    #"GraphTransformer" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGT"),
-    #"Transformer": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    "Transformer (Vanilla Power + Synthetic)": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
+    "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
+    "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
+    "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
 
 
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(0, 39, 3))
-OUT_DIR    = Path("EGU_spatial_rmse")
+LEAD_HOURS = list(range(0, 73, 3))
+OUT_DIR    = Path("CI_spatial_rmse")
 # --------------------------------------------------
 
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")

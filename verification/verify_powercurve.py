@@ -28,21 +28,20 @@ from scipy.spatial import cKDTree
 # ---------------------------------------------------------------------------
 
 FORECAST_DIRS: List[Path] = [
-     Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFRollout"),
-      Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
+    Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
+  #  Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
 #    Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
     #Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
+    Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
     #Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerMAE"),
 ]
 
 LABELS: Dict[str, str] = {
-    "VanillaPower" : "Normal GT",
-    "NoPowerGTRollout" :             "BigTransformer (no power)",
-    "VanillaPowerGTRollout": "GraphTransformer (vanilla power)",
-    "SyntheticTF": "BigTransformer (Vanilla + Synthetic power)",
-    "BigTransformer" : "Normal TF",
-    "BigTransformerRollout": "BigTransformer (Vanilla power)",
+    "BigTransformerNew" : "VanillaPower",
+    "NoPowerTFNew" :             "NoPower",
+    "SyntheticNew": "SyntheticPower",
+   # "BigTransformer" : "Normal TF",
+   # "BigTransformerRollout": "BigTransformer (Vanilla power)",
 }
 
 CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
@@ -52,7 +51,7 @@ METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_me
 PLOT_DIR      = Path("EGU_large")
 
 INIT_START  = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END    = pd.Timestamp("2024-10-31 18:00:00", tz="UTC")
+INIT_END    = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS  = list(range(3, 40, 3))
 MAX_DIST_KM = 2.0
 
@@ -326,28 +325,38 @@ def plot_metrics(
     y_label: str,
     n_inits: int,
 ) -> None:
-    color_palette = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442"]
-    base_colors: Dict[str, str] = {}
-    color_idx = 0
+        # --- Shared style (matches rmse_vs_leadtime.py) ---
+    STYLE_ORDER = [
+  "Vanilla Power",
+      "No Power",
+   "Vanilla + Synthetic power",
+    ]
+    COLORS  = plt.cm.tab10.colors
+    MARKERS = ["o", "s", "^", "D", "v"]
 
     # --- Figure 1: MAE + RMSE side by side ---
     fig1, (ax_mae, ax_rmse) = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
-    fig1.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
+    fig1.suptitle(f"Belgian offshore zone  (Aug 2024 - July 2025)", fontsize=12)
+    #fig1.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
 
     # --- Figure 2: Bias alone ---
     fig2, ax_bias = plt.subplots(1, 1, figsize=(7, 5))
-    fig2.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
+    fig2.suptitle(f"Belgian offshore zone  (Aug 2024 - July 2025)", fontsize=12)
+    #fig2.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
+
+    COLOR_MAP = {
+        "NoPower":   "black",
+        "VanillaPower": "blue",
+        "SyntheticPower":  "red",
+    }
 
     for label, df in results:
-        base_label = label.split("-")[0]
-        if base_label not in base_colors:
-            base_colors[base_label] = color_palette[color_idx % len(color_palette)]
-            color_idx += 1
-
+        base_label = label.replace("-powercurve", "")
         is_powercurve = "powercurve" in label.lower()
-        color  = base_colors[base_label]
+
+        color  = COLOR_MAP.get(base_label, "gray")
+        marker = "" if is_powercurve else "o"
         ls     = "--" if is_powercurve else "-"
-        marker = ""   if is_powercurve else "o"
 
         kwargs = dict(lw=1.8, ls=ls, marker=marker, markersize=4, color=color, label=label)
         ax_mae.plot(df["lead_hours"],  df[mae_col],  **kwargs)

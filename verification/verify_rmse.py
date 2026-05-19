@@ -14,27 +14,22 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100","ws10"] #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
+TARGET_VARS = ["ws10"] #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
-    "BigTransformer (No Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFRollout"),
-    #"GraphTransformerRL" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    "BigTransformer (Vanilla Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
-   # "GraphTransformer (Vanilla Power)" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    #"Transformer": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    "BigTransformer (Vanilla Power + Synthetic)": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
-
-
+    "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
+    "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
+    "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
-OUT_DIR    = Path("EGU_large")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+OUT_DIR    = Path("CI_plots")
 
-INIT_START = pd.Timestamp("2025-06-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-30 18:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 37, 3))
+INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 73, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------
@@ -203,10 +198,10 @@ def main():
                 lw=1.5, label=label,
             )
 
-            # np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
-            #         df[["lead_hours", "RMSE"]].values)
+            np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
+                    df[["lead_hours", "RMSE"]].values)
 
-        ax.set_title(f"RMSE vs Lead Time — {var} full year ({len(common_inits)} )",
+        ax.set_title(f"RMSE vs Lead Time — {var} (Aug 2024 - July 2025) )",
         #ax.set_title(f"RMSE vs Lead Time — {var}  (n={len(common_inits)} inits)",
                      fontsize=13)
         ax.set_xlabel("Lead time [hours]")
@@ -214,7 +209,7 @@ def main():
         ax.legend(title="Run", framealpha=0.8)
         ax.grid(True, ls="--", alpha=0.5)
         fig.tight_layout()
-        fig.savefig(OUT_DIR / f"rmse_{var}_summer.png", dpi=150)
+        fig.savefig(OUT_DIR / f"rmse_{var}.png", dpi=150)
         plt.close(fig)
         print(f"Saved: {OUT_DIR / f'rmse_{var}.png'}")
 

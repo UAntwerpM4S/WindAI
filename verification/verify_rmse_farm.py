@@ -21,12 +21,12 @@ import matplotlib.pyplot as plt
 TARGET_VARS = ["ws100", "ws10"]
 
 FORECAST_DIRS = {
-    "BigTransformer (No Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerGTRollout"),
+    "NoPower": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
     #"GraphTransformerRL" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    "BigTransformer (Vanilla Power)": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerRollout"),
+    "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
    # "GraphTransformer (Vanilla Power)" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
     #"Transformer": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    "BigTransformer (Vanilla Power + Synthetic)": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticTF"),
+    "Synthetic": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
 
 
 }
@@ -36,7 +36,7 @@ REGIONS       = ["Belgium"]
 
 OUT_DIR    = Path("EGU_farm")
 
-INIT_START = pd.Timestamp("2025-5-01 00:00:00", tz="UTC")
+INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 37, 3))
 
@@ -137,8 +137,13 @@ def main():
 
     cerra_date_to_idx = {d: i for i, d in enumerate(cerra_dates)}
 
-    colors  = plt.cm.tab10.colors
-    markers = ["o", "s", "^", "D", "v"]
+    STYLE_ORDER = [
+    "GraphTransformer (No Power)",
+    "BigTransformer (Vanilla Power)",
+    "BigTransformer (Vanilla Power + Synthetic)",
+    ]
+    COLORS  = plt.cm.tab10.colors
+    MARKERS = ["o", "s", "^", "D", "v"]
 
     for var in TARGET_VARS:
         var_idx = cerra_vars.index(var)
@@ -210,20 +215,20 @@ def main():
             df = pd.DataFrame({"lead_hours": leads, "RMSE": mean_rmse})
             print(f"\n{label} — {var} (farm cells)\n{df.to_string(index=False)}")
 
+            style_idx = STYLE_ORDER.index(label) if label in STYLE_ORDER else i
             ax.plot(
                 df["lead_hours"], df["RMSE"],
-                marker=markers[i % len(markers)],
-                color=colors[i % len(colors)],
+                marker=MARKERS[style_idx % len(MARKERS)],
+                color=COLORS[style_idx % len(COLORS)],
                 lw=1.5, label=label,
             )
-
             np.save(OUT_DIR / f"rmse_farm_{var}_{label}.npy",
                     df[["lead_hours", "RMSE"]].values)
 
         region_str = ", ".join(REGIONS)
         ax.set_title(
             f"RMSE vs Lead Time — {var} — {region_str} farm cells only\n"
-            f"Aug 24 – Feb 25  (n={len(common_inits)} inits, {len(farm_cell_idxs)} cells)",
+            f"Aug 2024 - July 2025 (Wind farm cells only)",
             fontsize=12,
         )
         ax.set_xlabel("Lead time [hours]")

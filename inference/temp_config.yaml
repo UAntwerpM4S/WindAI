@@ -1,5 +1,5 @@
-checkpoint: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerBigTF/inference-last.ckpt
-lead_time: 39
+checkpoint: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerWind/inference-last.ckpt
+lead_time: 37
 date: "2025-07-31T21:00:00"
 device: cuda
 input:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: EGU/NoPowerTFRollout/forecast_20250731210000.nc
+      netcdf: EGU/NoPowerTFWindNew/forecast_20250731210000.nc

@@ -3,17 +3,11 @@ sup_title:
   title: ""
   y: 0.92
   size: 30
-
 plot_info:
   - sub_title:
-      title: "Overview: nodes only"
+      title: ""
       size: 25
-    extent:  [1750000, -2000000, -850000, 1000000]
-    zoom_box:
-      extent:  [-210000, -1500000, -290000, -1400000]
-      linewidth: 1
-      edgecolor: "r"
-      facecolor: "none"
+    extent: [1700000, -1800000, -900000, 500000]
     CERRA:
       c: "limegreen"
       marker: "."
@@ -32,31 +26,65 @@ plot_info:
       linestyle: "None"
       s: 0.1
       alpha: 0.5
+# projection: CERRA
+# sup_title:
+#   title: ""
+#   y: 0.92
+#   size: 30
 
-  - sub_title:
-      title: "Zoom: nodes & edges"
-      size: 30
-    extent:   [-210000, -1500000, -290000, -1400000]
-    zoom_box:
-      extent:   [-210000, -1500000, -290000, -1400000]
-      linewidth: 10
-      edgecolor: "r"
-      facecolor: "none"
-    CERRA:
-      c: "limegreen"
-      marker: "o"
-      linestyle: "None"
-      s: 15
-    ERA5:
-      c: "dodgerblue"
-      marker: "o"
-      linestyle: "None"
-      s: 25
-    HIDDEN:
-      c: "black"
-      marker: "o"
-      linestyle: "None"
-      s: 10
-    EDGES:
-      c: "gray"
-      lw: 1
+# plot_info:
+#   - sub_title:
+#       title: "Overview: nodes only"
+#       size: 25
+#     extent:  [1250000, -1500000, -500000, 250000]
+#     zoom_box:
+#       extent:   [-25000, -1075000, -125000, -975000]
+#       linewidth: 1
+#       edgecolor: "r"
+#       facecolor: "none"
+#     CERRA:
+#       c: "limegreen"
+#       marker: "."
+#       linestyle: "None"
+#       s: 1
+#       alpha: 0.5
+#     ERA5:
+#       c: "dodgerblue"
+#       marker: "."
+#       linestyle: "None"
+#       s: 5
+#       alpha: 0.5
+#     HIDDEN:
+#       c: "black"
+#       marker: "."
+#       linestyle: "None"
+#       s: 0.1
+#       alpha: 0.5
+
+#   - sub_title:
+#       title: "Zoom: nodes & edges"
+#       size: 30
+#     extent:    [-25000, -1075000, -125000, -975000]
+#     zoom_box:
+#       extent:    [-25000, -1075000, -125000, -975000]
+#       linewidth: 10
+#       edgecolor: "r"
+#       facecolor: "none"
+#     CERRA:
+#       c: "limegreen"
+#       marker: "o"
+#       linestyle: "None"
+#       s: 45
+#     ERA5:
+#       c: "dodgerblue"
+#       marker: "o"
+#       linestyle: "None"
+#       s: 55
+#     HIDDEN:
+#       c: "black"
+#       marker: "o"
+#       linestyle: "None"
+#       s: 40
+#     EDGES:
+#       c: "gray"
+#       lw: 1
