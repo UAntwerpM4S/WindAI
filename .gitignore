@@ -17,6 +17,7 @@
 *.log
 *.txt
 *.out
+*.log
 
 #Checkpoints
 *.ckpt
@@ -46,7 +47,8 @@ data/cerra_boz
 data/NorthSea/Power/Belgium
 data/NorthSea/Power/UK
 graphs/tryout_viz
-inference/*
+inference/CI/*
+inference/EGU/*
 training/CI/GNN/checkpoint
 training/CI/GNN/logs
 training/CI/GNN/outputs
