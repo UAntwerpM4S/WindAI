@@ -21,15 +21,15 @@ import matplotlib.pyplot as plt
 TARGET_VARS = ["ws100", "ws10"]
 
 FORECAST_DIRS = {
-    "NoPower": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
-    #"GraphTransformerRL" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
-   # "GraphTransformer (Vanilla Power)" : Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    #"Transformer": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    "Synthetic": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
-
-
+         "VanillaPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
+     "NoPowerRegular": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
+      "NoPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFWindNew"),
+    # "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
+    # "GNN2": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM2"),
+    #  "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
+    # "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
 }
+
 CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 REGIONS       = ["Belgium"]

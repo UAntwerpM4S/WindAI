@@ -1,16 +1,16 @@
-checkpoint: /mnt/weatherloss/WindPower/training/EGU26/NoPowerTF/checkpoint/NoPowerWind/inference-last.ckpt
-lead_time: 37
-date: "2025-07-31T21:00:00"
+checkpoint: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAM/inference-last.ckpt
+lead_time: 75
+date: "2025-03-05T21:00:00"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
         - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all
 output:
   extract_lam:      
     output:
-      netcdf: EGU/NoPowerTFWindNew/forecast_20250731210000.nc
+      netcdf: CI/GNNLAM2/forecast_20250305210000.nc

@@ -14,22 +14,29 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10"] #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
+TARGET_VARS = ["ws100"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
+    #      "VanillaPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
+    #  "NoPowerRegular": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
+    #   "NoPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFWindNew"),
     "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
-    "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
-    "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
+   # "GNN2": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM2"),
+     "GNNOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCIFINAL"),
+     "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
+        "TransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/TFCIFINAL"),
+             "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
+        "GraphTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GTCIFINAL"),
 }
 
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
 OUT_DIR    = Path("CI_plots")
 
-INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 73, 3))
+INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2024-8-31 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 37, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------

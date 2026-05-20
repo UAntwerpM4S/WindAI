@@ -15,22 +15,19 @@ import pandas as pd
 import xarray as xr
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10","ws100"]
+TARGET_VARS = ["ws100"]
 
 FORECAST_DIRS = {
-    "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
-    "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
-    "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
-
-
+    "Normal model": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
+    "Wind model": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(0, 73, 3))
-OUT_DIR    = Path("CI_spatial_rmse")
+OUT_DIR    = Path("EGU_spatial_rmse")
 # --------------------------------------------------
 
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")
