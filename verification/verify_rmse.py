@@ -24,10 +24,13 @@ FORECAST_DIRS = {
     "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
    # "GNN2": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM2"),
      "GNNOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCIFINAL"),
-     "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
-        "TransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/TFCIFINAL"),
-             "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
-        "GraphTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GTCIFINAL"),
+     #"Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
+      #  "TransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/TFCIFINAL"),
+              "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
+        # "GraphTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GTCIFINAL"),
+                 "GraphTransformerBoundary": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAMBOUNDARY"),
+        "GNNBoundary": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAMBOUNDARY"),
+        "GNNBoundaryExtended": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAMBOUNDARYEXTENDED"),
 }
 
 
@@ -36,7 +39,7 @@ OUT_DIR    = Path("CI_plots")
 
 INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2024-8-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 37, 3))
+LEAD_HOURS = list(range(3, 73, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------
@@ -216,7 +219,7 @@ def main():
         ax.legend(title="Run", framealpha=0.8)
         ax.grid(True, ls="--", alpha=0.5)
         fig.tight_layout()
-        fig.savefig(OUT_DIR / f"rmse_{var}.png", dpi=150)
+        fig.savefig(OUT_DIR / f"rmse_boundarytest_{var}.png", dpi=150)
         plt.close(fig)
         print(f"Saved: {OUT_DIR / f'rmse_{var}.png'}")
 

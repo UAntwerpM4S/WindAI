@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAM/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAMEXTENDED/inference-last.ckpt
 lead_time: 75
-date: "2025-03-05T21:00:00"
+date: "2024-08-31T21:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: CI/GNNLAM2/forecast_20250305210000.nc
+      netcdf: CI/GNNLAMBOUNDARYEXTENDED/forecast_20240831210000.nc

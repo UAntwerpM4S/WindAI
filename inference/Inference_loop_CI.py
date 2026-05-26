@@ -1,14 +1,14 @@
-import os
+import os, sys
 import subprocess
 from datetime import datetime, timedelta
 
-start_date = datetime(2025, 3, 1, 0)
-end_date = datetime(2025, 3, 5, 21)
+start_date = datetime(2024, 8, 1, 0)
+end_date = datetime(2024, 8, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
 
-        "CI/GNNLAM2":  ("/mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAM", "inference-last.ckpt"),
+        "CI/GNNLAMBOUNDARYEXTENDED":  ("/mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAMEXTENDED", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -49,6 +49,7 @@ output:
 
         print(f"[{tag}] Running forecast for {date_str}")
         subprocess.run(["anemoi-inference", "run", temp_yaml])
+        #        subprocess.run([sys.executable, "freeze_boundary_run.py", temp_yaml])
         current += interval
 
 print("All forecasts complete.")

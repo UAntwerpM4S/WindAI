@@ -8,6 +8,19 @@ defaults:
 config_validation: false
 
 # ============================================================
+# TASK
+# ============================================================
+task:
+  _target_: anemoi.training.tasks.Forecaster
+  multistep_input: 2
+  multistep_output: 1
+  timestep: "3h"
+  rollout:
+    start: 1
+    epoch_increment: 0
+    maximum: 1
+
+# ============================================================
 # SYSTEM
 # ============================================================
 system:
@@ -24,7 +37,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAMEXTENDED/anemoi-by_epoch-epoch_005-step_150000.ckpt
+    warm_start: null #/mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAMEXTENDED/anemoi-by_time-epoch_008-step_250000.ckpt
 
 
   output:
@@ -319,29 +332,59 @@ dataloader:
       - z_950
       - z_sfc
 
-
+# dataloader:
   training:
-    dataset: ${dataloader.dataset.dataset}
-    start: "2015-01-01"
-    end: "2024-01-31"
-    frequency: ${data.frequency}
-    drop: []
-
-  validation_rollout: 1
+    datasets:
+      data:
+        dataset_config:
+          dataset: ${dataloader.dataset.dataset}
+          frequency: ${data.frequency}
+          drop: []
+        start: "2015-01-01"
+        end: "2024-01-31"
 
   validation:
-    dataset: ${dataloader.dataset.dataset}
-    start: "2024-02-01"
-    end: "2024-07-31"
-    frequency: ${data.frequency}
-    drop: []
+    datasets:
+      data:
+        dataset_config:
+          dataset: ${dataloader.dataset.dataset}
+          frequency: ${data.frequency}
+          drop: []
+        start: "2024-02-01"
+        end: "2024-07-31"
 
   test:
-    dataset: ${dataloader.dataset.dataset}
-    start: "2024-08-01"
-    end: "2025-07-31"
-    frequency: ${data.frequency}
-    drop: []
+    datasets:
+      data:
+        dataset_config:
+          dataset: ${dataloader.dataset.dataset}
+          frequency: ${data.frequency}
+          drop: []
+        start: "2024-08-01"
+        end: "2025-07-31"
+
+  # training:
+  #   dataset: ${dataloader.dataset.dataset}
+  #   start: "2015-01-01"
+  #   end: "2024-01-31"
+  #   frequency: ${data.frequency}
+  #   drop: []
+
+  # validation_rollout: 1
+
+  # validation:
+  #   dataset: ${dataloader.dataset.dataset}
+  #   start: "2024-02-01"
+  #   end: "2024-07-31"
+  #   frequency: ${data.frequency}
+  #   drop: []
+
+  # test:
+  #   dataset: ${dataloader.dataset.dataset}
+  #   start: "2024-08-01"
+  #   end: "2025-07-31"
+  #   frequency: ${data.frequency}
+  #   drop: []
 
 # ============================================================
 # DIAGNOSTICS
@@ -510,9 +553,10 @@ graph:
 model:
   num_channels: 512
   cpu_offload: false
+  hidden_nodes_name: hidden  # <-- Enforces the string Pydantic schema expects here
 
   model:
-    _target_: anemoi.models.models.AnemoiModelEncProcDec
+    _target_: anemoi.models.models.EncoderProcessorDecoder
 
   keep_batch_sharded: true
 
@@ -532,6 +576,7 @@ model:
 
   processor:
     _target_: anemoi.models.layers.processor.GNNProcessor
+    hidden_nodes_name: hidden
     trainable_size: ${model.trainable_parameters.hidden2hidden}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_layers: 8
@@ -539,6 +584,17 @@ model:
     mlp_extra_layers: 0
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
+    # processor:
+    # _target_: anemoi.models.layers.processor.GraphTransformerProcessor
+    # trainable_size: ${model.trainable_parameters.hidden2hidden}
+    # sub_graph_edge_attributes: ${model.attributes.edges}
+    # num_layers: 8
+    # num_chunks: 2
+    # mlp_hidden_ratio: 2
+    # num_heads: 8
+    # qk_norm: false
+    # cpu_offload: ${model.cpu_offload}
+    # layer_kernels: ${model.layer_kernels}
 
   encoder:
     _target_: anemoi.models.layers.mapper.GNNForwardMapper
@@ -567,7 +623,7 @@ model:
   #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
     _target_: anemoi.training.utils.masks.Boolean1DMask
-    nodes_name: data
+   # nodes_name: data
     attribute_name: cutout
 
   trainable_parameters:
@@ -592,7 +648,7 @@ model:
 # ============================================================
 
 training:
-  run_id: GNNLAMEXTENDED
+  run_id: null 
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
@@ -612,11 +668,12 @@ training:
     enabled: false
     lr: 0.0001
 
-  optimizer:
-    _target_: torch.optim.AdamW
-    betas: [0.9, 0.95]
+  # optimizer:
+  #   _target_: torch.optim.AdamW
+  #   betas: [0.9, 0.95]
 
-  model_task: anemoi.training.train.tasks.GraphForecaster
+  #model_task: anemoi.training.train.tasks.GraphForecaster
+  training_method: anemoi.training.train.methods.single.SingleTraining
 
   strategy:
     _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
@@ -695,13 +752,23 @@ training:
     max: 1
 
   max_epochs: 20
-  max_steps: 250000
+  max_steps: 150000
+  
+  optimization:
+    lr: 6.25e-05
+    lr_warmup: 1000
+    lr_iterations: ${training.max_steps}
+    lr_min: 3.0e-07
+    optimizer:
+      _target_: torch.optim.AdamW
+      betas: [0.9, 0.95]
 
-  lr:
-    warmup: 1000
-    rate: 6.25e-05
-    iterations: ${training.max_steps}
-    min: 3.0e-07
+
+  # lr:
+  #   warmup: 1000
+  #   rate: 6.25e-05
+  #   iterations: ${training.max_steps}
+  #   min: 3.0e-07
   
   # lr:
   #   warmup: 1000
