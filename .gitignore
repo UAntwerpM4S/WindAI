@@ -80,10 +80,10 @@ training/WindAI/VanillaPower/logs
 training/WindAI/VanillaPower/outputs
 training/WindAI/VanillaPower/plots
 training/WindAI/VanillaPower/checkpoint
-training/WindAI/WindHeavyWeather/logs 
-training/WindAI/WindHeavyWeather/outputs
-training/WindAI/WindHeavyWeather/plots
-training/WindAI/WindHeavyWeather/checkpoint
+training/WindAI/WindHeavyPower/logs 
+training/WindAI/WindHeavyPower/outputs
+training/WindAI/WindHeavyPower/plots
+training/WindAI/WindHeavyPower/checkpoint
 
 #Env 
 .env
