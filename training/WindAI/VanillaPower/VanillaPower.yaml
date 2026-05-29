@@ -26,7 +26,7 @@ task:
 system:
   hardware:
     accelerator: gpu
-    num_gpus_per_node: 1
+    num_gpus_per_node: 2
     num_nodes: 1
     num_gpus_per_model: 1
 
@@ -41,7 +41,7 @@ system:
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WindAI/RegularWeather
+    root: /mnt/weatherloss/WindPower/training/WindAI/VanillaPower
     logs:
       root: logs
       wandb: wandb
@@ -112,21 +112,21 @@ data:
     - cos_longitude
     - sin_longitude
     - z_sfc
-    # - capacity
-    # - turbinecount
-    # - turbinemask
+    - capacity
+    - turbinecount
+    - turbinemask
 
-  diagnostic: []
-    # - power
+  diagnostic: 
+    - power
 
   remapped: {}
 
-  imputer: {} 
-    # 0.0:
-    #   - power
-    #   - capacity 
-    #   - turbinecount
-    #   - turbinemask
+  imputer: 
+    0.0:
+      - power
+      - capacity 
+      - turbinecount
+      - turbinemask
 
   normalizer:
     default: mean-std
@@ -142,9 +142,9 @@ data:
       - q_500
     max:
       - z_sfc
-    #  - turbinecount
-    min-max: []
-    #  - power
+      - turbinecount
+    min-max: 
+      - power
     none:
       - lsm
       - mcc
@@ -152,7 +152,7 @@ data:
       - sin_latitude
       - cos_longitude
       - sin_longitude
-      # - turbinemask
+      - turbinemask
 
   remapper:
     default: none
@@ -205,7 +205,7 @@ dataloader:
     dataset:
       cutout:
         - dataset: ${hardware.files.datasets.inner}
-          drop: ["power", "capacity", "turbinecount", "turbinemask"]
+          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -270,13 +270,13 @@ dataloader:
             z_900: 60
             z_950: 61
             z_sfc: 62
-            # power: 63
-            # capacity: 64
-            # turbinecount: 65
-            # turbinemask: 66 
+            power: 63
+            capacity: 64
+            turbinecount: 65
+            turbinemask: 66 
 
         - dataset: ${hardware.files.datasets.outer}
-          drop: ["power", "capacity", "turbinecount", "turbinemask"]
+          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
       min_distance_km: 0
@@ -346,10 +346,10 @@ dataloader:
       - z_900
       - z_950
       - z_sfc
-      # - power
-      # - capacity
-      # - turbinecount
-      # - turbinemask
+      - power
+      - capacity
+      - turbinecount
+      - turbinemask
 
   training:
     datasets:
@@ -437,8 +437,8 @@ diagnostics:
       log_model: false
       save_dir: ${hardware.paths.logs.mlflow}
       tracking_uri: "file:${hardware.paths.logs.mlflow}"
-      experiment_name: "RegularWeather"
-      project_name: "RegularWeather"
+      experiment_name: "VanillaPower"
+      project_name: "WindAI"
       system: true
       terminal: true
       run_name: null
@@ -589,7 +589,6 @@ model:
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
 
-
   encoder:
     _target_: anemoi.models.layers.mapper.GraphTransformerForwardMapper
     trainable_size: ${model.trainable_parameters.data2hidden}
@@ -639,11 +638,11 @@ model:
     - _target_: anemoi.models.layers.bounding.ReluBounding
       variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
 
-    # - _target_: anemoi.models.layers.bounding.HardtanhBounding
-    #   variables:
-    #     - power
-    #   min_val: 0.0
-    #   max_val: 1.0
+    - _target_: anemoi.models.layers.bounding.HardtanhBounding
+      variables:
+        - power
+      min_val: 0.0
+      max_val: 1.0
 
 
 # ============================================================
@@ -704,8 +703,8 @@ training:
         w: 0.001
         z: 12
         mcc: 0.1
-        # ws10: 2
-        # ws100: 2 
+        ws10: 2
+        ws100: 2 
         
         # power: 0.0001
 
@@ -741,18 +740,18 @@ training:
     - t_850
     - u_850
     - v_850
-    # - power
+    - power
 
   scale_validation_metrics:
     scalars_to_apply: []
     metrics: []
 
   max_epochs: 40
-  max_steps: 200000
+  max_steps: 100000
 
   # ---- Pretrain LR (uncomment when training from scratch) ----
   optimization:
-    lr: 0.00025
+    lr: 0.000125
     lr_warmup: 1000
     lr_iterations: ${training.max_steps}
     lr_min: 3.0e-07

@@ -68,6 +68,22 @@ training/EGU26/SyntheticGT/outputs
 training/EGU26/Synthetic/outputs
 training/EGU26/VanillaPowerGTFinetune/outputs
 training/EGU26/BigTransformer/outputs 
+training/WindAI/RegularWeather/logs 
+training/WindAI/RegularWeather/outputs
+training/WindAI/RegularWeather/plots
+training/WindAI/RegularWeather/checkpoint
+training/WindAI/WindWeather/logs 
+training/WindAI/WindWeather/outputs
+training/WindAI/WindWeather/plots
+training/WindAI/WindWeather/checkpoint
+training/WindAI/VanillaPower/logs 
+training/WindAI/VanillaPower/outputs
+training/WindAI/VanillaPower/plots
+training/WindAI/VanillaPower/checkpoint
+training/WindAI/WindHeavyWeather/logs 
+training/WindAI/WindHeavyWeather/outputs
+training/WindAI/WindHeavyWeather/plots
+training/WindAI/WindHeavyWeather/checkpoint
 
 #Env 
 .env
