@@ -118,7 +118,7 @@ hydra:
     override_dirname: ''
     id: ???
     num: ???
-    config_name: WindHeavyPower.yaml
+    config_name: WindHeavyTinyPower.yaml
     env_set: {}
     env_copy: []
     config:
@@ -129,9 +129,9 @@ hydra:
   runtime:
     version: 1.3.2
     version_base: '1.3'
-    cwd: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyPower
+    cwd: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower
     config_sources:
-    - path: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyPower
+    - path: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower
       schema: file
       provider: anemoi-cwd-searchpath-plugin
     - path: hydra.conf
@@ -146,7 +146,7 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyPower/outputs/2026-05-29/11-11-47
+    output_dir: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/outputs/2026-05-29/14-10-28
     choices:
       hydra/env: default
       hydra/callbacks: null
