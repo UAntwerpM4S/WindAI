@@ -1,35 +1,19 @@
-# GraphTransformerEGU.yaml
-# Top-level `system: {hardware, input, output}` with a backward-compat `${hardware.*}` shim.
-# Includes Anemoi's LAM scaler preset correctly via Hydra config group.
-
-defaults:
-  - _self_
-
 config_validation: false
-
-# ============================================================
-# TASK
-# ============================================================
 task:
   _target_: anemoi.training.tasks.Forecaster
   multistep_input: 2
   multistep_output: 1
-  timestep: "3h"
+  timestep: 3h
   rollout:
     start: 1
     epoch_increment: 1
     maximum: 20
-
-# ============================================================
-# SYSTEM
-# ============================================================
 system:
   hardware:
     accelerator: gpu
     num_gpus_per_node: 2
     num_nodes: 1
     num_gpus_per_model: 1
-
   input:
     dataset:
       inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
@@ -37,9 +21,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start:  /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/a41c5eb98b7e4641b5aca812a9d9a038/anemoi-by_time-epoch_015-step_100000.ckpt
-
-
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/a41c5eb98b7e4641b5aca812a9d9a038/anemoi-by_time-epoch_015-step_100000.ckpt
   output:
     root: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower
     logs:
@@ -54,16 +36,11 @@ system:
       every_n_minutes: anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}
     plots: plots
     profiler: profiler
-
-# ============================================================
-# BACKWARD-COMPAT SHIM: keep `${hardware.*}` references working
-# ============================================================
 hardware:
   accelerator: ${system.hardware.accelerator}
   num_gpus_per_node: ${system.hardware.num_gpus_per_node}
   num_nodes: ${system.hardware.num_nodes}
   num_gpus_per_model: ${system.hardware.num_gpus_per_model}
-
   paths:
     data: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets
     output: ${system.output.root}
@@ -77,7 +54,6 @@ hardware:
     profiler: ${system.output.root}/${system.output.profiler}
     graph: ${system.output.root}/graphs
     warm_start: ${system.input.warm_start}
-
   files:
     datasets:
       outer: ${system.input.dataset.outer}
@@ -90,267 +66,304 @@ hardware:
       every_n_train_steps: ${system.output.checkpoints.every_n_train_steps}
       every_n_minutes: ${system.output.checkpoints.every_n_minutes}
     warm_start: ${system.input.warm_start}
-
-# ============================================================
-# DATA / DATAMODULE
-# ============================================================
 datamodule:
   _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
-
 data:
   format: zarr
   frequency: 3h
   timestep: 3h
-
   forcing:
+  - lsm
+  - insolation
+  - sin_julian_day
+  - cos_julian_day
+  - cos_latitude
+  - sin_latitude
+  - cos_longitude
+  - sin_longitude
+  - z_sfc
+  - capacity
+  - turbinecount
+  - turbinemask
+  diagnostic:
+  - power
+  remapped: {}
+  imputer:
+    0.0:
+    - power
+    - capacity
+    - turbinecount
+    - turbinemask
+  normalizer:
+    default: mean-std
+    std:
+    - q_1000
+    - q_950
+    - q_900
+    - q_850
+    - q_800
+    - q_750
+    - q_700
+    - q_600
+    - q_500
+    max:
+    - z_sfc
+    - turbinecount
+    min-max:
+    - power
+    none:
     - lsm
-    - insolation
-    - sin_julian_day
-    - cos_julian_day
+    - mcc
     - cos_latitude
     - sin_latitude
     - cos_longitude
     - sin_longitude
-    - z_sfc
-    - capacity
-    - turbinecount
     - turbinemask
-
-  diagnostic: 
-    - power
-
-  remapped: {}
-
-  imputer: 
-    0.0:
-      - power
-      - capacity 
-      - turbinecount
-      - turbinemask
-
-  normalizer:
-    default: mean-std
-    std:
-      - q_1000
-      - q_950
-      - q_900
-      - q_850
-      - q_800
-      - q_750
-      - q_700
-      - q_600
-      - q_500
-    max:
-      - z_sfc
-      - turbinecount
-    min-max: 
-      - power
-    none:
-      - lsm
-      - mcc
-      - cos_latitude
-      - sin_latitude
-      - cos_longitude
-      - sin_longitude
-      - turbinemask
-
   remapper:
     default: none
-
   processors:
-    imputer: 
+    imputer:
       _target_: anemoi.models.preprocessing.imputer.ConstantImputer
       config: ${data.imputer}
-
     normalizer:
       _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
       _convert_: all
       config: ${data.normalizer}
-
-
   num_features: null
-
-# ============================================================
-# DATALOADER
-# ============================================================
 dataloader:
   prefetch_factor: 1
   pin_memory: true
   read_group_size: ${hardware.num_gpus_per_model}
-
   num_workers:
     training: 4
     validation: 2
     test: 2
     predict: 2
-
   batch_size:
     training: 2
     validation: 1
     test: 1
     predict: 1
-
   limit_batches:
-    training: 1000 
-    validation: 10 
+    training: 1000
+    validation: 10
     test: 20
     predict: 20
-
   grid_indices:
     _target_: anemoi.training.data.grid_indices.MaskedGrid
     nodes_name: data
     node_attribute_name: indices_connected_nodes
-
   dataset:
     dataset:
       cutout:
-        - dataset: ${hardware.files.datasets.inner}
-          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
-          reorder: &reorder_map
-            cos_julian_day: 0
-            cos_latitude: 1
-            cos_longitude: 2
-            insolation: 3
-            lsm: 4
-            mcc: 5
-            msl: 6
-            q_1000: 7
-            q_500: 8
-            q_600: 9
-            q_700: 10
-            q_750: 11
-            q_800: 12
-            q_850: 13
-            q_900: 14
-            q_950: 15
-            sin_julian_day: 16
-            sin_latitude: 17
-            sin_longitude: 18
-            t2m: 19
-            t_1000: 20
-            t_500: 21
-            t_600: 22
-            t_700: 23
-            t_750: 24
-            t_800: 25
-            t_850: 26
-            t_900: 27
-            t_950: 28
-            u_1000: 29
-            u_500: 30
-            u_600: 31
-            u_700: 32
-            u_750: 33
-            u_800: 34
-            u_850: 35
-            u_900: 36
-            u_950: 37
-            v_1000: 38
-            v_500: 39
-            v_600: 40
-            v_700: 41
-            v_750: 42
-            v_800: 43
-            v_850: 44
-            v_900: 45
-            v_950: 46
-            wdir100_cos: 47
-            wdir100_sin: 48
-            wdir10_cos: 49
-            wdir10_sin: 50
-            ws10: 51
-            ws100: 52
-            z_1000: 53
-            z_500: 54
-            z_600: 55
-            z_700: 56
-            z_750: 57
-            z_800: 58
-            z_850: 59
-            z_900: 60
-            z_950: 61
-            z_sfc: 62
-            power: 63
-            capacity: 64
-            turbinecount: 65
-            turbinemask: 66 
-
-        - dataset: ${hardware.files.datasets.outer}
-          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
-          reorder: *reorder_map
-
+      - dataset: ${hardware.files.datasets.inner}
+        reorder:
+          cos_julian_day: 0
+          cos_latitude: 1
+          cos_longitude: 2
+          insolation: 3
+          lsm: 4
+          mcc: 5
+          msl: 6
+          q_1000: 7
+          q_500: 8
+          q_600: 9
+          q_700: 10
+          q_750: 11
+          q_800: 12
+          q_850: 13
+          q_900: 14
+          q_950: 15
+          sin_julian_day: 16
+          sin_latitude: 17
+          sin_longitude: 18
+          t2m: 19
+          t_1000: 20
+          t_500: 21
+          t_600: 22
+          t_700: 23
+          t_750: 24
+          t_800: 25
+          t_850: 26
+          t_900: 27
+          t_950: 28
+          u_1000: 29
+          u_500: 30
+          u_600: 31
+          u_700: 32
+          u_750: 33
+          u_800: 34
+          u_850: 35
+          u_900: 36
+          u_950: 37
+          v_1000: 38
+          v_500: 39
+          v_600: 40
+          v_700: 41
+          v_750: 42
+          v_800: 43
+          v_850: 44
+          v_900: 45
+          v_950: 46
+          wdir100_cos: 47
+          wdir100_sin: 48
+          wdir10_cos: 49
+          wdir10_sin: 50
+          ws10: 51
+          ws100: 52
+          z_1000: 53
+          z_500: 54
+          z_600: 55
+          z_700: 56
+          z_750: 57
+          z_800: 58
+          z_850: 59
+          z_900: 60
+          z_950: 61
+          z_sfc: 62
+          power: 63
+          capacity: 64
+          turbinecount: 65
+          turbinemask: 66
+      - dataset: ${hardware.files.datasets.outer}
+        reorder:
+          cos_julian_day: 0
+          cos_latitude: 1
+          cos_longitude: 2
+          insolation: 3
+          lsm: 4
+          mcc: 5
+          msl: 6
+          q_1000: 7
+          q_500: 8
+          q_600: 9
+          q_700: 10
+          q_750: 11
+          q_800: 12
+          q_850: 13
+          q_900: 14
+          q_950: 15
+          sin_julian_day: 16
+          sin_latitude: 17
+          sin_longitude: 18
+          t2m: 19
+          t_1000: 20
+          t_500: 21
+          t_600: 22
+          t_700: 23
+          t_750: 24
+          t_800: 25
+          t_850: 26
+          t_900: 27
+          t_950: 28
+          u_1000: 29
+          u_500: 30
+          u_600: 31
+          u_700: 32
+          u_750: 33
+          u_800: 34
+          u_850: 35
+          u_900: 36
+          u_950: 37
+          v_1000: 38
+          v_500: 39
+          v_600: 40
+          v_700: 41
+          v_750: 42
+          v_800: 43
+          v_850: 44
+          v_900: 45
+          v_950: 46
+          wdir100_cos: 47
+          wdir100_sin: 48
+          wdir10_cos: 49
+          wdir10_sin: 50
+          ws10: 51
+          ws100: 52
+          z_1000: 53
+          z_500: 54
+          z_600: 55
+          z_700: 56
+          z_750: 57
+          z_800: 58
+          z_850: 59
+          z_900: 60
+          z_950: 61
+          z_sfc: 62
+          power: 63
+          capacity: 64
+          turbinecount: 65
+          turbinemask: 66
       min_distance_km: 0
       adjust: all
-
     select:
-      - cos_julian_day
-      - cos_latitude
-      - cos_longitude
-      - insolation
-      - lsm
-      - mcc
-      - msl
-      - q_1000
-      - q_500
-      - q_600
-      - q_700
-      - q_750
-      - q_800
-      - q_850
-      - q_900
-      - q_950
-      - sin_julian_day
-      - sin_latitude
-      - sin_longitude
-      - t2m
-      - t_1000
-      - t_500
-      - t_600
-      - t_700
-      - t_750
-      - t_800
-      - t_850
-      - t_900
-      - t_950
-      - u_1000
-      - u_500
-      - u_600
-      - u_700
-      - u_750
-      - u_800
-      - u_850
-      - u_900
-      - u_950
-      - v_1000
-      - v_500
-      - v_600
-      - v_700
-      - v_750
-      - v_800
-      - v_850
-      - v_900
-      - v_950
-      - wdir100_cos
-      - wdir100_sin
-      - wdir10_cos
-      - wdir10_sin
-      - ws10
-      - ws100
-      - z_1000
-      - z_500
-      - z_600
-      - z_700
-      - z_750
-      - z_800
-      - z_850
-      - z_900
-      - z_950
-      - z_sfc
-      - power
-      - capacity
-      - turbinecount
-      - turbinemask
-
+    - cos_julian_day
+    - cos_latitude
+    - cos_longitude
+    - insolation
+    - lsm
+    - mcc
+    - msl
+    - q_1000
+    - q_500
+    - q_600
+    - q_700
+    - q_750
+    - q_800
+    - q_850
+    - q_900
+    - q_950
+    - sin_julian_day
+    - sin_latitude
+    - sin_longitude
+    - t2m
+    - t_1000
+    - t_500
+    - t_600
+    - t_700
+    - t_750
+    - t_800
+    - t_850
+    - t_900
+    - t_950
+    - u_1000
+    - u_500
+    - u_600
+    - u_700
+    - u_750
+    - u_800
+    - u_850
+    - u_900
+    - u_950
+    - v_1000
+    - v_500
+    - v_600
+    - v_700
+    - v_750
+    - v_800
+    - v_850
+    - v_900
+    - v_950
+    - wdir100_cos
+    - wdir100_sin
+    - wdir10_cos
+    - wdir10_sin
+    - ws10
+    - ws100
+    - z_1000
+    - z_500
+    - z_600
+    - z_700
+    - z_750
+    - z_800
+    - z_850
+    - z_900
+    - z_950
+    - z_sfc
+    - power
+    - capacity
+    - turbinecount
+    - turbinemask
   training:
     datasets:
       data:
@@ -358,9 +371,8 @@ dataloader:
           dataset: ${dataloader.dataset.dataset}
           frequency: ${data.frequency}
           drop: []
-        start: "2015-01-01"
-        end: "2024-01-31"
-
+        start: '2015-01-01'
+        end: '2024-01-31'
   validation:
     datasets:
       data:
@@ -368,9 +380,8 @@ dataloader:
           dataset: ${dataloader.dataset.dataset}
           frequency: ${data.frequency}
           drop: []
-        start: "2024-02-01"
-        end: "2024-07-31"
-
+        start: '2024-02-01'
+        end: '2024-07-31'
   test:
     datasets:
       data:
@@ -378,12 +389,8 @@ dataloader:
           dataset: ${dataloader.dataset.dataset}
           frequency: ${data.frequency}
           drop: []
-        start: "2024-08-01"
-        end: "2025-07-31"
-
-# ============================================================
-# DIAGNOSTICS
-# ============================================================
+        start: '2024-08-01'
+        end: '2025-07-31'
 diagnostics:
   plot:
     asynchronous: true
@@ -391,19 +398,19 @@ diagnostics:
     frequency:
       batch: 500
       epoch: 2
-    parameters: [z_500, t_850, t2m, ws100]
+    parameters:
+    - z_500
+    - t_850
+    - t2m
+    - ws100
     sample_idx: 0
     precip_and_related_fields: []
     callbacks: []
-
   callbacks: []
-
   debug:
     anomaly_detection: false
-
   profiler: false
   enable_checkpointing: true
-
   checkpoint:
     every_n_minutes:
       save_frequency: 60
@@ -414,56 +421,47 @@ diagnostics:
     every_n_train_steps:
       save_frequency: 2000
       num_models_saved: 0
-
   log:
     interval: 100
-
     wandb:
       enabled: false
       offline: false
       log_model: false
       project: Anemoi
-      entity: "University of Antwerp"
+      entity: University of Antwerp
       gradients: false
       parameters: false
-
     tensorboard:
       enabled: false
-
     mlflow:
       enabled: true
       offline: true
       authentication: false
       log_model: false
       save_dir: ${hardware.paths.logs.mlflow}
-      tracking_uri: "file:${hardware.paths.logs.mlflow}"
-      experiment_name: "HeavyWindTinyPower"
-      project_name: "WindAI"
+      tracking_uri: file:${hardware.paths.logs.mlflow}
+      experiment_name: HeavyWindTinyPower
+      project_name: WindAI
       system: true
       terminal: true
       run_name: null
       on_resume_create_child: true
-      expand_hyperparams: [config]
-
+      expand_hyperparams:
+      - config
   enable_progress_bar: true
   print_memory_summary: false
-
-# ============================================================
-# GRAPH
-# ============================================================
 graph:
   overwrite: true
   data: data
   hidden: hidden
-
   nodes:
     data:
       node_builder:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
+          - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+          - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -476,10 +474,6 @@ graph:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
           masks:
             _target_: anemoi.graphs.nodes.attributes.CutOutMask
-        # turbine_mask:
-        #   _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
-        #   variable: turbinemask
-
     hidden:
       node_builder:
         _target_: anemoi.graphs.nodes.LimitedAreaTriNodes
@@ -487,78 +481,66 @@ graph:
         reference_node_name: data
         mask_attr_name: cutout
         margin_radius_km: 300
-
   edges:
-    - source_name: data
-      target_name: hidden
-      edge_builders:
-        - _target_: anemoi.graphs.edges.KNNEdges
-          num_nearest_neighbours: 12
-          source_mask_attr_name: cutout
-        - _target_: anemoi.graphs.edges.CutOffEdges
-          cutoff_distance_km: 15
-          source_mask_attr_name: boundary
-      attributes:
-        edge_length:
-          _target_: anemoi.graphs.edges.attributes.EdgeLength
-          norm: unit-max
-        edge_dirs:
-          _target_: anemoi.graphs.edges.attributes.EdgeDirection
-          norm: unit-std
-
-    - source_name: hidden
-      target_name: hidden
-      edge_builders:
-        - _target_: anemoi.graphs.edges.MultiScaleEdges
-          x_hops: 1
-          scale_resolutions: 9
-      attributes:
-        edge_length:
-          _target_: anemoi.graphs.edges.attributes.EdgeLength
-          norm: unit-max
-        edge_dirs:
-          _target_: anemoi.graphs.edges.attributes.EdgeDirection
-          norm: unit-std
-
-    - source_name: hidden
-      target_name: data
-      edge_builders:
-        - _target_: anemoi.graphs.edges.KNNEdges
-          target_mask_attr_name: cutout
-          num_nearest_neighbours: 3
-      attributes:
-        edge_length:
-          _target_: anemoi.graphs.edges.attributes.EdgeLength
-          norm: unit-max
-        edge_dirs:
-          _target_: anemoi.graphs.edges.attributes.EdgeDirection
-          norm: unit-std
-
-  post_processors:
-    - _target_: anemoi.graphs.processors.RestrictEdgeLength
-      source_name: data
-      target_name: hidden
-      max_length_km: 20
+  - source_name: data
+    target_name: hidden
+    edge_builders:
+    - _target_: anemoi.graphs.edges.KNNEdges
+      num_nearest_neighbours: 12
       source_mask_attr_name: cutout
-
-    - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
-      nodes_name: data
-      save_mask_indices_to_attr: indices_connected_nodes
-
-# ============================================================
-# MODEL
-# ============================================================
+    - _target_: anemoi.graphs.edges.CutOffEdges
+      cutoff_distance_km: 15
+      source_mask_attr_name: boundary
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+  - source_name: hidden
+    target_name: hidden
+    edge_builders:
+    - _target_: anemoi.graphs.edges.MultiScaleEdges
+      x_hops: 1
+      scale_resolutions: 9
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+  - source_name: hidden
+    target_name: data
+    edge_builders:
+    - _target_: anemoi.graphs.edges.KNNEdges
+      target_mask_attr_name: cutout
+      num_nearest_neighbours: 3
+    attributes:
+      edge_length:
+        _target_: anemoi.graphs.edges.attributes.EdgeLength
+        norm: unit-max
+      edge_dirs:
+        _target_: anemoi.graphs.edges.attributes.EdgeDirection
+        norm: unit-std
+  post_processors:
+  - _target_: anemoi.graphs.processors.RestrictEdgeLength
+    source_name: data
+    target_name: hidden
+    max_length_km: 20
+    source_mask_attr_name: cutout
+  - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
+    nodes_name: data
+    save_mask_indices_to_attr: indices_connected_nodes
 model:
   num_channels: 768
   cpu_offload: false
-
   model:
     _target_: anemoi.models.models.AnemoiModelEncProcDec
     hidden_nodes_name: hidden
-    latent_skip: True
-
+    latent_skip: true
   keep_batch_sharded: true
-
   layer_kernels:
     LayerNorm:
       _target_: torch.nn.LayerNorm
@@ -572,7 +554,6 @@ model:
     KeyNorm:
       _target_: anemoi.models.layers.normalization.AutocastLayerNorm
       bias: false
-
   processor:
     _target_: anemoi.models.layers.processor.TransformerProcessor
     trainable_size: ${model.trainable_parameters.hidden2hidden}
@@ -584,11 +565,10 @@ model:
     window_size: 512
     dropout_p: 0.0
     attention_implementation: flash_attention
-    qk_norm: False
+    qk_norm: false
     softcap: 0.0
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
-
   encoder:
     _target_: anemoi.models.layers.mapper.GraphTransformerForwardMapper
     trainable_size: ${model.trainable_parameters.data2hidden}
@@ -599,7 +579,6 @@ model:
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
-
   decoder:
     _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
     trainable_size: ${model.trainable_parameters.hidden2data}
@@ -611,87 +590,77 @@ model:
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
-
   residual:
     _target_: anemoi.models.layers.residual.SkipConnection
     step: -1
-
-    # output_mask:
-  #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
     _target_: anemoi.training.utils.masks.Boolean1DMask
-  #  nodes_name: data
     attribute_name: cutout
-
   trainable_parameters:
     data: 8
     hidden: 8
     data2hidden: 8
     hidden2data: 8
     hidden2hidden: 8
-
   attributes:
-    edges: [edge_length, edge_dirs]
+    edges:
+    - edge_length
+    - edge_dirs
     nodes: []
-
   bounding:
-    - _target_: anemoi.models.layers.bounding.ReluBounding
-      variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
-
-    - _target_: anemoi.models.layers.bounding.HardtanhBounding
-      variables:
-        - power
-      min_val: 0.0
-      max_val: 1.0
-
-
-# ============================================================
-# TRAINING
-# ============================================================
-
+  - _target_: anemoi.models.layers.bounding.ReluBounding
+    variables:
+    - q_500
+    - q_600
+    - q_700
+    - q_750
+    - q_800
+    - q_850
+    - q_900
+    - q_950
+    - q_1000
+  - _target_: anemoi.models.layers.bounding.HardtanhBounding
+    variables:
+    - power
+    min_val: 0.0
+    max_val: 1.0
 training:
   run_id: null
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
-  update_ds_stats_on_ckpt_load: false
-
   deterministic: false
   precision: 16-mixed
-
-
   multistep_input: 2
   accum_grad_batches: 1
   num_sanity_val_steps: 6
-
   gradient_clip:
     val: 1.0
     algorithm: value
-
   swa:
     enabled: false
     lr: 0.0001
-
   training_method: anemoi.training.train.methods.single.SingleTraining
-
   strategy:
     _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
     num_gpus_per_model: ${hardware.num_gpus_per_model}
     read_group_size: ${dataloader.read_group_size}
-
   loss_gradient_scaling: false
-
   training_loss:
     _target_: anemoi.training.losses.MSELoss
-    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
+    scalers:
+    - pressure_level
+    - general_variable
+    - node_weights
+    - nan_mask_weights
+    - limited_area_mask
     ignore_nans: true
-
   validation_metrics:
     mse:
       _target_: anemoi.training.losses.MSELoss
-      scalers: ['node_weights']
+      scalers:
+      - node_weights
       ignore_nans: true
-
   scalers:
     general_variable:
       _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
@@ -705,68 +674,53 @@ training:
         z: 12
         mcc: 0.1
         ws10: 5
-        ws100: 5 
+        ws100: 5
         power: 0.001
-
-
     pressure_level:
       _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
       group: pl
       y_intercept: 0.2
       slope: 0.001
-
     nan_mask_weights:
       _target_: anemoi.training.losses.scalers.NaNMaskScaler
-
     node_weights:
       _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
       nodes_name: ${graph.data}
       nodes_attribute_name: area_weight
-      norm: "unit-sum"
-
+      norm: unit-sum
     limited_area_mask:
       _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
       nodes_name: ${graph.data}
       nodes_attribute_name: cutout
       norm: null
-
   variable_groups:
     default: sfc
-    pl: [q, t, u, v, z]
-
+    pl:
+    - q
+    - t
+    - u
+    - v
+    - z
   metrics:
-    - ws100
-    - z_850
-    - t_850
-    - u_850
-    - v_850
-    - power
-
+  - ws100
+  - z_850
+  - t_850
+  - u_850
+  - v_850
+  - power
   scale_validation_metrics:
     scalars_to_apply: []
     metrics: []
-
   max_epochs: 40
   max_steps: 105000
-
-  # ---- Pretrain LR (uncomment when training from scratch) ----
-  # optimization:
-  #   lr: 0.000125
-  #   lr_warmup: 1000
-  #   lr_iterations: ${training.max_steps}
-  #   lr_min: 3.0e-07
-  #   optimizer:
-  #     _target_: torch.optim.AdamW
-  #     betas: [0.9, 0.95]
-
-  # ---- Finetune LR ----
   optimization:
-    lr: 0.0000064
+    lr: 6.4e-06
     lr_warmup: 100
     lr_iterations: 5000
     lr_min: 3.0e-07
     optimizer:
       _target_: torch.optim.AdamW
-      betas: [0.9, 0.95]
-
+      betas:
+      - 0.9
+      - 0.95
   submodules_to_freeze: []

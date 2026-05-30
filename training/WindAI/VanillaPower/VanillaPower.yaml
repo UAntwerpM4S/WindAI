@@ -37,7 +37,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/6b32b3dd-dd71-4b08-a23e-0e42b70ef1df/anemoi-by_time-epoch_015-step_100000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/a73e426835d7419a9b4299bb082bddfc/anemoi-by_time-epoch_015-step_100000.ckpt
 
 
   output:
@@ -650,10 +650,11 @@ model:
 # ============================================================
 
 training:
-  run_id: VanillaPower
+  run_id: null
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
+  update_ds_stats_on_ckpt_load: false
 
   deterministic: false
   precision: 16-mixed
@@ -750,23 +751,23 @@ training:
   max_steps: 105000
 
   # ---- Pretrain LR (uncomment when training from scratch) ----
-  optimization:
-    lr: 0.000125
-    lr_warmup: 1000
-    lr_iterations: ${training.max_steps}
-    lr_min: 3.0e-07
-    optimizer:
-      _target_: torch.optim.AdamW
-      betas: [0.9, 0.95]
-
-  # ---- Finetune LR ----
   # optimization:
-  #   lr: 0.0000064
+  #   lr: 0.000125
   #   lr_warmup: 1000
-  #   lr_iterations: 10050
+  #   lr_iterations: ${training.max_steps}
   #   lr_min: 3.0e-07
   #   optimizer:
   #     _target_: torch.optim.AdamW
   #     betas: [0.9, 0.95]
+
+  # ---- Finetune LR ----
+  optimization:
+    lr: 0.0000064
+    lr_warmup: 100
+    lr_iterations: 5000
+    lr_min: 3.0e-07
+    optimizer:
+      _target_: torch.optim.AdamW
+      betas: [0.9, 0.95]
 
   submodules_to_freeze: []
