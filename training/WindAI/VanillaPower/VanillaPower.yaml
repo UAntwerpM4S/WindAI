@@ -654,7 +654,9 @@ training:
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
-  update_ds_stats_on_ckpt_load: false
+  update_ds_stats_on_ckpt_load:
+    states: false
+    tendencies: false
 
   deterministic: false
   precision: 16-mixed
@@ -762,7 +764,7 @@ training:
 
   # ---- Finetune LR ----
   optimization:
-    lr: 0.0000064
+    lr: 0.0000032
     lr_warmup: 100
     lr_iterations: 5000
     lr_min: 3.0e-07

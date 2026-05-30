@@ -1,14 +1,14 @@
-import os, sys
+import os
 import subprocess
 from datetime import datetime, timedelta
 
 start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2024, 8, 31, 21)
+end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
 
-        "CI/GNNLAMBOUNDARYEXTENDED":  ("/mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/GNNLAMEXTENDED", "inference-last.ckpt"),
+        "WindAI/VanillaPower":  ("/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/056cea43f75a4e33ae57cfe53f0c11f8", "inference-last.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -30,14 +30,14 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
         with open(temp_yaml, "w") as f:
             f.write(f"""\
 checkpoint: {checkpoint_path}
-lead_time: 75
+lead_time: 49
 date: "{date_str}"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
         - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all
@@ -49,7 +49,6 @@ output:
 
         print(f"[{tag}] Running forecast for {date_str}")
         subprocess.run(["anemoi-inference", "run", temp_yaml])
-        #        subprocess.run([sys.executable, "freeze_boundary_run.py", temp_yaml])
         current += interval
 
 print("All forecasts complete.")
