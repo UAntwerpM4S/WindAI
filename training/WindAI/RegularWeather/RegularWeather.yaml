@@ -37,8 +37,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/6b32b3dd-dd71-4b08-a23e-0e42b70ef1df/anemoi-by_epoch-epoch_025-step_210001.ckpt
-
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/RegularWeather/anemoi-by_time-epoch_015-step_200000.ckpt
 
   output:
     root: /mnt/weatherloss/WindPower/training/WindAI/RegularWeather

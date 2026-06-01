@@ -1,16 +1,18 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/056cea43f75a4e33ae57cfe53f0c11f8/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/bd96d21bcc1b4beea1d0497e13ae1204/inference-last.ckpt
+verbosity: 1
 lead_time: 49
-date: "2024-08-01T06:00:00"
+date: "2025-07-31T21:00:00"
 device: cuda
 input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all
 output:
-  extract_lam:      
-    output:
-      netcdf: WindAI/VanillaPower/forecast_20240801060000.nc
+  netcdf:
+    path: WindAI/WindHeavyTinyPower/forecast_20250731210000.nc
+    post_processors:
+      - extract_slice: [0, 72668]

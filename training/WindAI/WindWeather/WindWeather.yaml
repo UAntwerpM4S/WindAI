@@ -17,8 +17,8 @@ task:
   timestep: "3h"
   rollout:
     start: 1
-    epoch_increment: 0
-    maximum: 1
+    epoch_increment: 1
+    maximum: 20
 
 # ============================================================
 # SYSTEM
@@ -37,8 +37,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/6b32b3dd-dd71-4b08-a23e-0e42b70ef1df/anemoi-by_epoch-epoch_025-step_210001.ckpt
-
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/WindWeather/anemoi-by_time-epoch_015-step_200000.ckpt
 
   output:
     root: /mnt/weatherloss/WindPower/training/WindAI/WindWeather
@@ -654,7 +653,10 @@ training:
   fork_run_id: null
   load_weights_only: false
   transfer_learning: null
-
+  update_ds_stats_on_ckpt_load:
+    states: false
+    tendencies: false
+    
   deterministic: false
   precision: 16-mixed
 

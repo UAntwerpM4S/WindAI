@@ -7,8 +7,10 @@ end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-
-        "WindAI/VanillaPower":  ("/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/056cea43f75a4e33ae57cfe53f0c11f8", "inference-last.ckpt"),
+    "WindAI/VanillaPower": (
+        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/056cea43f75a4e33ae57cfe53f0c11f8",
+        "inference-last.ckpt",
+    ),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -19,7 +21,10 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
     current = start_date
     while current <= end_date:
         date_str = current.strftime("%Y-%m-%dT%H:%M:%S")
-        output_file = f"{output_dir}/forecast_{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
+        output_file = (
+            f"{output_dir}/forecast_"
+            f"{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
+        )
 
         if os.path.exists(output_file):
             print(f"[{tag}] Skipping {date_str} (already exists)")
@@ -37,14 +42,15 @@ input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
-        - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
       min_distance_km: 0
       adjust: all
 output:
-  extract_lam:      
-    output:
-      netcdf: {output_file}
+  netcdf:
+    path: {output_file}
+    post_processors:
+      - extract_mask: output_mask
 """)
 
         print(f"[{tag}] Running forecast for {date_str}")

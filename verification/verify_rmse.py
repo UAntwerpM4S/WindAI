@@ -18,28 +18,18 @@ TARGET_VARS = ["ws100"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
-    #      "VanillaPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
-    #  "NoPowerRegular": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
-    #   "NoPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFWindNew"),
-    "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
-   # "GNN2": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM2"),
-     "GNNOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GNNCIFINAL"),
-     #"Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
-      #  "TransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/TFCIFINAL"),
-              "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
-        # "GraphTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/CI/GTCIFINAL"),
-                 "GraphTransformerBoundary": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAMBOUNDARY"),
-        "GNNBoundary": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAMBOUNDARY"),
-        "GNNBoundaryExtended": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAMBOUNDARYEXTENDED"),
+          "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPower"),
+     "TinyPowerHeavyWind": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/Cerra_A.zarr")
-OUT_DIR    = Path("CI_plots")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
+OUT_DIR    = Path("WindAI_plots")
 
 INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2024-8-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 73, 3))
+INIT_END   = pd.Timestamp("2025-7-31 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 49, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------
