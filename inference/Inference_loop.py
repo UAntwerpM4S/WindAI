@@ -7,8 +7,8 @@ end_date = datetime(2024, 8, 10, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    "WindAI/VanillaTFNoRollout": (
-        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/VanillaPowerTF/",
+    "WindAI/VanillaGTNoRollout": (
+        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/VanillaPowerGT/",
         "inference-anemoi-by_epoch-epoch_015-step_100000.ckpt",
     ),
 }

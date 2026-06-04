@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from anemoi.utils.checkpoints import load_metadata, replace_metadata
 
-CKPT = "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/VanillaPowerTF/inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"
+CKPT = "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/VanillaPowerGT/inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"
 GRAPH = "/mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt"
 BACKUP = CKPT + ".bak"
 

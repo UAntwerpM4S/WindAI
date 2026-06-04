@@ -20,6 +20,7 @@ TARGET_VARS = ["ws100"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 FORECAST_DIRS = {
           "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
      "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
+     "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTFNoRollout"),
     # "RegularW": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
 
 }

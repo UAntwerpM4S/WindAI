@@ -80,10 +80,10 @@ training/WindAI/VanillaPower/logs
 training/WindAI/VanillaPower/outputs
 training/WindAI/VanillaPower/plots
 training/WindAI/VanillaPower/checkpoint
-training/WindAI/VanillaPowerGTFinetune/logs 
-training/WindAI/VanillaPowerGTFinetune/outputs
-training/WindAI/VanillaPowerGTFinetune/plots
-training/WindAI/VanillaPowerGTFinetune/checkpoint
+training/WindAI/VanillaPowerGT/logs 
+training/WindAI/VanillaPowerGT/outputs
+training/WindAI/VanillaPowerGT/plots
+training/WindAI/VanillaPowerGT/checkpoint
 training/WindAI/VanillaPowerTF/logs 
 training/WindAI/VanillaPowerTF/outputs
 training/WindAI/VanillaPowerTF/plots
