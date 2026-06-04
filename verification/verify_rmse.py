@@ -21,7 +21,7 @@ FORECAST_DIRS = {
           "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
      "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
      "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTFNoRollout"),
-    # "RegularW": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+     "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTNoRollout"),
 
 }
 
@@ -29,8 +29,8 @@ FORECAST_DIRS = {
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("WindAI_plots")
 
-INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2024-8-10 21:00:00", tz="UTC")
+INIT_START = pd.Timestamp("2025-1-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2025-1-10 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 49, 3))
 
 N_WORKERS  = 8

@@ -2,14 +2,14 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 
-start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2024, 8, 10, 21)
+start_date = datetime(2024, 10, 1, 0)
+end_date = datetime(2024, 10, 10, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    "WindAI/VanillaGTNoRollout": (
+    "WindAI/VanillaGT": (
         "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/VanillaPowerGT/",
-        "inference-anemoi-by_epoch-epoch_015-step_100000.ckpt",
+        "inference-anemoi-by_time-epoch_022-step_107412.ckpt",
     ),
 }
 

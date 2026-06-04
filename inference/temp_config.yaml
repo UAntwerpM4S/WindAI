@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/VanillaPowerGT/inference-anemoi-by_epoch-epoch_015-step_100000.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/VanillaPowerGT/inference-anemoi-by_time-epoch_022-step_107412.ckpt
 lead_time: 49
-date: "2024-08-06T21:00:00"
+date: "2024-10-02T00:00:00"
 device: cuda
 input:
   dataset:
@@ -16,4 +16,4 @@ output:
       - extract_mask:
           mask: lam_0/cutout_mask
           as_slice: true
-    path: WindAI/VanillaGTNoRollout/forecast_20240806210000.nc
+    path: WindAI/VanillaGT/forecast_20241002000000.nc
