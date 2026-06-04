@@ -3,13 +3,13 @@ import subprocess
 from datetime import datetime, timedelta
 
 start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2025, 7, 31, 21)
+end_date = datetime(2024, 8, 10, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    "WindAI/VanillaPower": (
-        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/056cea43f75a4e33ae57cfe53f0c11f8",
-        "inference-last.ckpt",
+    "WindAI/VanillaTFNoRollout": (
+        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/VanillaPowerTF/",
+        "inference-anemoi-by_epoch-epoch_015-step_100000.ckpt",
     ),
 }
 
@@ -48,9 +48,11 @@ input:
       adjust: all
 output:
   netcdf:
-    path: {output_file}
     post_processors:
-      - extract_mask: output_mask
+      - extract_mask:
+          mask: lam_0/cutout_mask
+          as_slice: true
+    path: {output_file}
 """)
 
         print(f"[{tag}] Running forecast for {date_str}")

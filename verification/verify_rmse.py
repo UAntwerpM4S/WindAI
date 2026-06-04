@@ -18,8 +18,9 @@ TARGET_VARS = ["ws100"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
-          "VanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPower"),
-     "TinyPowerHeavyWind": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+          "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
+     "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
+    # "RegularW": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
 
 }
 
@@ -28,7 +29,7 @@ CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cer
 OUT_DIR    = Path("WindAI_plots")
 
 INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-7-31 21:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2024-8-10 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 49, 3))
 
 N_WORKERS  = 8

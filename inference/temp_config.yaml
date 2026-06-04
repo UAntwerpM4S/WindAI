@@ -1,7 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/bd96d21bcc1b4beea1d0497e13ae1204/inference-last.ckpt
-verbosity: 1
+checkpoint: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/VanillaPowerTF/inference-anemoi-by_epoch-epoch_015-step_100000.ckpt
 lead_time: 49
-date: "2025-07-31T21:00:00"
+date: "2024-08-08T18:00:00"
 device: cuda
 input:
   dataset:
@@ -13,6 +12,8 @@ input:
       adjust: all
 output:
   netcdf:
-    path: WindAI/WindHeavyTinyPower/forecast_20250731210000.nc
     post_processors:
-      - extract_slice: [0, 72668]
+      - extract_mask:
+          mask: lam_0/cutout_mask
+          as_slice: true
+    path: WindAI/VanillaTFNoRollout/forecast_20240808180000.nc
