@@ -17,8 +17,8 @@ task:
   rollout:
     start: 1
     epoch_increment: 1
-    maximum: 20
-  validation_rollout: 1
+    maximum: 12
+  validation_rollout: 12
 
 # ============================================================
 # SYSTEM
@@ -141,7 +141,7 @@ dataloader:
 
   limit_batches:
     training: 1000
-    validation: 10
+    validation: 10 
     test: 20
 
   grid_indices:
@@ -609,8 +609,8 @@ model:
 
 training:
   run_id: d86ba4d4b6754324af48a4dec32ba62c
-  fork_run_id: d86ba4d4b6754324af48a4dec32ba62c
-  load_weights_only: false
+  fork_run_id: d86ba4d4b6754324af48a4dec32ba62c 
+  load_weights_only: true
   transfer_learning: false
   update_ds_stats_on_ckpt_load:
     states: false
@@ -707,7 +707,7 @@ training:
         - power
 
   max_epochs: 40
-  max_steps: 107500
+  max_steps: 75000
 
   # ---- Pretrain LR (uncomment when training from scratch) ----
   # optimization:
@@ -726,12 +726,18 @@ training:
 
   # ---- Finetune LR ----
   optimization:
-    lr: 0.0000032
-    lr_warmup: 100
-    lr_iterations: 7500
-    lr_min: 3.0e-07
+    lr: 3.2e-06
     optimizer:
       _target_: torch.optim.AdamW
       betas: [0.9, 0.95]
+    lr_scheduler:
+      _target_: timm.scheduler.CosineLRScheduler
+      warmup_t: 100                       # = your old lr_warmup
+      t_initial: ${training.max_steps}    # = your old lr_iterations (7500)
+      lr_min: 3.0e-07                      # = your old lr_min
+      t_in_epochs: false
+      warmup_lr_init: 3.0e-07
+    pl_lr_scheduler:
+      interval: step
 
   submodules_to_freeze: []
