@@ -16,8 +16,8 @@ task:
   timestep: "3h"
   rollout:
     start: 1
-    epoch_increment: 0
-    maximum: 1
+    epoch_increment: 1
+    maximum: 12
   validation_rollout: 1
 
 # ============================================================
@@ -26,7 +26,7 @@ task:
 system:
   hardware:
     accelerator: gpu
-    num_gpus_per_node: 1
+    num_gpus_per_node: 2
     num_nodes: 1
     num_gpus_per_model: 1
 
@@ -37,7 +37,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
     truncation: null
     truncation_inv: null
-    warm_start: null #/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/8ee78903711e4f2f9f7d92d530a21e92/anemoi-by_time-epoch_015-step_100000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/630c9ccef176477c85eb935ad26435f6/anemoi-by_time-epoch_029-step_200000.ckpt
 
 
   output:
@@ -140,8 +140,8 @@ dataloader:
     test: 1
 
   limit_batches:
-    training: null 
-    validation: null 
+    training: 1000
+    validation: 10 
     test: 20
 
   grid_indices:
@@ -622,8 +622,8 @@ model:
 
 training:
   run_id: null  
-  fork_run_id: null 
-  load_weights_only: false
+  fork_run_id: 630c9ccef176477c85eb935ad26435f6 
+  load_weights_only: true
   transfer_learning: false
   update_ds_stats_on_ckpt_load:
     states: false
@@ -719,37 +719,38 @@ training:
         - v_850
         - power
 
-  max_epochs: 40
-  max_steps: 100000
+  max_epochs: 45
+  max_steps: 10000
 
   # ---- Pretrain LR (uncomment when training from scratch) ----
+  # optimization:
+  #   optimizer:
+  #     _target_: torch.optim.AdamW
+  #     betas: [0.9, 0.95]
+  #   lr: 0.000125
+  #   lr_scheduler:
+  #     _target_: timm.scheduler.CosineLRScheduler
+  #     warmup_t: 1000
+  #     lr_min: 3.0e-07
+  #     t_initial: ${training.max_steps}
+  #     t_in_epochs: false
+  #   pl_lr_scheduler:
+  #     interval: step
+
+  # ---- Finetune LR ----
   optimization:
     optimizer:
       _target_: torch.optim.AdamW
       betas: [0.9, 0.95]
-    lr: 0.000125
+    lr: 3.2e-06
     lr_scheduler:
       _target_: timm.scheduler.CosineLRScheduler
-      warmup_t: 1000
-      lr_min: 3.0e-07
-      t_initial: ${training.max_steps}
+      warmup_t: 100                       # = your old lr_warmup
+      t_initial: ${training.max_steps}    # = your old lr_iterations (7500)
+      lr_min: 3.0e-07                      # = your old lr_min
       t_in_epochs: false
+      warmup_lr_init: 3.0e-07
     pl_lr_scheduler:
       interval: step
-
-  # ---- Finetune LR ----
-    # lr: 3.2e-06
-    # optimizer:
-    #   _target_: torch.optim.AdamW
-    #   betas: [0.9, 0.95]
-    # lr_scheduler:
-    #   _target_: timm.scheduler.CosineLRScheduler
-    #   warmup_t: 100                       # = your old lr_warmup
-    #   t_initial: ${training.max_steps}    # = your old lr_iterations (7500)
-    #   lr_min: 3.0e-07                      # = your old lr_min
-    #   t_in_epochs: false
-    #   warmup_lr_init: 3.0e-07
-    # pl_lr_scheduler:
-    #   interval: step
 
   submodules_to_freeze: []

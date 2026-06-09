@@ -21,10 +21,10 @@ system:
     dataset:
       inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
       outer: ${hardware.paths.data}/era5_A_large.zarr
-    graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
+    graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15kmOLD.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/6b32b3dd-dd71-4b08-a23e-0e42b70ef1df/anemoi-by_epoch-epoch_025-step_210001.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61/anemoi-by_epoch-epoch_015-step_100000.ckpt
 
 
   output:
@@ -52,7 +52,7 @@ hardware:
   num_gpus_per_model: ${system.hardware.num_gpus_per_model}
 
   paths:
-    data: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets
+    data: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets
     output: ${system.output.root}
     logs:
       base: ${system.output.root}/${system.output.logs.root}
@@ -166,20 +166,20 @@ dataloader:
   read_group_size: ${hardware.num_gpus_per_model}
 
   num_workers:
-    training: 2
+    training: 4
     validation: 2
     test: 2
     predict: 2
 
   batch_size:
-    training: 1
+    training: 2
     validation: 1
     test: 1
     predict: 1
 
   limit_batches:
-    training: 1000
-    validation: 10
+    training: 1000 
+    validation: 10 
     test: 20
     predict: 20
 
@@ -406,16 +406,17 @@ diagnostics:
       parameters: false
 
     tensorboard:
-      enabled: true
+      enabled: false
 
     mlflow:
-      enabled: false
-      offline: false
+      enabled: true
+      offline: true
       authentication: false
       log_model: false
+      save_dir: ${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}
       tracking_uri: "file:${hardware.paths.logs.mlflow}"
-      experiment_name: "disabled"
-      project_name: "disabled"
+      experiment_name: "VanillaTF"
+      project_name: "VanillaTF"
       system: true
       terminal: true
       run_name: null
@@ -441,8 +442,8 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -625,9 +626,9 @@ model:
 # ============================================================
 
 training:
-  run_id: 6b32b3dd-dd71-4b08-a23e-0e42b70ef1df
-  fork_run_id: null
-  load_weights_only: false
+  run_id: null #6b32b3dd-dd71-4b08-a23e-0e42b70ef1df
+  fork_run_id: 606532fc724149bcb7eb378f22d29d61
+  load_weights_only: true
   transfer_learning: null
 
   deterministic: false
@@ -728,10 +729,10 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 25
+    max: 20
 
   max_epochs: 40
-  max_steps: 210050
+  max_steps: 7500
 
 #   lr:
 #     warmup: 1000
@@ -742,8 +743,8 @@ training:
   
   lr:
     warmup: 1000
-    rate: 0.0000064 #8.0e-07
-    iterations: 10050
+    rate: 0.0000032 #8.0e-07
+    iterations: 7500
     min: 3.0e-07
     warmup_t: 100
 

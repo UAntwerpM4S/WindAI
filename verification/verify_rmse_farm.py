@@ -18,23 +18,24 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100", "ws10"]
+TARGET_VARS = ["ws100"]
 
 FORECAST_DIRS = {
-         "VanillaPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
-     "NoPowerRegular": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
-      "NoPowerWind": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFWindNew"),
-    # "GNN": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM"),
-    # "GNN2": Path("/mnt/weatherloss/WindPower/inference/CI/GNNLAM2"),
-    #  "GraphTransformer": Path("/mnt/weatherloss/WindPower/inference/CI/GTLAM"),
-    # "Transformer": Path("/mnt/weatherloss/WindPower/inference/CI/TFLAM"),
+        #   "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
+     "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
+        "VanillaPowerGT_F": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT_Freeze"),
+    #   "VanillaPowerGTPatch": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTPatch"),
+    #  "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTFNoRollout"),
+    #  "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTNoRollout"),
+
 }
 
-CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
+
+CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
 REGIONS       = ["Belgium"]
 
-OUT_DIR    = Path("EGU_farm")
+OUT_DIR    = Path("WindAI_farm")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")

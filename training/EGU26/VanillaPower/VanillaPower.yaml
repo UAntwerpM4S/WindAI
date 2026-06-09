@@ -722,7 +722,7 @@ training:
     max: 12
 
   max_epochs: 40
-  max_steps: 210000
+  max_steps: 200000
 
 #   lr:
 #     warmup: 1000

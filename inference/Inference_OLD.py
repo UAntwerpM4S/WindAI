@@ -6,12 +6,9 @@ start_date = datetime(2025, 4, 1, 0)
 end_date = datetime(2025, 4, 6, 21)
 interval = timedelta(hours=3)
 
-
 checkpoints = {
-    "WindAI/VanillaGT200K": (
-        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/630c9ccef176477c85eb935ad26435f6/",
-        "inference-anemoi-by_time-epoch_029-step_200000.ckpt",
-    ),
+
+          "EGU/TF00":  ("/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61","inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
@@ -22,10 +19,7 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
     current = start_date
     while current <= end_date:
         date_str = current.strftime("%Y-%m-%dT%H:%M:%S")
-        output_file = (
-            f"{output_dir}/forecast_"
-            f"{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
-        )
+        output_file = f"{output_dir}/forecast_{date_str.replace(':', '').replace('-', '').replace('T', '')}.nc"
 
         if os.path.exists(output_file):
             print(f"[{tag}] Skipping {date_str} (already exists)")
@@ -36,7 +30,7 @@ for tag, (ckpt_dir, ckpt_name) in checkpoints.items():
         with open(temp_yaml, "w") as f:
             f.write(f"""\
 checkpoint: {checkpoint_path}
-lead_time: 49
+lead_time: 37
 date: "{date_str}"
 device: cuda
 input:
@@ -48,12 +42,9 @@ input:
       min_distance_km: 0
       adjust: all
 output:
-  netcdf:
-    post_processors:
-      - extract_mask:
-          mask: lam_0/cutout_mask
-          as_slice: true
-    path: {output_file}
+  extract_lam:      
+    output:
+      netcdf: {output_file}
 """)
 
         print(f"[{tag}] Running forecast for {date_str}")
@@ -61,4 +52,3 @@ output:
         current += interval
 
 print("All forecasts complete.")
-

@@ -14,24 +14,33 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
+TARGET_VARS = ["ws100","t2m"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
-          "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
-     "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
-     "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTFNoRollout"),
-     "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTNoRollout"),
-
+    # "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
+     "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF00"),
+    #  "VanillaPowerTF01": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF01"),
+    #  "VanillaPowerTF02": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF02"),
+    #  "VanillaPowerTF03": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF03"),
+    #  "VanillaPowerTF04": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF04"),
+    #  "VanillaPowerTF05": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF05"),
+    #  "VanillaPowerTF06": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF06"),
+       "VanillaTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/EGU/TF00"),
+    #   #  "VanillaPowerGT_F": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT_Freeze"),
+    # #   "VanillaPowerGTPatch": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTPatch"),
+    # "VanillaPowerTFRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF75"),
+     "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT200K"),
+    #        "VanillaPowerTFRollout05": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF05"),
 }
 
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("WindAI_plots")
 
-INIT_START = pd.Timestamp("2025-1-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-1-10 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 49, 3))
+INIT_START = pd.Timestamp("2025-4-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2025-4-06 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 39, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------
@@ -200,8 +209,8 @@ def main():
                 lw=1.5, label=label,
             )
 
-            np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
-                    df[["lead_hours", "RMSE"]].values)
+            # np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
+            #         df[["lead_hours", "RMSE"]].values)
 
         ax.set_title(f"RMSE vs Lead Time — {var} (Aug 2024 - July 2025) )",
         #ax.set_title(f"RMSE vs Lead Time — {var}  (n={len(common_inits)} inits)",
