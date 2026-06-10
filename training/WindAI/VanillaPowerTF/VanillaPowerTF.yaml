@@ -1,24 +1,8 @@
-# VanillaPower_v13.yaml — anemoi 0.13 schema, config_validation: True
-# Paths/GPU counts come straight from `system.*` (the old top-level `hardware:` shim was removed).
-
+#Transformer
 defaults:
   - _self_
 
-config_validation: false   # this fork's schema rejects TransformerProcessor+edge attrs that its own runtime requires; must run unvalidated
-
-# ============================================================
-# TASK
-# ============================================================
-task:
-  _target_: anemoi.training.tasks.Forecaster
-  multistep_input: 2
-  multistep_output: 1
-  timestep: "3h"
-  rollout:
-    start: 1
-    epoch_increment: 1
-    maximum: 12
-  validation_rollout: 12
+config_validation: true
 
 # ============================================================
 # SYSTEM
@@ -34,14 +18,14 @@ system:
     dataset:
       inner: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
       outer: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
-    graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
+    graph: /mnt/weatherloss/WindPower/graphs/WindAI/WindAIgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/d86ba4d4b6754324af48a4dec32ba62c/anemoi-by_time-epoch_015-step_100000.ckpt
+    warm_start: null #/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/VanillaPowerMAE/last.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF
+    root: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT
     logs:
       root: logs
       wandb: wandb
@@ -56,68 +40,81 @@ system:
     profiler: profiler
 
 # ============================================================
-# DATA
+# DATA / DATAMODULE
 # ============================================================
+# datamodule:
+# #   _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
+
 data:
   format: zarr
   frequency: 3h
+  timestep: 3h
 
-  datasets:
-    data:
-      forcing:
-        - lsm
-        - insolation
-        - sin_julian_day
-        - cos_julian_day
-        - cos_latitude
-        - sin_latitude
-        - cos_longitude
-        - sin_longitude
-        - z_sfc
-        - capacity
-        - turbinecount
-        - turbinemask
+  forcing:
+    - lsm
+    - insolation
+    - sin_julian_day
+    - cos_julian_day
+    - cos_latitude
+    - sin_latitude
+    - cos_longitude
+    - sin_longitude
+    - z_sfc
+    - capacity
+    - turbinecount
+    - turbinemask
 
-      diagnostic:
-        - power
+  diagnostic: 
+    - power
 
-      processors:
-        imputer:
-          _target_: anemoi.models.preprocessing.imputer.ConstantImputer
-          config:
-            0.0:
-              - power
-              - capacity
-              - turbinecount
-              - turbinemask
+  remapped: null
 
-        normalizer:
-          _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
-          config:
-            default: mean-std
-            std:
-              - q_1000
-              - q_950
-              - q_900
-              - q_850
-              - q_800
-              - q_750
-              - q_700
-              - q_600
-              - q_500
-            max:
-              - z_sfc
-              - turbinecount
-            min-max:
-              - power
-            none:
-              - lsm
-              - mcc
-              - cos_latitude
-              - sin_latitude
-              - cos_longitude
-              - sin_longitude
-              - turbinemask
+  imputer: 
+    0.0:
+      - power
+      - capacity 
+      - turbinecount
+      - turbinemask
+
+  normalizer:
+    default: mean-std
+    std:
+      - q_1000
+      - q_950
+      - q_900
+      - q_850
+      - q_800
+      - q_750
+      - q_700
+      - q_600
+      - q_500
+    max:
+      - z_sfc
+      - turbinecount
+    min-max:
+      - power
+    none:
+      - lsm
+      - mcc
+      - cos_latitude
+      - sin_latitude
+      - cos_longitude
+      - sin_longitude
+      - turbinemask
+
+  remapper:
+    default: none
+
+  processors:
+    imputer: 
+      _target_: anemoi.models.preprocessing.imputer.ConstantImputer
+      config: ${data.imputer}
+
+    normalizer:
+      _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
+      # _convert_: all
+      config: ${data.normalizer}
+
 
   num_features: null
 
@@ -125,24 +122,27 @@ data:
 # DATALOADER
 # ============================================================
 dataloader:
-  prefetch_factor: 1
+  prefetch_factor: 2
   pin_memory: true
   read_group_size: ${system.hardware.num_gpus_per_model}
 
   num_workers:
-    training: 4
+    training: 2
     validation: 2
     test: 2
+    # predict: 2
 
   batch_size:
-    training: 2
+    training: 1
     validation: 1
     test: 1
+    # predict: 1
 
   limit_batches:
-    training: 1000
-    validation: 10 
+    training: null 
+    validation: null
     test: 20
+    # predict: 20
 
   grid_indices:
     _target_: anemoi.training.data.grid_indices.MaskedGrid
@@ -153,7 +153,7 @@ dataloader:
     dataset:
       cutout:
         - dataset: ${system.input.dataset.inner}
-          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
+        #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -228,7 +228,7 @@ dataloader:
           reorder: *reorder_map
 
       min_distance_km: 0
-      adjust: all
+      adjust: dates
 
     select:
       - cos_julian_day
@@ -300,60 +300,32 @@ dataloader:
       - turbinemask
 
   training:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2015-01-01"
-        end: "2024-01-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2015-01-01"
+    end: "2024-01-31"
+    frequency: ${data.frequency}
+    drop: []
+
+  validation_rollout: 1
 
   validation:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2024-02-01"
-        end: "2024-07-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2024-02-01"
+    end: "2024-07-31"
+    frequency: ${data.frequency}
+    drop: []
 
   test:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2024-08-01"
-        end: "2025-07-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2024-08-01"
+    end: "2025-07-31"
+    frequency: ${data.frequency}
+    drop: []
 
 # ============================================================
 # DIAGNOSTICS
 # ============================================================
 diagnostics:
-  benchmark_profiler:
-    memory:
-      enabled: False
-      steps: 5
-      warmup: 2
-      extra_plots: False
-      trace_rank0_only: False
-    time:
-      enabled: True
-      verbose: False
-    speed:
-      enabled: True
-    system:
-      enabled: False
-    model_summary:
-      enabled: False
-    snapshot:
-      enabled: True
-      steps: 4
-      warmup: 0
-
   plot:
     asynchronous: true
     datashader: true
@@ -370,6 +342,28 @@ diagnostics:
   debug:
     anomaly_detection: false
 
+  # profiler: false
+  benchmark_profiler:
+    memory:
+      enabled: false
+      steps: 5
+      warmup: 2
+      extra_plots: false
+      trace_rank0_only: false
+    time:
+      enabled: true
+      verbose: false
+    speed:
+      enabled: true
+    system:
+      enabled: false
+    model_summary:
+      enabled: false
+    snapshot:
+      enabled: true
+      steps: 4
+      warmup: 0
+
   enable_checkpointing: true
 
   checkpoint:
@@ -380,27 +374,38 @@ diagnostics:
       save_frequency: 1
       num_models_saved: -1
     every_n_train_steps:
-      save_frequency: 2000
+      save_frequency: null
       num_models_saved: 0
 
   log:
-    interval: 100
+    wandb:
+      enabled: false
+      offline: false
+      log_model: false
+      project: Anemoi
+      entity: "University of Antwerp"
+      gradients: false
+      parameters: false
+
+    tensorboard:
+      enabled: false
 
     mlflow:
       enabled: true
       offline: true
       authentication: false
-      http_max_retries: 35
       log_model: false
-      save_dir: ${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}
       tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
-      experiment_name: "VanillaPower"
-      project_name: "WindAI"
+      experiment_name: "VanillaPowerGT"
+      project_name: "VanillaPowerGT"
       system: true
       terminal: true
       run_name: null
       on_resume_create_child: true
       expand_hyperparams: [config]
+      http_max_retries: 35
+
+    interval: 100
 
   enable_progress_bar: true
   print_memory_summary: false
@@ -506,6 +511,7 @@ graph:
 # ============================================================
 # MODEL
 # ============================================================
+
 model:
   num_channels: 768
   cpu_offload: false
@@ -582,11 +588,11 @@ model:
     attribute_name: cutout
 
   trainable_parameters:
-    data: 8
-    hidden: 8
-    data2hidden: 8
-    hidden2data: 8
-    hidden2hidden: 8
+    data: 0
+    hidden: 0
+    data2hidden: 0
+    hidden2data: 0
+    hidden2hidden: 0
 
   attributes:
     edges: [edge_length, edge_dirs]
@@ -602,23 +608,20 @@ model:
       min_val: 0.0
       max_val: 1.0
 
-
 # ============================================================
 # TRAINING
 # ============================================================
 
 training:
-  run_id: d86ba4d4b6754324af48a4dec32ba62c
-  fork_run_id: d86ba4d4b6754324af48a4dec32ba62c 
-  load_weights_only: true
+  run_id: null 
+  fork_run_id: null
+  load_weights_only: false
   transfer_learning: false
-  update_ds_stats_on_ckpt_load:
-    states: false
-    tendencies: false
 
   deterministic: false
   precision: 16-mixed
 
+  multistep_input: 2
   accum_grad_batches: 1
   num_sanity_val_steps: 6
 
@@ -626,7 +629,15 @@ training:
     val: 32.0
     algorithm: value
 
-  training_method: anemoi.training.train.methods.SingleTraining
+  swa:
+    enabled: false
+    lr: 0.0001
+
+  optimizer:
+    _target_: torch.optim.AdamW
+    betas: [0.9, 0.95]
+
+  model_task: anemoi.training.train.tasks.GraphForecaster
 
   strategy:
     _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
@@ -636,108 +647,94 @@ training:
   loss_gradient_scaling: false
 
   training_loss:
-    datasets:
-      data:
-        _target_: anemoi.training.losses.MSELoss
-        scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
-        ignore_nans: true
+    _target_: anemoi.training.losses.MAELoss
+    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
+    ignore_nans: true
 
   validation_metrics:
-    datasets:
-      data:
-        mse:
-          _target_: anemoi.training.losses.MSELoss
-          scalers: ['node_weights']
-          ignore_nans: true
-        mse_inside_lam:
-          _target_: anemoi.training.losses.MSELoss
-          scalers: ['node_weights', 'limited_area_mask']
-          ignore_nans: true
+    mae:
+      _target_: anemoi.training.losses.MAELoss
+      scalers: ['node_weights']
+      ignore_nans: true
 
   scalers:
-    datasets:
-      data:
-        general_variable:
-          _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
-          weights:
-            default: 1
-            q: 0.6
-            t: 6
-            u: 0.8
-            v: 0.5
-            w: 0.001
-            z: 12
-            mcc: 0.1
-            ws10: 2
-            ws100: 2
+    general_variable:
+      _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
+      weights:
+        default: 1
+        q: 0.6
+        t: 6
+        u: 0.8
+        v: 0.5
+        w: 0.001
+        z: 12
+        mcc: 0.1
+        ws10: 2 
+        ws100: 2 
+        # power: 0.0001
 
-        pressure_level:
-          _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
-          group: pl
-          y_intercept: 0.2
-          slope: 0.001
 
-        nan_mask_weights:
-          _target_: anemoi.training.losses.scalers.NaNMaskScaler
+    pressure_level:
+      _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
+      group: pl
+      y_intercept: 0.2
+      slope: 0.001
 
-        node_weights:
-          _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
-          nodes_attribute_name: area_weight
-          norm: "unit-sum"
+    nan_mask_weights:
+      _target_: anemoi.training.losses.scalers.NaNMaskScaler
 
-        limited_area_mask:
-          _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
-          nodes_attribute_name: cutout
-          norm: null
+    node_weights:
+      _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
+      nodes_name: ${graph.data}
+      nodes_attribute_name: area_weight
+      norm: "unit-sum"
+
+    limited_area_mask:
+      _target_: anemoi.training.losses.scalers.GraphNodeAttributeScaler
+      nodes_name: ${graph.data}
+      nodes_attribute_name: cutout
+      norm: null
 
   variable_groups:
-    datasets:
-      data:
-        default: sfc
-        pl: [q, t, u, v, z]
+    default: sfc
+    pl: [q, t, u, v, z]
 
   metrics:
-    datasets:
-      data:
-        - ws100
-        - z_850
-        - t_850
-        - u_850
-        - v_850
-        - power
+    - ws100
+    - z_850
+    - t_850
+    - u_850
+    - v_850
+    - power
+
+  # scale_validation_metrics:
+  #   scalars_to_apply: []
+  #   metrics: []
+
+  rollout:
+    start: 1
+    epoch_increment: 0
+    max: 1
 
   max_epochs: 40
-  max_steps: 75000
+  max_steps: 150000
 
-  # ---- Pretrain LR (uncomment when training from scratch) ----
-  # optimization:
-  #   optimizer:
-  #     _target_: torch.optim.AdamW
-  #     betas: [0.9, 0.95]
-  #   lr: 0.000125
-  #   lr_scheduler:
-  #     _target_: timm.scheduler.CosineLRScheduler
-  #     warmup_t: 1000
-  #     lr_min: 3.0e-07
-  #     t_initial: ${training.max_steps}
-  #     t_in_epochs: false
-  #   pl_lr_scheduler:
-  #     interval: step
+  lr:
+    warmup: 1000
+    rate:  0.000125
+# 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+    iterations: ${training.max_steps}
+    min: 3.0e-07
+  
+  # lr:
+  #   warmup: 1000
+  #   rate: 0.0000064 #8.0e-07
+  #   iterations: 20000
+  #   min: 3.0e-07
+  #   warmup_t: 100
 
-  # ---- Finetune LR ----
-  optimization:
-    lr: 3.2e-06
-    optimizer:
-      _target_: torch.optim.AdamW
-      betas: [0.9, 0.95]
-    lr_scheduler:
-      _target_: timm.scheduler.CosineLRScheduler
-      warmup_t: 100                       # = your old lr_warmup
-      t_initial: ${training.max_steps}    # = your old lr_iterations (7500)
-      lr_min: 3.0e-07                      # = your old lr_min
-      t_in_epochs: false
-      warmup_lr_init: 3.0e-07
-    pl_lr_scheduler:
-      interval: step
+
+
 
   submodules_to_freeze: []
+

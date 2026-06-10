@@ -19,12 +19,12 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
-      outer: ${hardware.paths.data}/era5_A_large.zarr
+      inner: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+      outer: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
     graph: /mnt/weatherloss/WindPower/graphs/WindAI/WindAIgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: null #/mnt/weatherloss/WindPower/training/EGU26/VanillaPower/checkpoint/VanillaPowerMAE/last.ckpt
+    warm_start: null #/mnt/weatherloss/WindPower/training/WindAI/VanillaPower/checkpoint/VanillaPowerMAE/last.ckpt
 
 
   output:
@@ -41,42 +41,6 @@ system:
       every_n_minutes: anemoi-by_time-epoch_{epoch:03d}-step_{step:06d}
     plots: plots
     profiler: profiler
-
-# ============================================================
-# BACKWARD-COMPAT SHIM: keep `${hardware.*}` references working
-# ============================================================
-hardware:
-  # accelerator: ${system.hardware.accelerator}
-  # num_gpus_per_node: ${system.hardware.num_gpus_per_node}
-  # num_nodes: ${system.hardware.num_nodes}
-  # num_gpus_per_model: ${system.hardware.num_gpus_per_model}
-
-  paths:
-    data: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets
-    output: ${system.output.root}
-    logs:
-      base: ${system.output.root}/${system.output.logs.root}
-      wandb: ${hardware.paths.logs.base}/${system.output.logs.wandb}
-      mlflow: ${hardware.paths.logs.base}/${system.output.logs.mlflow}
-      tensorboard: ${hardware.paths.logs.base}/${system.output.logs.tensorboard}
-    checkpoints: ${system.output.root}/${system.output.checkpoints.root}
-    plots: ${system.output.root}/${system.output.plots}
-    profiler: ${system.output.root}/${system.output.profiler}
-    graph: ${system.output.root}/graphs
-    warm_start: ${system.input.warm_start}
-
-  files:
-    datasets:
-      outer: ${system.input.dataset.outer}
-      inner: ${system.input.dataset.inner}
-    graph: ${system.input.graph}
-    truncation: ${system.input.truncation}
-    truncation_inv: ${system.input.truncation_inv}
-    checkpoint:
-      every_n_epochs: ${system.output.checkpoints.every_n_epochs}
-      every_n_train_steps: ${system.output.checkpoints.every_n_train_steps}
-      every_n_minutes: ${system.output.checkpoints.every_n_minutes}
-    warm_start: ${system.input.warm_start}
 
 # ============================================================
 # DATA / DATAMODULE
@@ -163,7 +127,7 @@ data:
 dataloader:
   prefetch_factor: 2
   pin_memory: true
-  read_group_size: ${hardware.num_gpus_per_model}
+  read_group_size: ${system.hardware.num_gpus_per_model}
 
   num_workers:
     training: 2
@@ -191,7 +155,7 @@ dataloader:
   dataset:
     dataset:
       cutout:
-        - dataset: ${hardware.files.datasets.inner}
+        - dataset: ${system.input.dataset.inner}
         #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
@@ -262,7 +226,7 @@ dataloader:
             turbinecount: 65
             turbinemask: 66 
 
-        - dataset: ${hardware.files.datasets.outer}
+        - dataset: ${system.input.dataset.outer}
           #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
@@ -382,6 +346,27 @@ diagnostics:
     anomaly_detection: false
 
   # profiler: false
+  benchmark_profiler:
+    memory:
+      enabled: false
+      steps: 5
+      warmup: 2
+      extra_plots: false
+      trace_rank0_only: false
+    time:
+      enabled: true
+      verbose: false
+    speed:
+      enabled: true
+    system:
+      enabled: false
+    model_summary:
+      enabled: false
+    snapshot:
+      enabled: true
+      steps: 4
+      warmup: 0
+
   enable_checkpointing: true
 
   checkpoint:
@@ -413,7 +398,7 @@ diagnostics:
       offline: true
       authentication: false
       log_model: false
-      tracking_uri: "file:${hardware.paths.logs.mlflow}"
+      tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
       experiment_name: "VanillaPowerGT"
       project_name: "VanillaPowerGT"
       system: true
@@ -421,6 +406,7 @@ diagnostics:
       run_name: null
       on_resume_create_child: true
       expand_hyperparams: [config]
+      http_max_retries: 35
 
     interval: 100
 
@@ -441,8 +427,8 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/era5_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -522,6 +508,7 @@ graph:
 
     - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
       nodes_name: data
+      ignore: cutout
       save_mask_indices_to_attr: indices_connected_nodes
 
 # ============================================================
@@ -593,7 +580,7 @@ model:
   #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
     _target_: anemoi.training.utils.masks.Boolean1DMask
-  #  nodes_name: data
+    nodes_name: data
     attribute_name: cutout
 
   trainable_parameters:
@@ -627,7 +614,7 @@ training:
   run_id: null 
   fork_run_id: null
   load_weights_only: false
-  transfer_learning: null
+  transfer_learning: false
 
   deterministic: false
   precision: 16-mixed
@@ -652,7 +639,7 @@ training:
 
   strategy:
     _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
-    num_gpus_per_model: ${hardware.num_gpus_per_model}
+    num_gpus_per_model: ${system.hardware.num_gpus_per_model}
     read_group_size: ${dataloader.read_group_size}
 
   loss_gradient_scaling: false
