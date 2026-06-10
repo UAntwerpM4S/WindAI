@@ -46,10 +46,10 @@ system:
 # BACKWARD-COMPAT SHIM: keep `${hardware.*}` references working
 # ============================================================
 hardware:
-  accelerator: ${system.hardware.accelerator}
-  num_gpus_per_node: ${system.hardware.num_gpus_per_node}
-  num_nodes: ${system.hardware.num_nodes}
-  num_gpus_per_model: ${system.hardware.num_gpus_per_model}
+  # accelerator: ${system.hardware.accelerator}
+  # num_gpus_per_node: ${system.hardware.num_gpus_per_node}
+  # num_nodes: ${system.hardware.num_nodes}
+  # num_gpus_per_model: ${system.hardware.num_gpus_per_model}
 
   paths:
     data: /mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets
@@ -81,8 +81,8 @@ hardware:
 # ============================================================
 # DATA / DATAMODULE
 # ============================================================
-datamodule:
-  _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
+# datamodule:
+# #   _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
 
 data:
   format: zarr
@@ -151,7 +151,7 @@ data:
 
     normalizer:
       _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
-      _convert_: all
+      # _convert_: all
       config: ${data.normalizer}
 
 
@@ -169,19 +169,19 @@ dataloader:
     training: 2
     validation: 2
     test: 2
-    predict: 2
+    # predict: 2
 
   batch_size:
     training: 1
     validation: 1
     test: 1
-    predict: 1
+    # predict: 1
 
   limit_batches:
     training: null 
     validation: null
     test: 20
-    predict: 20
+    # predict: 20
 
   grid_indices:
     _target_: anemoi.training.data.grid_indices.MaskedGrid
@@ -381,7 +381,7 @@ diagnostics:
   debug:
     anomaly_detection: false
 
-  profiler: false
+  # profiler: false
   enable_checkpointing: true
 
   checkpoint:
@@ -589,8 +589,12 @@ model:
     _target_: anemoi.models.layers.residual.SkipConnection
     step: -1
 
+    # output_mask:
+  #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
-    _target_: anemoi.training.utils.masks.NoOutputMask
+    _target_: anemoi.training.utils.masks.Boolean1DMask
+  #  nodes_name: data
+    attribute_name: cutout
 
   trainable_parameters:
     data: 0
@@ -655,7 +659,7 @@ training:
 
   training_loss:
     _target_: anemoi.training.losses.MAELoss
-    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
+    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
     ignore_nans: true
 
   validation_metrics:
@@ -714,9 +718,9 @@ training:
     - v_850
     - power
 
-  scale_validation_metrics:
-    scalars_to_apply: []
-    metrics: []
+  # scale_validation_metrics:
+  #   scalars_to_apply: []
+  #   metrics: []
 
   rollout:
     start: 1
