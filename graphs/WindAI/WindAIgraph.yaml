@@ -85,5 +85,5 @@ post_processors:
 
   - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
     nodes_name: data
-    #ignore: cutout
+    ignore: cutout
     save_mask_indices_to_attr: indices_connected_nodes

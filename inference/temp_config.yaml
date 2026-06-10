@@ -16,4 +16,4 @@ output:
       - extract_mask:
           mask: lam_0/cutout_mask
           as_slice: true
-    path: WindAI/VanillaGT200K/forecast_20250406210000.nc
+    path: WindAI/VanillaGT200KFREEZE/forecast_20250406210000.nc

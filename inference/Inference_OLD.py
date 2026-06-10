@@ -7,8 +7,12 @@ end_date = datetime(2025, 4, 6, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
+        "WindAI/VanillaGT200K_OLDINF": (
+        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/630c9ccef176477c85eb935ad26435f6/",
+        "inference-anemoi-by_time-epoch_029-step_200000.ckpt.bak",
+    ),
 
-          "EGU/TF00":  ("/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61","inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"),
+        #   "EGU/TF00":  ("/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61","inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"),
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():

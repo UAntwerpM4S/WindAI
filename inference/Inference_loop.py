@@ -8,7 +8,7 @@ interval = timedelta(hours=3)
 
 
 checkpoints = {
-    "WindAI/VanillaGT200K": (
+    "WindAI/VanillaGT200KFREEZE": (
         "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/630c9ccef176477c85eb935ad26435f6/",
         "inference-anemoi-by_time-epoch_029-step_200000.ckpt",
     ),
@@ -57,7 +57,8 @@ output:
 """)
 
         print(f"[{tag}] Running forecast for {date_str}")
-        subprocess.run(["anemoi-inference", "run", temp_yaml])
+        subprocess.run(["python", "/mnt/weatherloss/WindPower/inference/freeze_boundary_run.py", temp_yaml])
+        #subprocess.run(["anemoi-inference", "run", temp_yaml])
         current += interval
 
 print("All forecasts complete.")

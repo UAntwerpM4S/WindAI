@@ -18,19 +18,11 @@ TARGET_VARS = ["ws100","t2m"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
 
 
 FORECAST_DIRS = {
-    # "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
-     "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF00"),
-    #  "VanillaPowerTF01": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF01"),
-    #  "VanillaPowerTF02": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF02"),
-    #  "VanillaPowerTF03": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF03"),
-    #  "VanillaPowerTF04": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF04"),
-    #  "VanillaPowerTF05": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF05"),
-    #  "VanillaPowerTF06": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF06"),
-       "VanillaTransformerOLD": Path("/mnt/weatherloss/WindPower/inference/EGU/TF00"),
     #   #  "VanillaPowerGT_F": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT_Freeze"),
     # #   "VanillaPowerGTPatch": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTPatch"),
     # "VanillaPowerTFRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF75"),
      "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT200K"),
+         "VanillaPowerGTFreeze": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT200KFREEZE"),
     #        "VanillaPowerTFRollout05": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF05"),
 }
 
