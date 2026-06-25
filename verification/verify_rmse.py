@@ -14,24 +14,24 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100","t2m"]  #, "ws100"] #, "t_850", "q_700", "t2m", "z_500"]
+TARGET_VARS = ["ws10", "ws100"]
 
 
 FORECAST_DIRS = {
-    #   #  "VanillaPowerGT_F": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT_Freeze"),
-    # #   "VanillaPowerGTPatch": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTPatch"),
-    # "VanillaPowerTFRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF75"),
-     "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT200K"),
-         "VanillaPowerGTFreeze": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT200KFREEZE"),
-    #        "VanillaPowerTFRollout05": Path("/mnt/weatherloss/WindPower/inference/WindAI/Vanilla_TF05"),
+"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
+"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
+"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 
 CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 OUT_DIR    = Path("WindAI_plots")
 
-INIT_START = pd.Timestamp("2025-4-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-4-06 21:00:00", tz="UTC")
+INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 39, 3))
 
 N_WORKERS  = 8
@@ -212,7 +212,7 @@ def main():
         ax.legend(title="Run", framealpha=0.8)
         ax.grid(True, ls="--", alpha=0.5)
         fig.tight_layout()
-        fig.savefig(OUT_DIR / f"rmse_boundarytest_{var}.png", dpi=150)
+        fig.savefig(OUT_DIR / f"rmse_{var}.png", dpi=150)
         plt.close(fig)
         print(f"Saved: {OUT_DIR / f'rmse_{var}.png'}")
 

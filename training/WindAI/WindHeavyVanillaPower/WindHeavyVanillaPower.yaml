@@ -1,4 +1,7 @@
-#Transformer
+# GraphTransformerEGU.yaml
+# Top-level `system: {hardware, input, output}` with a backward-compat `${hardware.*}` shim.
+# Includes Anemoi's LAM scaler preset correctly via Hydra config group.
+
 defaults:
   - _self_
 
@@ -21,11 +24,11 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/WindAI/WindAIgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/3966833d6cd841d1a8d298c5603b2ee0/anemoi-by_time-epoch_011-step_150000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyVanillaPower/checkpoint/6d3b66b2e04140e0abadbf5359cd8d71/anemoi-by_time-epoch_011-step_150000.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF
+    root: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyVanillaPower
     logs:
       root: logs
       wandb: wandb
@@ -139,8 +142,8 @@ dataloader:
     # predict: 1
 
   limit_batches:
-    training: 1000 
-    validation: 10 
+    training: 1000
+    validation: 10
     test: 20
     # predict: 20
 
@@ -396,8 +399,8 @@ diagnostics:
       authentication: false
       log_model: false
       tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
-      experiment_name: "VanillaPowerTF"
-      project_name: "VanillaPowerTF"
+      experiment_name: "VanillaPowerGT"
+      project_name: "VanillaPowerGT"
       system: true
       terminal: true
       run_name: null
@@ -511,15 +514,12 @@ graph:
 # ============================================================
 # MODEL
 # ============================================================
-
 model:
-  num_channels: 768
+  num_channels: 512
   cpu_offload: false
 
   model:
     _target_: anemoi.models.models.AnemoiModelEncProcDec
-    # hidden_nodes_name: hidden
-    # latent_skip: True
 
   keep_batch_sharded: true
 
@@ -538,19 +538,14 @@ model:
       bias: false
 
   processor:
-    _target_: anemoi.models.layers.processor.TransformerProcessor
-    # trainable_size: ${model.trainable_parameters.hidden2hidden}
-    # sub_graph_edge_attributes: ${model.attributes.edges}
-    num_layers: 12
+    _target_: anemoi.models.layers.processor.GraphTransformerProcessor
+    trainable_size: ${model.trainable_parameters.hidden2hidden}
+    sub_graph_edge_attributes: ${model.attributes.edges}
+    num_layers: 8
     num_chunks: 2
     mlp_hidden_ratio: 2
     num_heads: 8
-    window_size: 512
-    dropout_p: 0.0
-    attention_implementation: flash_attention
-    qk_norm: False
-    softcap: 0.0
-    use_alibi_slopes: false
+    qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
 
@@ -603,19 +598,21 @@ model:
     - _target_: anemoi.models.layers.bounding.ReluBounding
       variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
 
+
     - _target_: anemoi.models.layers.bounding.HardtanhBounding
       variables:
         - power
       min_val: 0.0
       max_val: 1.0
 
+
 # ============================================================
 # TRAINING
 # ============================================================
 
 training:
-  run_id: 3966833d6cd841d1a8d298c5603b2ee0
-  fork_run_id: 3966833d6cd841d1a8d298c5603b2ee0
+  run_id: 6d3b66b2e04140e0abadbf5359cd8d71
+  fork_run_id: 6d3b66b2e04140e0abadbf5359cd8d71
   load_weights_only: True
   transfer_learning: false
 
@@ -670,9 +667,9 @@ training:
         w: 0.001
         z: 12
         mcc: 0.1
-        ws10: 2 
-        ws100: 2 
-        # power: 0.0001
+        ws10: 5
+        ws100: 5 
+        # power: 0.005
 
 
     pressure_level:
@@ -715,7 +712,7 @@ training:
   rollout:
     start: 1
     epoch_increment: 1
-    max: 15
+    max: 12
 
   max_epochs: 40
   max_steps: 7500
@@ -738,4 +735,3 @@ training:
 
 
   submodules_to_freeze: []
-

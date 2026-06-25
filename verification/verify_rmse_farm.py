@@ -18,16 +18,15 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100"]
+TARGET_VARS = ["ws100","ws10"]
 
 FORECAST_DIRS = {
-        #   "VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTF"),
-     "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT"),
-        "VanillaPowerGT_F": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGT_Freeze"),
-    #   "VanillaPowerGTPatch": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTPatch"),
-    #  "VanillaPowerTFNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaTFNoRollout"),
-    #  "VanillaPowerGTNoRollout": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaGTNoRollout"),
-
+"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
+"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
+"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 

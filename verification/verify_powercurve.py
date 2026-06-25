@@ -27,32 +27,33 @@ from scipy.spatial import cKDTree
 # Configuration
 # ---------------------------------------------------------------------------
 
-FORECAST_DIRS: List[Path] = [
-    Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
-  #  Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
-#    Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerGTRollout"),
-    #Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformer"),
-    Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
-    #Path("/mnt/weatherloss/WindPower/inference/EGU/VanillaPowerMAE"),
-]
-
-LABELS: Dict[str, str] = {
-    "BigTransformerNew" : "VanillaPower",
-    "NoPowerTFNew" :             "NoPower",
-    "SyntheticNew": "SyntheticPower",
-   # "BigTransformer" : "Normal TF",
-   # "BigTransformerRollout": "BigTransformer (Vanilla power)",
+FORECAST_DIRS: Dict[str, Path] = {
+    "VanillaPowerGT":        Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
+    "VanillaPowerTF":        Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+    "RegularWeather":        Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "WindWeather":           Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
+    "WindHeavyTinyPower":    Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+   # "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
-CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
+COLOR_MAP: Dict[str, str] = {
+    "VanillaPowerGT":        "blue",
+    "VanillaPowerTF":        "cornflowerblue",
+    "RegularWeather":        "black",
+    "WindWeather":           "green",
+    "WindHeavyTinyPower":    "orange",
+    "WindHeavyVanillaPower": "red",
+}
+
+CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 COUNTS_PATH   = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/wind_farm_turbine_counts.csv")
 SPECS_PATH    = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/turbine_specs.csv")
 METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
-PLOT_DIR      = Path("EGU_large")
+PLOT_DIR      = Path("WindAI_power")
 
 INIT_START  = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END    = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS  = list(range(3, 40, 3))
+INIT_END    = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
+LEAD_HOURS  = list(range(3, 37, 3))
 MAX_DIST_KM = 2.0
 
 # ---------------------------------------------------------------------------
@@ -70,25 +71,25 @@ def parse_init_time(path: Path) -> pd.Timestamp:
 # ------------------------- File collection ---------------------------------
 
 
-def get_common_files(dirs: List[Path]) -> Dict[Path, List[Path]]:
-    dir_maps: Dict[Path, Dict[pd.Timestamp, Path]] = {}
-    for fc_dir in dirs:
+def get_common_files(dirs: Dict[str, Path]) -> Dict[str, List[Path]]:
+    dir_maps: Dict[str, Dict[pd.Timestamp, Path]] = {}
+    for label, fc_dir in dirs.items():
         files = sorted(fc_dir.glob("forecast_*.nc"))
         if not files:
             raise FileNotFoundError(f"No forecast_*.nc files in {fc_dir}")
         time_map = {parse_init_time(f): f for f in files}
         time_map = {t: f for t, f in time_map.items() if INIT_START <= t <= INIT_END}
         if not time_map:
-            raise ValueError(f"No files in {fc_dir.name} within date window.")
-        dir_maps[fc_dir] = time_map
+            raise ValueError(f"No files in {label} within date window.")
+        dir_maps[label] = time_map
 
     common_inits = sorted(set.intersection(*(set(m.keys()) for m in dir_maps.values())))
     print(f"\n--- Init time intersection across {len(dirs)} directories ---")
-    for fc_dir, fmap in dir_maps.items():
+    for label, fmap in dir_maps.items():
         n_dropped = len(fmap) - len(common_inits)
-        print(f"  {fc_dir.name}: {len(fmap)} total, {n_dropped} dropped → {len(common_inits)} used")
+        print(f"  {label}: {len(fmap)} total, {n_dropped} dropped → {len(common_inits)} used")
 
-    return {fc_dir: [fmap[t] for t in common_inits] for fc_dir, fmap in dir_maps.items()}
+    return {label: [fmap[t] for t in common_inits] for label, fmap in dir_maps.items()}
 
 
 # ------------------------- Metadata / capacity -----------------------------
@@ -155,22 +156,14 @@ class TurbineSpec:
     rated_power: float
 
 
-# def power_curve(ws: np.ndarray, spec: TurbineSpec) -> np.ndarray:
-#     ws = np.asarray(ws, dtype=float)
-#     out = np.zeros_like(ws, dtype=np.float32)
-#     ramp = (ws >= spec.cut_in) & (ws < spec.rated_ws)
-#     out[ramp] = spec.rated_power * ((ws[ramp] - spec.cut_in) / (spec.rated_ws - spec.cut_in)) ** 3
-#     out[(ws >= spec.rated_ws) & (ws < spec.cut_out)] = spec.rated_power
-#     return out
 def power_curve(ws: np.ndarray, spec: TurbineSpec) -> np.ndarray:
     ws = np.asarray(ws, dtype=float)
     out = np.zeros_like(ws, dtype=np.float32)
     ramp = (ws >= spec.cut_in) & (ws < spec.rated_ws)
-    #out[ramp] = spec.rated_power * ((ws[ramp] - spec.cut_in) / (spec.rated_ws - spec.cut_in)) ** 3
     denom = (spec.rated_ws**3 - spec.cut_in**3)
     a = 1 / denom
     b = spec.cut_in**3 / denom
-    out[ramp] = spec.rated_power * (a * ws[ramp]**3 - b) 
+    out[ramp] = spec.rated_power * (a * ws[ramp]**3 - b)
     rated = (ws >= spec.rated_ws) & (ws < spec.cut_out)
     out[rated] = spec.rated_power
     return out
@@ -193,7 +186,6 @@ def build_counts_matrix(meta: pd.DataFrame) -> Tuple[List[str], np.ndarray, List
     counts = pd.read_csv(COUNTS_PATH).set_index("farm")
     type_cols = [c for c in counts.columns if c.lower() != "total"]
 
-    # unique cells in same order as cerra_keep
     seen = []
     for _, row in meta.iterrows():
         cell = (int(row["cerra_y"]), int(row["cerra_x"]))
@@ -305,9 +297,9 @@ def collect_mae_vs_cerra(
             print(f"    Skipped {fpath.name}: {e}")
 
     leads    = sorted(lead_errors)
-    mean_mae = [np.mean(lead_errors[lh])                   if lead_errors[lh]  else np.nan for lh in leads]
-    rmse     = [np.sqrt(np.mean(lead_sq_errs[lh]))         if lead_sq_errs[lh] else np.nan for lh in leads]
-    bias     = [np.mean(lead_biases[lh])                   if lead_biases[lh]  else np.nan for lh in leads]
+    mean_mae = [np.mean(lead_errors[lh])           if lead_errors[lh]  else np.nan for lh in leads]
+    rmse     = [np.sqrt(np.mean(lead_sq_errs[lh])) if lead_sq_errs[lh] else np.nan for lh in leads]
+    bias     = [np.mean(lead_biases[lh])            if lead_biases[lh]  else np.nan for lh in leads]
     counts   = [len(lead_errors[lh]) for lh in leads]
     return pd.DataFrame({"lead_hours": leads, "MAE_MW": mean_mae, "RMSE_MW": rmse, "Bias_MW": bias, "n_inits": counts})
 
@@ -324,37 +316,21 @@ def plot_metrics(
     bias_col: str,
     y_label: str,
     n_inits: int,
+    color_map: Dict[str, str],
 ) -> None:
-        # --- Shared style (matches rmse_vs_leadtime.py) ---
-    STYLE_ORDER = [
-  "Vanilla Power",
-      "No Power",
-   "Vanilla + Synthetic power",
-    ]
-    COLORS  = plt.cm.tab10.colors
-    MARKERS = ["o", "s", "^", "D", "v"]
-
     # --- Figure 1: MAE + RMSE side by side ---
     fig1, (ax_mae, ax_rmse) = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
-    fig1.suptitle(f"Belgian offshore zone  (Aug 2024 - July 2025)", fontsize=12)
-    #fig1.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
+    fig1.suptitle("Belgian offshore zone  (Aug 2024 - Oct 2024)", fontsize=12)
 
     # --- Figure 2: Bias alone ---
     fig2, ax_bias = plt.subplots(1, 1, figsize=(7, 5))
-    fig2.suptitle(f"Belgian offshore zone  (Aug 2024 - July 2025)", fontsize=12)
-    #fig2.suptitle(f"Belgian offshore  (n={n_inits} inits)", fontsize=12)
-
-    COLOR_MAP = {
-        "NoPower":   "black",
-        "VanillaPower": "blue",
-        "SyntheticPower":  "red",
-    }
+    fig2.suptitle("Belgian offshore zone  (Aug 2024 - Oct 2024)", fontsize=12)
 
     for label, df in results:
-        base_label = label.replace("-powercurve", "")
+        base_label    = label.replace("-powercurve", "")
         is_powercurve = "powercurve" in label.lower()
 
-        color  = COLOR_MAP.get(base_label, "gray")
+        color  = color_map.get(base_label, "gray")
         marker = "" if is_powercurve else "o"
         ls     = "--" if is_powercurve else "-"
 
@@ -441,15 +417,11 @@ def main() -> None:
     mae_results_mw:  List[Tuple[str, pd.DataFrame]] = []
     mae_results_pct: List[Tuple[str, pd.DataFrame]] = []
 
-    for fc_dir in FORECAST_DIRS:
-        label = fc_dir.name
-        files = common_files[fc_dir]
+    for label, files in common_files.items():
         print(f"\nProcessing {label} ...")
-
         with h5py.File(str(files[0]), "r") as f:
             has_power = "power" in f
 
-        label = LABELS.get(fc_dir.name, fc_dir.name)
         if has_power:
             print(f"  power MAE/RMSE...")
             df_model = collect_mae_vs_cerra(
@@ -458,9 +430,8 @@ def main() -> None:
             df_model["MAE_pct"]  = df_model["MAE_MW"]  / total_cap_mw * 100.0
             df_model["RMSE_pct"] = df_model["RMSE_MW"] / total_cap_mw * 100.0
             df_model["Bias_pct"] = df_model["Bias_MW"]  / total_cap_mw * 100.0
-        
-            mae_results_mw.append((label, df_model))   # ← ADD THIS
-            mae_results_pct.append((label, df_model))  # ← AND THIS
+            mae_results_mw.append((label, df_model))
+            mae_results_pct.append((label, df_model))
         else:
             print(f"  No 'power' variable — skipping.")
 
@@ -471,19 +442,23 @@ def main() -> None:
         )
         df_pc["MAE_pct"]  = df_pc["MAE_MW"]  / total_cap_mw * 100.0
         df_pc["RMSE_pct"] = df_pc["RMSE_MW"] / total_cap_mw * 100.0
-        df_pc["Bias_pct"] = df_pc["Bias_MW"] / total_cap_mw * 100.0
+        df_pc["Bias_pct"] = df_pc["Bias_MW"]  / total_cap_mw * 100.0
         mae_results_mw.append((f"{label}-powercurve",  df_pc))
         mae_results_pct.append((f"{label}-powercurve", df_pc))
 
-    ts = pd.Timestamp.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    plot_metrics(mae_results_mw,  PLOT_DIR / f"metrics_MW_{ts}.png",
-                 PLOT_DIR / f"bias_MW_{ts}.png",
+    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+
+    plot_metrics(mae_results_mw,
+                 PLOT_DIR / "metrics_MW.png",
+                 PLOT_DIR / "bias_MW.png",
                  mae_col="MAE_MW",  rmse_col="RMSE_MW",  bias_col="Bias_MW",
-                 y_label="[MW]", n_inits=n_inits)
-    plot_metrics(mae_results_pct, PLOT_DIR / f"metrics_pct_{ts}.png",
-                 PLOT_DIR / f"bias_pct_{ts}.png",
+                 y_label="[MW]", n_inits=n_inits, color_map=COLOR_MAP)
+
+    plot_metrics(mae_results_pct,
+                 PLOT_DIR / "metrics_pct.png",
+                 PLOT_DIR / "bias_pct.png",
                  mae_col="MAE_pct", rmse_col="RMSE_pct", bias_col="Bias_pct",
-                 y_label=f"[% of {total_cap_mw:.0f} MW]", n_inits=n_inits)
+                 y_label="[% of installed capacity]", n_inits=n_inits, color_map=COLOR_MAP)
 
     print("\nDone.")
 

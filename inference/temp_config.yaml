@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/630c9ccef176477c85eb935ad26435f6/inference-anemoi-by_time-epoch_029-step_200000.ckpt
-lead_time: 49
-date: "2025-04-06T21:00:00"
+checkpoint: /mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/5aa1c5854b234c97a103ff630801e779/inference-last.ckpt
+lead_time: 37
+date: "2024-12-20T15:00:00"
 device: cuda
 input:
   dataset:
@@ -11,9 +11,6 @@ input:
       min_distance_km: 0
       adjust: all
 output:
-  netcdf:
-    post_processors:
-      - extract_mask:
-          mask: lam_0/cutout_mask
-          as_slice: true
-    path: WindAI/VanillaGT200KFREEZE/forecast_20250406210000.nc
+  extract_lam:      
+    output:
+      netcdf: WindAI/WindWeather/forecast_20241220150000.nc

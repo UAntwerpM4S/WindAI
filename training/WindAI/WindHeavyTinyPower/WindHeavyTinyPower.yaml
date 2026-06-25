@@ -5,20 +5,7 @@
 defaults:
   - _self_
 
-config_validation: false
-
-# ============================================================
-# TASK
-# ============================================================
-task:
-  _target_: anemoi.training.tasks.Forecaster
-  multistep_input: 2
-  multistep_output: 1
-  timestep: "3h"
-  rollout:
-    start: 1
-    epoch_increment: 1
-    maximum: 20
+config_validation: true
 
 # ============================================================
 # SYSTEM
@@ -32,12 +19,12 @@ system:
 
   input:
     dataset:
-      inner: ${hardware.paths.data}/New_Cerra_A_large.zarr
-      outer: ${hardware.paths.data}/era5_A_large.zarr
-    graph: /mnt/weatherloss/WindPower/graphs/EGU26/EGUgraph15km.pt
+      inner: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
+      outer: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
+    graph: /mnt/weatherloss/WindPower/graphs/WindAI/WindAIgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start:  /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/a41c5eb98b7e4641b5aca812a9d9a038/anemoi-by_time-epoch_015-step_100000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/01bd98167d054c85b4266f24a239dc37/anemoi-by_time-epoch_011-step_150000.ckpt
 
 
   output:
@@ -56,46 +43,10 @@ system:
     profiler: profiler
 
 # ============================================================
-# BACKWARD-COMPAT SHIM: keep `${hardware.*}` references working
-# ============================================================
-hardware:
-  accelerator: ${system.hardware.accelerator}
-  num_gpus_per_node: ${system.hardware.num_gpus_per_node}
-  num_nodes: ${system.hardware.num_nodes}
-  num_gpus_per_model: ${system.hardware.num_gpus_per_model}
-
-  paths:
-    data: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets
-    output: ${system.output.root}
-    logs:
-      base: ${system.output.root}/${system.output.logs.root}
-      wandb: ${hardware.paths.logs.base}/${system.output.logs.wandb}
-      mlflow: ${hardware.paths.logs.base}/${system.output.logs.mlflow}
-      tensorboard: ${hardware.paths.logs.base}/${system.output.logs.tensorboard}
-    checkpoints: ${system.output.root}/${system.output.checkpoints.root}
-    plots: ${system.output.root}/${system.output.plots}
-    profiler: ${system.output.root}/${system.output.profiler}
-    graph: ${system.output.root}/graphs
-    warm_start: ${system.input.warm_start}
-
-  files:
-    datasets:
-      outer: ${system.input.dataset.outer}
-      inner: ${system.input.dataset.inner}
-    graph: ${system.input.graph}
-    truncation: ${system.input.truncation}
-    truncation_inv: ${system.input.truncation_inv}
-    checkpoint:
-      every_n_epochs: ${system.output.checkpoints.every_n_epochs}
-      every_n_train_steps: ${system.output.checkpoints.every_n_train_steps}
-      every_n_minutes: ${system.output.checkpoints.every_n_minutes}
-    warm_start: ${system.input.warm_start}
-
-# ============================================================
 # DATA / DATAMODULE
 # ============================================================
-datamodule:
-  _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
+# datamodule:
+# #   _target_: anemoi.training.data.datamodule.AnemoiDatasetsDataModule
 
 data:
   format: zarr
@@ -119,7 +70,7 @@ data:
   diagnostic: 
     - power
 
-  remapped: {}
+  remapped: null
 
   imputer: 
     0.0:
@@ -143,7 +94,7 @@ data:
     max:
       - z_sfc
       - turbinecount
-    min-max: 
+    min-max:
       - power
     none:
       - lsm
@@ -164,7 +115,7 @@ data:
 
     normalizer:
       _target_: anemoi.models.preprocessing.normalizer.InputNormalizer
-      _convert_: all
+      # _convert_: all
       config: ${data.normalizer}
 
 
@@ -174,27 +125,27 @@ data:
 # DATALOADER
 # ============================================================
 dataloader:
-  prefetch_factor: 1
+  prefetch_factor: 2
   pin_memory: true
-  read_group_size: ${hardware.num_gpus_per_model}
+  read_group_size: ${system.hardware.num_gpus_per_model}
 
   num_workers:
-    training: 4
+    training: 2
     validation: 2
     test: 2
-    predict: 2
+    # predict: 2
 
   batch_size:
-    training: 2
+    training: 1
     validation: 1
     test: 1
-    predict: 1
+    # predict: 1
 
   limit_batches:
-    training: 1000 
+    training: 1000
     validation: 10 
     test: 20
-    predict: 20
+    # predict: 20
 
   grid_indices:
     _target_: anemoi.training.data.grid_indices.MaskedGrid
@@ -204,8 +155,8 @@ dataloader:
   dataset:
     dataset:
       cutout:
-        - dataset: ${hardware.files.datasets.inner}
-          #drop: ["power", "capacity", "turbinecount", "turbinemask"]
+        - dataset: ${system.input.dataset.inner}
+        #  drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: &reorder_map
             cos_julian_day: 0
             cos_latitude: 1
@@ -275,12 +226,12 @@ dataloader:
             turbinecount: 65
             turbinemask: 66 
 
-        - dataset: ${hardware.files.datasets.outer}
+        - dataset: ${system.input.dataset.outer}
           #drop: ["power", "capacity", "turbinecount", "turbinemask"]
           reorder: *reorder_map
 
       min_distance_km: 0
-      adjust: all
+      adjust: dates
 
     select:
       - cos_julian_day
@@ -352,34 +303,27 @@ dataloader:
       - turbinemask
 
   training:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2015-01-01"
-        end: "2024-01-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2015-01-01"
+    end: "2024-01-31"
+    frequency: ${data.frequency}
+    drop: []
+
+  validation_rollout: 1
 
   validation:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2024-02-01"
-        end: "2024-07-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2024-02-01"
+    end: "2024-07-31"
+    frequency: ${data.frequency}
+    drop: []
 
   test:
-    datasets:
-      data:
-        dataset_config:
-          dataset: ${dataloader.dataset.dataset}
-          frequency: ${data.frequency}
-          drop: []
-        start: "2024-08-01"
-        end: "2025-07-31"
+    dataset: ${dataloader.dataset.dataset}
+    start: "2024-08-01"
+    end: "2025-07-31"
+    frequency: ${data.frequency}
+    drop: []
 
 # ============================================================
 # DIAGNOSTICS
@@ -401,7 +345,28 @@ diagnostics:
   debug:
     anomaly_detection: false
 
-  profiler: false
+  # profiler: false
+  benchmark_profiler:
+    memory:
+      enabled: false
+      steps: 5
+      warmup: 2
+      extra_plots: false
+      trace_rank0_only: false
+    time:
+      enabled: true
+      verbose: false
+    speed:
+      enabled: true
+    system:
+      enabled: false
+    model_summary:
+      enabled: false
+    snapshot:
+      enabled: true
+      steps: 4
+      warmup: 0
+
   enable_checkpointing: true
 
   checkpoint:
@@ -412,12 +377,10 @@ diagnostics:
       save_frequency: 1
       num_models_saved: -1
     every_n_train_steps:
-      save_frequency: 2000
+      save_frequency: null
       num_models_saved: 0
 
   log:
-    interval: 100
-
     wandb:
       enabled: false
       offline: false
@@ -435,15 +398,17 @@ diagnostics:
       offline: true
       authentication: false
       log_model: false
-      save_dir: ${hardware.paths.logs.mlflow}
-      tracking_uri: "file:${hardware.paths.logs.mlflow}"
-      experiment_name: "HeavyWindTinyPower"
-      project_name: "WindAI"
+      tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
+      experiment_name: "VanillaPowerGT"
+      project_name: "VanillaPowerGT"
       system: true
       terminal: true
       run_name: null
       on_resume_create_child: true
       expand_hyperparams: [config]
+      http_max_retries: 35
+
+    interval: 100
 
   enable_progress_bar: true
   print_memory_summary: false
@@ -543,19 +508,18 @@ graph:
 
     - _target_: anemoi.graphs.processors.RemoveUnconnectedNodes
       nodes_name: data
+      ignore: cutout
       save_mask_indices_to_attr: indices_connected_nodes
 
 # ============================================================
 # MODEL
 # ============================================================
 model:
-  num_channels: 768
+  num_channels: 512
   cpu_offload: false
 
   model:
     _target_: anemoi.models.models.AnemoiModelEncProcDec
-    hidden_nodes_name: hidden
-    latent_skip: True
 
   keep_batch_sharded: true
 
@@ -574,18 +538,14 @@ model:
       bias: false
 
   processor:
-    _target_: anemoi.models.layers.processor.TransformerProcessor
+    _target_: anemoi.models.layers.processor.GraphTransformerProcessor
     trainable_size: ${model.trainable_parameters.hidden2hidden}
     sub_graph_edge_attributes: ${model.attributes.edges}
-    num_layers: 12
+    num_layers: 8
     num_chunks: 2
     mlp_hidden_ratio: 2
     num_heads: 8
-    window_size: 512
-    dropout_p: 0.0
-    attention_implementation: flash_attention
-    qk_norm: False
-    softcap: 0.0
+    qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
 
@@ -620,15 +580,15 @@ model:
   #   _target_: anemoi.training.utils.masks.NoOutputMask
   output_mask:
     _target_: anemoi.training.utils.masks.Boolean1DMask
-  #  nodes_name: data
+    nodes_name: data
     attribute_name: cutout
 
   trainable_parameters:
-    data: 8
-    hidden: 8
-    data2hidden: 8
-    hidden2data: 8
-    hidden2hidden: 8
+    data: 0
+    hidden: 0
+    data2hidden: 0
+    hidden2data: 0
+    hidden2hidden: 0
 
   attributes:
     edges: [edge_length, edge_dirs]
@@ -637,6 +597,7 @@ model:
   bounding:
     - _target_: anemoi.models.layers.bounding.ReluBounding
       variables: [q_500, q_600, q_700, q_750, q_800, q_850, q_900, q_950, q_1000]
+
 
     - _target_: anemoi.models.layers.bounding.HardtanhBounding
       variables:
@@ -650,41 +611,42 @@ model:
 # ============================================================
 
 training:
-  run_id: null
-  fork_run_id: null
-  load_weights_only: false
-  transfer_learning: null
-  update_ds_stats_on_ckpt_load:
-    states: false
-    tendencies: false
+  run_id: 01bd98167d054c85b4266f24a239dc37
+  fork_run_id: 01bd98167d054c85b4266f24a239dc37
+  load_weights_only: True
+  transfer_learning: false
+
   deterministic: false
   precision: 16-mixed
-
 
   multistep_input: 2
   accum_grad_batches: 1
   num_sanity_val_steps: 6
 
   gradient_clip:
-    val: 1.0
+    val: 32.0
     algorithm: value
 
   swa:
     enabled: false
     lr: 0.0001
 
-  training_method: anemoi.training.train.methods.single.SingleTraining
+  optimizer:
+    _target_: torch.optim.AdamW
+    betas: [0.9, 0.95]
+
+  model_task: anemoi.training.train.tasks.GraphForecaster
 
   strategy:
     _target_: anemoi.training.distributed.strategy.DDPGroupStrategy
-    num_gpus_per_model: ${hardware.num_gpus_per_model}
+    num_gpus_per_model: ${system.hardware.num_gpus_per_model}
     read_group_size: ${dataloader.read_group_size}
 
   loss_gradient_scaling: false
 
   training_loss:
     _target_: anemoi.training.losses.MSELoss
-    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights', 'limited_area_mask']
+    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
     ignore_nans: true
 
   validation_metrics:
@@ -707,7 +669,7 @@ training:
         mcc: 0.1
         ws10: 5
         ws100: 5 
-        power: 0.001
+        power: 0.005
 
 
     pressure_level:
@@ -743,31 +705,33 @@ training:
     - v_850
     - power
 
-  scale_validation_metrics:
-    scalars_to_apply: []
-    metrics: []
+  # scale_validation_metrics:
+  #   scalars_to_apply: []
+  #   metrics: []
+
+  rollout:
+    start: 1
+    epoch_increment: 1
+    max: 12
 
   max_epochs: 40
-  max_steps: 105000
+  max_steps: 7500
 
-  # ---- Pretrain LR (uncomment when training from scratch) ----
-  # optimization:
-  #   lr: 0.000125
-  #   lr_warmup: 1000
-  #   lr_iterations: ${training.max_steps}
-  #   lr_min: 3.0e-07
-  #   optimizer:
-  #     _target_: torch.optim.AdamW
-  #     betas: [0.9, 0.95]
+#   lr:
+#     warmup: 1000
+#     rate:  0.000125
+# # 0.0000625 #  global_lr = local_lr * num_gpus_per_node * num_nodes / gpus_per_model
+#     iterations: ${training.max_steps}
+#     min: 3.0e-07
+  
+  lr:
+    warmup: 1000
+    rate: 0.0000064 #8.0e-07
+    iterations: 7500
+    min: 3.0e-07
+   # warmup_t: 100
 
-  # ---- Finetune LR ----
-  optimization:
-    lr: 0.0000032
-    lr_warmup: 100
-    lr_iterations: 5000
-    lr_min: 3.0e-07
-    optimizer:
-      _target_: torch.optim.AdamW
-      betas: [0.9, 0.95]
+
+
 
   submodules_to_freeze: []
