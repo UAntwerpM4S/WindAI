@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/5aa1c5854b234c97a103ff630801e779/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/WindAI/WindHeavyVanillaPower/checkpoint/6d3b66b2e04140e0abadbf5359cd8d71/inference-last.ckpt
 lead_time: 37
-date: "2024-12-20T15:00:00"
+date: "2025-06-23T21:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: WindAI/WindWeather/forecast_20241220150000.nc
+      netcdf: WindAI/WindHeavyVanillaPower/forecast_20250623210000.nc

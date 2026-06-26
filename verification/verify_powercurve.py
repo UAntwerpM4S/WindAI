@@ -33,7 +33,7 @@ FORECAST_DIRS: Dict[str, Path] = {
     "RegularWeather":        Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
     "WindWeather":           Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
     "WindHeavyTinyPower":    Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-   # "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+    "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 COLOR_MAP: Dict[str, str] = {
@@ -52,7 +52,7 @@ METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_me
 PLOT_DIR      = Path("WindAI_power")
 
 INIT_START  = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END    = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
+INIT_END    = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS  = list(range(3, 37, 3))
 MAX_DIST_KM = 2.0
 

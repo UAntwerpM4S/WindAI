@@ -92,6 +92,10 @@ training/WindAI/WindHeavyTinyPower/logs
 training/WindAI/WindHeavyTinyPower/outputs
 training/WindAI/WindHeavyTinyPower/plots
 training/WindAI/WindHeavyTinyPower/checkpoint
+training/WindAI/WindHeavyVanillaPower/logs 
+training/WindAI/WindHeavyVanillaPower/outputs
+training/WindAI/WindHeavyVanillaPower/plots
+training/WindAI/WindHeavyVanillaPower/checkpoint
 
 #Env 
 .env

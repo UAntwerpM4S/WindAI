@@ -14,7 +14,7 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10", "ws100"]
+TARGET_VARS = ["ws10", "ws100","t2m","q_700", "z_500", "t_850"]
 
 
 FORECAST_DIRS = {
@@ -31,8 +31,8 @@ CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cer
 OUT_DIR    = Path("WindAI_plots")
 
 INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2024-10-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 39, 3))
+INIT_END   = pd.Timestamp("2025-7-31 21:00:00", tz="UTC")
+LEAD_HOURS = list(range(3, 37, 3))
 
 N_WORKERS  = 8
 # --------------------------------------------------
