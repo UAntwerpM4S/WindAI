@@ -18,16 +18,16 @@ import xarray as xr
 TARGET_VARS = ["ws100"]
 
 FORECAST_DIRS = {
-    "Normal model": Path("/mnt/weatherloss/WindPower/inference/EGU/NoPowerTFNew"),
-    "Wind model": Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
+    "RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(0, 73, 3))
-OUT_DIR    = Path("EGU_spatial_rmse")
+LEAD_HOURS = list(range(0, 37, 3))   # forecasts only run to 36h (13 steps)
+OUT_DIR    = Path("WindAI_spatial_rmse")
 # --------------------------------------------------
 
 FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")

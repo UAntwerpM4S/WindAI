@@ -67,6 +67,8 @@ def parse_init_time(path: Path) -> pd.Timestamp:
         raise ValueError(f"Cannot parse init time from: {path}")
     return pd.to_datetime(match.group(1), format="%Y%m%d%H%M%S", utc=True)
 
+def _safe(s):
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", str(s)).strip("_")
 
 # ------------------------- File collection ---------------------------------
 
@@ -447,6 +449,11 @@ def main() -> None:
         mae_results_pct.append((f"{label}-powercurve", df_pc))
 
     PLOT_DIR.mkdir(parents=True, exist_ok=True)
+        # --- save raw metric arrays as .npy (one per line: model + powercurve) ---
+    for label, df in mae_results_mw:   # these dfs hold BOTH the *_MW and *_pct columns
+        out_npy = PLOT_DIR / f"metrics_{_safe(label)}.npy"
+        np.save(out_npy, df.to_records(index=False))
+        print(f"Saved: {out_npy}")
 
     plot_metrics(mae_results_mw,
                  PLOT_DIR / "metrics_MW.png",

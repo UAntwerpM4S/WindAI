@@ -201,8 +201,8 @@ def main():
                 lw=1.5, label=label,
             )
 
-            # np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
-            #         df[["lead_hours", "RMSE"]].values)
+            np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
+                    df[["lead_hours", "RMSE"]].values)
 
         ax.set_title(f"RMSE vs Lead Time — {var} (Aug 2024 - July 2025) )",
         #ax.set_title(f"RMSE vs Lead Time — {var}  (n={len(common_inits)} inits)",
