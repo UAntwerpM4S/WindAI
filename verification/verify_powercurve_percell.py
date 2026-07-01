@@ -165,7 +165,7 @@ def main() -> None:
     leads = np.array(LEAD_HOURS)
     for ci in range(n_cells):
         cap = cell_caps[ci]
-        fig, (ax_mae, ax_rmse) = plt.subplots(1, 2, figsize=(14, 5))
+        fig, (ax_mae, ax_rmse, ax_bias) = plt.subplots(1, 3, figsize=(20, 5))
         tag = "single-farm" if cell_nfarms[ci] == 1 else f"{cell_nfarms[ci]} farms (shared)"
         fig.suptitle(f"{cell_labels[ci]}   [{tag}]   capacity = {cap:.0f} MW", fontsize=12)
 
@@ -177,13 +177,15 @@ def main() -> None:
                       marker="" if is_pc else "o", ms=3, color=color, label=label)
             ax_mae.plot(leads,  d["mae"][:, ci]  / cap * 100.0, **kw)
             ax_rmse.plot(leads, d["rmse"][:, ci] / cap * 100.0, **kw)
+            ax_bias.plot(leads, d["bias"][:, ci] / cap * 100.0, **kw)   # signed (fc - obs)
 
-        for ax, t in zip((ax_mae, ax_rmse), ("MAE", "RMSE")):
+        for ax, t in zip((ax_mae, ax_rmse, ax_bias), ("MAE", "RMSE", "Bias (fc − obs)")):
             ax.set_title(t, fontsize=11)
             ax.set_xlabel("Lead time [hours]")
             ax.set_ylabel("[% of cell capacity]")
             ax.grid(True, ls="--", alpha=0.5)
             ax.legend(fontsize=7, framealpha=0.8)
+        ax_bias.axhline(0, color="black", lw=0.8, ls=":")
 
         fig.tight_layout()
         out = OUT_DIR / f"cell_{ci:02d}_{_safe(cell_labels[ci])}.png"
