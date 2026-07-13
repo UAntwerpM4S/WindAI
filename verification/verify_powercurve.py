@@ -29,16 +29,17 @@ from scipy.spatial import cKDTree
 
 FORECAST_DIRS: Dict[str, Path] = {
     "VanillaPowerGT":        Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
-    "VanillaPowerTF":        Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+   # "VanillaPowerTF":        Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+   "VanillaPowerGTProxy": Path("/mnt/weatherloss/WindPowerProxy/inference/VanillaPowerGTProxy"),
     "RegularWeather":        Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
     "WindWeather":           Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
-    "WindHeavyTinyPower":    Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-    "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+   # "WindHeavyTinyPower":    Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+    #"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 COLOR_MAP: Dict[str, str] = {
     "VanillaPowerGT":        "blue",
-    "VanillaPowerTF":        "cornflowerblue",
+    "VanillaPowerGTProxy":        "cornflowerblue",
     "RegularWeather":        "black",
     "WindWeather":           "green",
     "WindHeavyTinyPower":    "orange",

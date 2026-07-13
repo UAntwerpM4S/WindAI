@@ -18,15 +18,16 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws100","ws10"]
+TARGET_VARS = ["t2m"]
 
 FORECAST_DIRS = {
 "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
-"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
+"VanillaPowerGTProxy": Path("/mnt/weatherloss/WindPowerProxy/inference/VanillaPowerGTProxy"),
+#"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
 "RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
 "WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
-"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+#"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+#"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 
@@ -222,8 +223,8 @@ def main():
                 color=COLORS[style_idx % len(COLORS)],
                 lw=1.5, label=label,
             )
-            np.save(OUT_DIR / f"rmse_farm_{var}_{label}.npy",
-                    df[["lead_hours", "RMSE"]].values)
+            # np.save(OUT_DIR / f"rmse_farm_{var}_{label}.npy",
+            #         df[["lead_hours", "RMSE"]].values)
 
         region_str = ", ".join(REGIONS)
         ax.set_title(

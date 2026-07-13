@@ -7,34 +7,34 @@ end_date = datetime(2025, 7, 31, 21)
 interval = timedelta(hours=3)
 
 checkpoints = {
-        "WindAI/WindWeather": (
-        "/mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/5aa1c5854b234c97a103ff630801e779/",
-        "inference-last.ckpt"
-    ),
+    #     "WindAI/WindWeather": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/5aa1c5854b234c97a103ff630801e779/",
+    #     "inference-last.ckpt"
+    # ),
             "WindAI/RegularWeather": (
         "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
         "inference-last.ckpt"
     ),
 
-        "WindAI/VanillaPowerGT": (
-        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/45fbdb76e7ce4f568373a524b5897edf/",
-        "inference-last.ckpt"
-    ),
+    #     "WindAI/VanillaPowerGT": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/45fbdb76e7ce4f568373a524b5897edf/",
+    #     "inference-last.ckpt"
+    # ),
 
-        "WindAI/VanillaPowerTF": (
-        "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/3966833d6cd841d1a8d298c5603b2ee0/",
-        "inference-last.ckpt"
-    ),
+    #     "WindAI/VanillaPowerTF": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerTF/checkpoint/3966833d6cd841d1a8d298c5603b2ee0/",
+    #     "inference-last.ckpt"
+    # ),
 
-        "WindAI/WindHeavyTinyPower": (
-        "/mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/01bd98167d054c85b4266f24a239dc37/",
-        "inference-last.ckpt"
-    ),
+    #     "WindAI/WindHeavyTinyPower": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/WindHeavyTinyPower/checkpoint/01bd98167d054c85b4266f24a239dc37/",
+    #     "inference-last.ckpt"
+    # ),
 
-        "WindAI/WindHeavyVanillaPower": (
-        "/mnt/weatherloss/WindPower/training/WindAI/WindHeavyVanillaPower/checkpoint/6d3b66b2e04140e0abadbf5359cd8d71/",
-        "inference-last.ckpt"
-    ),
+    #     "WindAI/WindHeavyVanillaPower": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/WindHeavyVanillaPower/checkpoint/6d3b66b2e04140e0abadbf5359cd8d71/",
+    #     "inference-last.ckpt"
+    # ),
 
 
         #   "EGU/TF00":  ("/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61","inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"),

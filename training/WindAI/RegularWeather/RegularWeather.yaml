@@ -24,7 +24,7 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/WindAI/WindAIgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/80b001d0e79942d086812e255a19b0e1/anemoi-by_time-epoch_011-step_150000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/anemoi-by_time-epoch_011-step_150000.ckpt
 
 
   output:
