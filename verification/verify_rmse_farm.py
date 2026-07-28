@@ -1,11 +1,6 @@
-"""
-RMSE vs lead time against CERRA truth — Belgian farm cells only.
 
-Same structure as verify_rmse.py but restricts evaluation to the CERRA nodes
-that correspond to Belgian offshore wind farms (from windfarm_metadata.csv).
-This gives farm-specific RMSE for weather variables (ws100, ws10, etc.).
-"""
 
+import argparse
 from pathlib import Path
 from multiprocessing import Pool
 import multiprocessing as mp
@@ -16,26 +11,28 @@ import xarray as xr
 import h5py
 import netCDF4 as nc4
 import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["t2m"]
+TARGET_VARS = ["ws100"]
 
 FORECAST_DIRS = {
-"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
-"VanillaPowerGTProxy": Path("/mnt/weatherloss/WindPowerProxy/inference/VanillaPowerGTProxy"),
-#"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
-"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
-#"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-#"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+    "HighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
+    "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaPowerGT"),
+    "RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "VeryHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    #"WindHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/WindHighCapacity"),
 }
 
+CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 
-CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
-METADATA_PATH = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
-REGIONS       = ["Belgium"]
+# --- the distributed farm cells (replaces windfarm_metadata.csv's nearest-centroid cerra_y) ---
+TURBMASK_SRC = Path("/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr")
+TURBINES_CSV = Path("/mnt/weatherloss/WindPower/data/WPDistr/turbines.csv")
 
-OUT_DIR    = Path("WindAI_farm")
+REGION = "BE"          # <<< TOGGLE: "BE" | "UK" | "both"  (or pass --region)
+
+OUT_DIR    = Path("WPDistrFarm")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
@@ -55,14 +52,45 @@ def parse_init(path: Path) -> pd.Timestamp:
     )
 
 
-def get_farm_cerra_indices(metadata_path: Path, regions: list[str]) -> np.ndarray:
-    """Return unique CERRA flat indices (cerra_y) for farms in the given regions."""
-    meta = pd.read_csv(metadata_path)
-    mask = meta["region"].str.lower().isin([r.lower() for r in regions])
-    subset = meta[mask].dropna(subset=["cerra_y"])
-    unique_indices = subset["cerra_y"].astype(int).unique()
-    print(f"Regions: {regions} | {len(subset)} farms | {len(unique_indices)} unique CERRA cells")
-    return np.sort(unique_indices)
+def to_180(lon):
+    lon = np.asarray(lon, dtype=float)
+    return ((lon + 180.0) % 360.0) - 180.0
+
+
+def get_farm_cerra_indices(region: str) -> np.ndarray:
+    """CERRA cells where the DISTRIBUTED power target exists, optionally split by region.
+
+    turbmask is 1 at every cell holding turbines and NaN elsewhere (static in time), so it is
+    exactly "where the distributed power exists". For a single region, intersect it with that
+    region's cells, assigned from turbines.csv with the same cos-lat KD-tree build_power.py
+    used -- so the cells match the target's cells exactly.
+    """
+    ds = xr.open_zarr(TURBMASK_SRC, consolidated=True)
+    tm = ds["turbmask"].isel(time=0).values
+    ds.close()
+    idx = np.where(np.isfinite(tm))[0]
+
+    if region.lower() == "both":
+        print(f"Region: both | {idx.size} distributed farm cells")
+        return np.sort(idx)
+
+    dsc = xr.open_zarr(CERRA_PATH, consolidated=False)
+    lat = np.asarray(dsc["latitudes"]).ravel()
+    lon = to_180(np.asarray(dsc["longitudes"]).ravel())
+    dsc.close()
+
+    t = pd.read_csv(TURBINES_CSV)
+    t = t[t["region"].str.upper() == region.upper()]
+    if t.empty:
+        raise SystemExit(f"no turbines for region {region!r} (expected BE, UK or both)")
+
+    coslat = np.cos(np.radians(float(lat.mean())))
+    tree = cKDTree(np.c_[lon * coslat, lat])
+    _, cell = tree.query(np.c_[to_180(t["longitude"]) * coslat, t["latitude"].to_numpy()], k=1)
+    sel = np.sort(np.intersect1d(idx, np.unique(cell.astype(int))))
+    print(f"Region: {region} | {t.farm.nunique()} farms | {sel.size} of {idx.size} "
+          f"distributed farm cells")
+    return sel
 
 
 def _read_one_file(args):
@@ -105,6 +133,12 @@ def _read_one_file(args):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="RMSE at the distributed farm cells")
+    ap.add_argument("--region", default=REGION, choices=["BE", "UK", "both"],
+                    help=f"which farm cells to score (default: {REGION})")
+    args = ap.parse_args()
+    region = args.region
+
     mp.set_start_method("spawn", force=True)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -114,7 +148,7 @@ def main():
     cerra_dates = pd.to_datetime(ds_cerra["dates"].values).tz_localize("UTC")
 
     # ── farm cell indices into the CERRA grid ─────────────────────────────────
-    farm_cell_idxs = get_farm_cerra_indices(METADATA_PATH, REGIONS)
+    farm_cell_idxs = get_farm_cerra_indices(region)
 
     # ── file maps ─────────────────────────────────────────────────────────────
     dir_file_maps = {}
@@ -226,10 +260,11 @@ def main():
             # np.save(OUT_DIR / f"rmse_farm_{var}_{label}.npy",
             #         df[["lead_hours", "RMSE"]].values)
 
-        region_str = ", ".join(REGIONS)
+        region_str = {"BE": "Belgium", "UK": "UK", "both": "BE+UK"}[region]
         ax.set_title(
-            f"RMSE vs Lead Time — {var} — {region_str} farm cells only\n"
-            f"Aug 2024 - July 2025 (Wind farm cells only)",
+            f"RMSE vs Lead Time — {var} — {region_str} distributed farm cells "
+            f"({len(farm_cell_idxs)} cells)\n"
+            f"Aug 2024 - July 2025",
             fontsize=12,
         )
         ax.set_xlabel("Lead time [hours]")
@@ -238,9 +273,10 @@ def main():
         ax.legend(title="Run", framealpha=0.8)
         ax.grid(True, ls="--", alpha=0.5)
         fig.tight_layout()
-        fig.savefig(OUT_DIR / f"rmse_farm_{var}.png", dpi=150)
+        out_png = OUT_DIR / f"rmse_farm_{var}_{region}.png"   # region in the name: BE and UK
+        fig.savefig(out_png, dpi=150)                          # runs must not overwrite each other
         plt.close(fig)
-        print(f"Saved: {OUT_DIR / f'rmse_farm_{var}.png'}")
+        print(f"Saved: {out_png}")
 
     ds_cerra.close()
     print("\nDone.")

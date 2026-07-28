@@ -1,0 +1,24 @@
+dates:
+  start: "2015-01-01T00:00:00"
+  end:   "2025-07-31T21:00:00"
+  frequency: 3h
+
+build:
+  group_by: daily
+
+input:
+  pipe:
+    - xarray-zarr:
+        url: "/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr"
+        param: [power, capacityfactor, capacity, turbinecount, turbmask]
+        flavour:
+          levtype: sfc
+          rules:
+            time:      { name: time }
+            latitude:  { name: latitude }
+            longitude: { name: longitude }
+
+statistics:
+    start: "2020-01-01T00:00:00"
+    end:   "2023-12-31T21:00:00"
+    allow_nans: [power, capacityfactor, capacity, turbinecount, turbmask]

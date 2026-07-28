@@ -1,213 +1,227 @@
-"""
-power_verify.py  —  Verify wind power forecasts against CERRA observations.
-"""
+#!/usr/bin/env python3
+"""Score forecast wind-farm power against observations.
 
-from pathlib import Path
+The model predicts `capacityfactor` on the CERRA grid. This reverses the build's distribution
+to recover per-FARM power and scores it against the ENTSO-E/Elexon observations in power_obs.csv.
+
+Reconstruction (adjoint of build_power.py's capacity-weighted distribution):
+
+    P_pred(farm, t) = SUM_cell  capacity(farm's turbines in cell) * CF_pred(cell, t)
+
+This is exact for a farm's un-shared cells: if CF_pred equals the true field, P_pred == P_obs.
+In shared cells it inherits the same mild "farms in one cell see the same wind" approximation the
+forward build makes. (A raw-`power` forecast is handled too: it is divided by the cell capacity to
+get CF first, then reconstructed identically.)
+
+Forecasts are anemoi inference NetCDFs, one per init time (`forecast_YYYYMMDDHHMMSS.nc`), each a
+rollout of lead times on the inner cutout grid, carrying latitude/longitude. Cells are matched to
+turbines by lat/lon (a cos-lat KD-tree), so this is robust to the inner-vs-full grid subsetting.
+
+Scores per farm and per lead time, aggregated over all init files: RMSE, bias, and nRMSE
+(RMSE / farm capacity). Belgium is the evaluation target (UK obs end 2023); a persistence
+baseline (P_obs at init, held flat) is reported for context. Domain-wide weather scores are
+useless here -- 172 of 72,668 cells -- which is the whole reason this farm-space scoring exists.
+
+Usage:
+  python score_farm_power.py --forecasts DIR [--var capacityfactor] [--region Belgium] [--plot]
+"""
+from __future__ import annotations
+
+import argparse
 import re
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-import h5py
-import netCDF4 as nc4
-import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 
-# -------------------- SETTINGS --------------------
+WPOWER_DIR = Path(__file__).resolve().parent
+FORECAST_RE = re.compile(r"forecast_(\d{14})")
+EARTH_KM_PER_DEG = 111.0
 
-REGIONS = ["Belgium"]
 
-METADATA_CSV = Path("/mnt/weatherloss/WindPower/data/NorthSea/Power/windfarm_metadata.csv")
-
-# -------------------- SETTINGS --------------------
-# Keep same order/labels as rmse_vs_leadtime.py so colors match
-STYLE_ORDER = [
-    "Synthetic Power",
-    "Vanilla Power",
-]
-COLORS  = plt.cm.tab10.colors
-MARKERS = ["o", "s", "^", "D", "v"]
-
-FORECAST_DIRS = {
-    "Synthetic Power": Path("/mnt/weatherloss/WindPower/inference/EGU/SyntheticNew"),
-    "Vanilla Power":             Path("/mnt/weatherloss/WindPower/inference/EGU/BigTransformerNew"),
-}
-
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/EGU26/Anemoidatasets/New_Cerra_A_large.zarr")
-OUT_DIR    = Path("EGU_large")
-
-INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
-LEAD_HOURS = list(range(3, 40, 3))
-
-# --------------------------------------------------
-
-FORECAST_FILE_RE = re.compile(r"forecast_(\d{14})")
+def to_180(lon):
+    lon = np.asarray(lon, dtype=float)
+    return ((lon + 180.0) % 360.0) - 180.0
 
 
 def parse_init(path: Path) -> pd.Timestamp:
-    return pd.to_datetime(
-        FORECAST_FILE_RE.search(path.name).group(1),
-        format="%Y%m%d%H%M%S", utc=True,
-    )
+    return pd.to_datetime(FORECAST_RE.search(path.name).group(1),
+                          format="%Y%m%d%H%M%S", utc=True)
 
 
-def load_farms(csv_path: Path, regions=None) -> pd.DataFrame:
-    df = pd.read_csv(csv_path)
-    needed = ["region", "farm", "capacity_mw", "lat", "lon",
-              "cerra_y", "cerra_grid_lat", "cerra_grid_lon"]
-    df = df[needed].dropna(subset=["lat", "lon", "capacity_mw"])
-    df["capacity_mw"] = pd.to_numeric(df["capacity_mw"], errors="coerce")
-    df = df.dropna(subset=["capacity_mw"])
-    if regions is not None:
-        df = df[df["region"].str.lower().isin([r.lower() for r in regions])]
-    return df.reset_index(drop=True)
+def build_reconstruction(fc_lat, fc_lon, turbines, farms):
+    """Assign turbines to forecast cells and build the reconstruction operators.
 
+    Returns:
+      cell_idx   : forecast-cell indices that hold turbines
+      G          : (n_farms, n_cells) with G[f,j] = capacity of farm f in cell_idx[j]
+      cap_cell   : (n_cells,) total capacity per cell (for a raw-power forecast -> CF)
+    """
+    coslat = np.cos(np.radians(float(fc_lat.mean())))
+    tree = cKDTree(np.c_[to_180(fc_lon) * coslat, fc_lat])
+    _, cell = tree.query(np.c_[to_180(turbines["longitude"]) * coslat,
+                               turbines["latitude"].to_numpy()], k=1)
+    t = turbines.assign(cell=cell.astype(int))
 
-def read_forecast(nc_path: Path, init: pd.Timestamp,
-                  lead_hours: list, cell_cerra_idxs: np.ndarray,
-                  valid_iso_set: set) -> dict:
-    result = {}
-    with h5py.File(str(nc_path), "r") as f:
-        tv  = f["time"]
-        raw = nc4.num2date(
-            tv[:],
-            tv.attrs["units"].decode(),
-            tv.attrs.get("calendar", b"standard").decode(),
-        )
-        fc_times       = [pd.Timestamp(str(t)).tz_localize("UTC") for t in raw]
-        fc_time_to_idx = {t.isoformat(): j for j, t in enumerate(fc_times)}
-        power_all = f["power"][:, :]
+    cell_idx = np.sort(t["cell"].unique())
+    cpos = {int(c): j for j, c in enumerate(cell_idx)}
+    fpos = {f: i for i, f in enumerate(farms)}
 
-    power_sel = power_all[:, cell_cerra_idxs]
-
-    for lh in lead_hours:
-        viso = (init + pd.Timedelta(hours=lh)).isoformat()
-        if viso in fc_time_to_idx and viso in valid_iso_set:
-            tidx       = fc_time_to_idx[viso]
-            result[lh] = float(np.sum(power_sel[tidx]))
-
-    return result
+    G = np.zeros((len(farms), cell_idx.size), dtype=np.float64)
+    for (farm, c), cap in t.groupby(["farm", "cell"])["capacity_mw"].sum().items():
+        G[fpos[farm], cpos[int(c)]] = cap
+    cap_cell = t.groupby("cell")["capacity_mw"].sum().reindex(cell_idx).to_numpy()
+    return cell_idx, G, cap_cell
 
 
 def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--forecasts", type=Path, required=True, help="dir of forecast_*.nc")
+    ap.add_argument("--var", default="capacityfactor", help="forecast variable (capacityfactor or power)")
+    ap.add_argument("--region", default="Belgium", help="Belgium | UK | all")
+    ap.add_argument("--leads", type=int, nargs="+", default=list(range(3, 37, 3)),
+                    help="lead times in hours")
+    ap.add_argument("--out", type=Path, default=WPOWER_DIR / "scores_farm_power.csv")
+    ap.add_argument("--plot", action="store_true")
+    args = ap.parse_args()
 
-    # --- 1. Load Metadata ---
-    farms_df = load_farms(METADATA_CSV, regions=REGIONS)
-    cell_map = {}
-    for _, row in farms_df.iterrows():
-        idx = int(row["cerra_y"])
-        cell_map[idx] = cell_map.get(idx, 0.0) + float(row["capacity_mw"])
+    farms_df = pd.read_csv(WPOWER_DIR / "farms.csv")
+    turbines = pd.read_csv(WPOWER_DIR / "turbines.csv")
+    obs = pd.read_csv(WPOWER_DIR / "power_obs.csv", index_col=0, parse_dates=True)
+    if obs.index.tz is None:
+        obs.index = obs.index.tz_localize("UTC")
 
-    grand_total_cap = sum(cell_map.values())
-    cell_cerra_idxs = np.array(list(cell_map.keys()))
-    print(f"Region: {REGIONS} | Capacity: {grand_total_cap:.1f} MW")
+    reg = {"belgium": "be", "be": "be", "uk": "uk", "all": "all"}.get(args.region.lower())
+    if reg is None:
+        raise SystemExit(f"region must be Belgium/UK/all, got {args.region!r}")
+    farms = farms_df.farm.tolist() if reg == "all" else \
+        farms_df[farms_df.region.str.lower() == reg].farm.tolist()
+    if not farms:
+        raise SystemExit(f"no farms for region {args.region!r} "
+                         f"(available: {sorted(farms_df.region.unique())})")
+    cap_total = farms_df.set_index("farm").loc[farms, "capacity_mw"]
+    turbines = turbines[turbines.farm.isin(farms)]
 
-    # --- 2. Load CERRA ---
-    ds_cerra    = xr.open_zarr(CERRA_PATH, consolidated=False)
-    cerra_vars  = list(ds_cerra.attrs["variables"])
-    cerra_dates = pd.to_datetime(ds_cerra["dates"].values).tz_localize("UTC")
-    cerra_date_to_idx = {d: i for i, d in enumerate(cerra_dates)}
-    power_idx   = cerra_vars.index("power")
+    files = sorted(args.forecasts.glob("forecast_*.nc"))
+    if not files:
+        raise SystemExit(f"no forecast_*.nc in {args.forecasts}")
+    print(f"{len(files)} forecast files | region {args.region} | {len(farms)} farms | var {args.var}")
 
-    # --- 3. File maps ---
-    dir_file_maps = {}
-    for label, fc_dir in FORECAST_DIRS.items():
-        fmap = {parse_init(f): f for f in sorted(fc_dir.glob("forecast_*.nc"))
-                if INIT_START <= parse_init(f) <= INIT_END}
-        if fmap:
-            dir_file_maps[label] = fmap
-            print(f"{label}: {len(fmap)} files")
+    # Reconstruction operators depend only on the forecast grid; cache per distinct grid so
+    # heterogeneous inference outputs (different connected-node sets) are each handled correctly.
+    recon_cache: dict = {}
 
-    common_inits = sorted(set.intersection(*(set(m) for m in dir_file_maps.values())))
-    print(f"Common inits: {len(common_inits)}")
-    print(f"Init range: {common_inits[0]} to {common_inits[-1]}")
+    def get_recon(lat, lon):
+        key = (lat.size, round(float(lat[0]), 4), round(float(lat[-1]), 4),
+               round(float(lon[0]), 4), round(float(lon[-1]), 4))
+        if key not in recon_cache:
+            r = build_reconstruction(lat, lon, turbines, farms)
+            recon_cache[key] = r
+            print(f"  grid {lat.size} cells -> {r[0].size} farm cells, {r[1].sum():.0f} MW")
+        return recon_cache[key]
 
-    # --- 4. Preload CERRA ---
-    needed_valid = sorted({
-        i + pd.Timedelta(hours=lh)
-        for i in common_inits for lh in LEAD_HOURS
-        if (i + pd.Timedelta(hours=lh)) in cerra_date_to_idx
-    })
-    print(f"Preloading CERRA ({len(needed_valid)} steps)...")
-    cerra_bulk = ds_cerra["data"].isel(
-        time=[cerra_date_to_idx[t] for t in needed_valid],
-        variable=power_idx, ensemble=0,
-    ).values[:, cell_cerra_idxs]
-    cerra_obs_cache = {t.isoformat(): cerra_bulk[i] for i, t in enumerate(needed_valid)}
-    ds_cerra.close()
-    del cerra_bulk
+    # accumulate squared error / abs error / signed error and count per (farm, lead)
+    F, L = len(farms), len(args.leads)
+    lead_pos = {lh: k for k, lh in enumerate(args.leads)}
+    sse = np.zeros((F, L)); sae = np.zeros((F, L)); sse_ref = np.zeros((F, L))
+    sbias = np.zeros((F, L)); n = np.zeros((F, L))
+    fleet_sse = np.zeros(L); fleet_n = np.zeros(L)      # error on total (summed) generation
 
-    valid_iso_set = {
-        iso for iso, arr in cerra_obs_cache.items()
-        if not np.any(np.isnan(arr))
-    }
-    common_inits = [
-        init for init in common_inits
-        if all(
-            (init + pd.Timedelta(hours=lh)).isoformat() in valid_iso_set
-            for lh in LEAD_HOURS
-        )
-    ]
-    print(f"Inits with full lead hour coverage: {len(common_inits)}")
-    print(f"CERRA preload done.")
+    for fp in files:
+        init = parse_init(fp)
+        with xr.open_dataset(fp) as ds:
+            if args.var not in ds:
+                print(f"  skip {fp.name}: no '{args.var}'"); continue
+            cell_idx, G, cap_cell = get_recon(ds["latitude"].values, ds["longitude"].values)
+            fc_times = pd.DatetimeIndex(ds["time"].values).tz_localize("UTC")
+            field = ds[args.var].values[:, cell_idx]                 # (n_time, n_cells)
 
-    # --- 5. Process sequentially ---
-    fig, (ax_mae, ax_rmse) = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
+        cf = field if args.var == "capacityfactor" else np.divide(
+            field, cap_cell[None, :], out=np.full_like(field, np.nan), where=cap_cell[None, :] > 0)
+        ppred_all = cf @ G.T                                          # (n_time, n_farms)
 
-    for label, fmap in dir_file_maps.items():
-        print(f"\nProcessing {label}...")
-        lead_errors = {lh: [] for lh in LEAD_HOURS}
+        t2idx = {t: j for j, t in enumerate(fc_times)}
+        for lh in args.leads:
+            vt = init + pd.Timedelta(hours=lh)
+            if vt not in t2idx or vt not in obs.index or init not in obs.index:
+                continue
+            ppred = ppred_all[t2idx[vt]]                             # (n_farms,)
+            ptrue = obs.loc[vt, farms].to_numpy(float)
+            pref = obs.loc[init, farms].to_numpy(float)              # persistence
+            k = lead_pos[lh]
+            for i in range(F):
+                if np.isfinite(ptrue[i]) and np.isfinite(ppred[i]):
+                    e = ppred[i] - ptrue[i]
+                    sse[i, k] += e * e; sae[i, k] += abs(e); sbias[i, k] += e; n[i, k] += 1
+                    if np.isfinite(pref[i]):
+                        sse_ref[i, k] += (pref[i] - ptrue[i]) ** 2
+            # total generation: only when every farm reports (a known sum, not a partial one)
+            if np.isfinite(ptrue).all() and np.isfinite(ppred).all():
+                fe = ppred.sum() - ptrue.sum()
+                fleet_sse[k] += fe * fe; fleet_n[k] += 1
 
-        for count, init in enumerate(common_inits):
-            if count % 200 == 0:
-                print(f"  {count}/{len(common_inits)}...", flush=True)
-            try:
-                fc = read_forecast(
-                    fmap[init], init, LEAD_HOURS,
-                    cell_cerra_idxs, valid_iso_set,
-                )
-                for lh, fc_mw in fc.items():
-                    viso   = (init + pd.Timedelta(hours=lh)).isoformat()
-                    obs_mw = float(np.sum(cerra_obs_cache[viso]))
-                    lead_errors[lh].append(fc_mw - obs_mw)  # signed for RMSE
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rmse = np.sqrt(sse / n); mae = sae / n; bias = sbias / n
+        rmse_ref = np.sqrt(sse_ref / n)
+        nrmse = 100.0 * rmse / cap_total.to_numpy()[:, None]
 
-            except Exception as e:
-                print(f"  Skipping {fmap[init].name}: {e}")
+    # ---- per-farm table (averaged over lead) ----
+    print(f"\n{'farm':16s} {'n':>6s} {'RMSE':>7s} {'nRMSE%':>7s} {'bias':>7s} {'persist':>8s}  skill")
+    print("-" * 66)
+    rows = []
+    for i, farm in enumerate(farms):
+        N = n[i].sum()
+        if N == 0:
+            continue
+        r = np.nansum(sse[i]) ** 0.5 / max(np.sqrt(N), 1)   # pooled RMSE over leads
+        rr = (np.nansum(sse_ref[i]) / N) ** 0.5
+        b = np.nansum(sbias[i]) / N
+        nr = 100.0 * r / cap_total[farm]
+        skill = 1 - r / rr if rr > 0 else np.nan
+        rows.append(dict(farm=farm, region=farms_df.set_index("farm").loc[farm, "region"],
+                         n=int(N), rmse_mw=r, nrmse_pct=nr, bias_mw=b,
+                         persist_rmse_mw=rr, skill_vs_persist=skill))
+        print(f"{farm:16s} {int(N):6d} {r:7.1f} {nr:7.1f} {b:+7.1f} {rr:8.1f}  {skill:+.2f}")
 
-        leads    = sorted(lead_errors)
-        errors   = [np.array(lead_errors[lh]) if lead_errors[lh] else np.array([np.nan]) for lh in leads]
+    per_farm = pd.DataFrame(rows)
 
-        mae_pct  = [np.mean(np.abs(e)) / grand_total_cap * 100 for e in errors]
-        rmse_pct = [np.sqrt(np.mean(e ** 2)) / grand_total_cap * 100 for e in errors]
+    # ---- total generation error vs lead (sum over farms, only when all report) ----
+    total_cap = float(cap_total.sum())
+    print(f"\ntotal {args.region} generation forecast error by lead "
+          f"(sum of {F} farms, capacity {total_cap:.0f} MW):")
+    print(f"{'lead':>5s} {'n':>5s} {'RMSE MW':>8s} {'nRMSE%':>7s} | {'mean per-farm RMSE':>18s}")
+    for lh in args.leads:
+        k = lead_pos[lh]
+        fr = (fleet_sse[k] / fleet_n[k]) ** 0.5 if fleet_n[k] else np.nan
+        print(f"  +{lh:2d}h {int(fleet_n[k]):5d} {fr:8.1f} {100*fr/total_cap:7.1f} | "
+              f"{np.nanmean(rmse[:, k]):18.1f}")
 
-        style_idx = STYLE_ORDER.index(label)
-        color     = COLORS[style_idx % len(COLORS)]
-        marker    = MARKERS[style_idx % len(MARKERS)]
+    per_farm.to_csv(args.out, index=False)
+    # also dump the full lead x farm RMSE grid
+    grid = pd.DataFrame(rmse, index=farms, columns=[f"lead_{lh}h" for lh in args.leads])
+    grid.to_csv(args.out.with_name(args.out.stem + "_by_lead.csv"))
+    print(f"\nwrote {args.out.name} and {args.out.stem}_by_lead.csv")
 
-        ax_mae.plot(leads, mae_pct,  marker=marker, color=color, lw=1.5, label=label)
-        ax_rmse.plot(leads, rmse_pct, marker=marker, color=color, lw=1.5, label=label)
+    if per_farm.empty:
+        raise SystemExit("no scored farm-leads -- check that forecast valid times overlap the obs")
 
-
-        np.save(OUT_DIR / f"mae_{label}.npy",  np.column_stack([leads, mae_pct]))
-        np.save(OUT_DIR / f"rmse_{label}.npy", np.column_stack([leads, rmse_pct]))
-
-    # --- 6. Finalise ---
-    region_str = ", ".join(REGIONS) if REGIONS else "All"
-    date_range = f"{common_inits[0].date()} – {common_inits[-1].date()}"
-    suptitle   = f"Region: {region_str}  ({date_range})"
-
-    for ax, metric in [(ax_mae, "MAE"), (ax_rmse, "RMSE")]:
-        ax.set_title(f"Power {metric} Comparison")
-        ax.set_xlabel("Lead time [hours]")
-        ax.set_ylabel(f"{metric} [% of Total Capacity]")
-        ax.set_xticks(LEAD_HOURS)
-        ax.legend()
-        ax.grid(True, ls="--", alpha=0.5)
-
-    fig.suptitle(suptitle, fontsize=11, y=1.02)
-    fig.tight_layout()
-    fig.savefig(OUT_DIR / "mae_rmse_comparison.png", dpi=150, bbox_inches="tight")
-    print(f"\nDone. Plot saved to {OUT_DIR}/mae_rmse_comparison.png")
+    if args.plot:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(9, 5.5))
+        for i, farm in enumerate(farms):
+            if n[i].sum() > 0:
+                ax.plot(args.leads, nrmse[i], marker="o", ms=3, lw=1, alpha=0.7, label=farm)
+        ax.plot(args.leads, np.nanmean(nrmse, 0), "k--", lw=2, label="mean")
+        ax.set(xlabel="lead time (h)", ylabel="nRMSE (% of capacity)",
+               title=f"farm power forecast skill — {args.region}")
+        ax.grid(alpha=0.3); ax.legend(ncol=2, fontsize=7)
+        p = args.out.with_suffix(".png")
+        fig.tight_layout(); fig.savefig(p, dpi=140); print(f"wrote {p.name}")
 
 
 if __name__ == "__main__":

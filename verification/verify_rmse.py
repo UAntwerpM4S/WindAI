@@ -14,24 +14,25 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["ws10", "ws100","t2m","q_700", "z_500", "t_850"]
+TARGET_VARS = ["capacityfactor"]#,"t2m","q_700", "z_500"]
 
 
 FORECAST_DIRS = {
-"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
-"VanillaPowerTF": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerTF"),
-"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
-"WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-"WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+#"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
+"VanillaPowerGTCapacity": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaPowerGT"),
+#"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+#"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
+"LargeCapacity":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
+# "WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
+# "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
 }
 
 
-CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr")
-OUT_DIR    = Path("WindAI_plots")
+CERRA_PATH = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
+OUT_DIR    = Path("WPDIstr")
 
 INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-7-31 21:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2024-8-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 37, 3))
 
 N_WORKERS  = 8
@@ -201,8 +202,8 @@ def main():
                 lw=1.5, label=label,
             )
 
-            np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
-                    df[["lead_hours", "RMSE"]].values)
+            # np.save(OUT_DIR / f"rmse_{var}_{label}.npy",
+            #         df[["lead_hours", "RMSE"]].values)
 
         ax.set_title(f"RMSE vs Lead Time — {var} (Aug 2024 - July 2025) )",
         #ax.set_title(f"RMSE vs Lead Time — {var}  (n={len(common_inits)} inits)",

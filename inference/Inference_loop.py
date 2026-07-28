@@ -2,20 +2,19 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 
-start_date = datetime(2024, 8, 1, 0)
-end_date = datetime(2025, 7, 31, 21)
+start_date = datetime(2025, 1, 1, 0)
+end_date = datetime(2025, 1, 30, 9)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    #     "WindAI/WindWeather": (
-    #     "/mnt/weatherloss/WindPower/training/WindAI/WindWeather/checkpoint/5aa1c5854b234c97a103ff630801e779/",
-    #     "inference-last.ckpt"
-    # ),
-            "WindAI/RegularWeather": (
-        "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
+        "WPDistr/SemiHighCapacity": (
+         "/mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGT/checkpoint/79c61ab7f58845249c7619a5d2ae3adc/",
         "inference-last.ckpt"
     ),
-
+    #     "WPDistr/VeryHighCapacityGT": (
+    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGT/checkpoint/f2baebf0b95b4d8dafb493d3fb36d29a/",
+    #     "inference-last.ckpt"
+    # ),
     #     "WindAI/VanillaPowerGT": (
     #     "/mnt/weatherloss/WindPower/training/WindAI/VanillaPowerGT/checkpoint/45fbdb76e7ce4f568373a524b5897edf/",
     #     "inference-last.ckpt"
@@ -66,8 +65,8 @@ input:
   dataset:
     dataset:
       cutout:
-        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
-        - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr
+        - dataset: /mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_era5_A.zarr
       min_distance_km: 0
       adjust: all
 output:
