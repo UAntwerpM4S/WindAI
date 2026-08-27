@@ -14,17 +14,14 @@ import netCDF4 as nc4
 import matplotlib.pyplot as plt
 
 # -------------------- SETTINGS --------------------
-TARGET_VARS = ["capacityfactor"]#,"t2m","q_700", "z_500"]
+TARGET_VARS = ["t2m"]#,"t2m","q_700", "z_500"]
 
 
 FORECAST_DIRS = {
 #"VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WindAI/VanillaPowerGT"),
-"VanillaPowerGTCapacity": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaPowerGT"),
-#"RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-#"WindWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindWeather"),
-"LargeCapacity":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-# "WindHeavyTinyPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyTinyPower"),
-# "WindHeavyVanillaPower": Path("/mnt/weatherloss/WindPower/inference/WindAI/WindHeavyVanillaPower"),
+"VanillaPowerGTCapacity": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+"VanillaPowerGTCapacity2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT2"),
+
 }
 
 

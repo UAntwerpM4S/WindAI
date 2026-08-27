@@ -1,6 +1,6 @@
 checkpoint: /mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGT/checkpoint/79c61ab7f58845249c7619a5d2ae3adc/inference-last.ckpt
 lead_time: 37
-date: "2025-01-30T09:00:00"
+date: "2025-07-31T09:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: WPDistr/SemiHighCapacity/forecast_20250130090000.nc
+      netcdf: WPDistr/SemiHighCapacity/forecast_20250731090000.nc

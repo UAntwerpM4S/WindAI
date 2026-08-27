@@ -18,7 +18,7 @@ TARGET_VARS = ["ws100"]
 
 FORECAST_DIRS = {
     "HighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-    "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaPowerGT"),
+   # "VanillaPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaPowerGT"),
     "RegularWeather": Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
     "VeryHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
     #"WindHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/WindHighCapacity"),
@@ -30,7 +30,7 @@ CERRA_PATH    = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/pow
 TURBMASK_SRC = Path("/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr")
 TURBINES_CSV = Path("/mnt/weatherloss/WindPower/data/WPDistr/turbines.csv")
 
-REGION = "BE"          # <<< TOGGLE: "BE" | "UK" | "both"  (or pass --region)
+REGION = "UK"          # <<< TOGGLE: "BE" | "UK" | "both"  (or pass --region)
 
 OUT_DIR    = Path("WPDistrFarm")
 
