@@ -49,7 +49,7 @@ FORECAST_DIRS = {
 TRUTH_ZARR   = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 TURBMASK_SRC = Path("/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr")
 TURBINES_CSV = Path("/mnt/weatherloss/WindPower/data/WPDistr/turbines.csv")
-OUT_DIR      = Path("figures")
+OUT_DIR      = Path("DistrFigures")
 
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")

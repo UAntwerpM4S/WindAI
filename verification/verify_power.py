@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Score regional wind power forecasts against the ENTSO-E/Elexon observations, by lead time.
+"""Score wind power forecasts against the ENTSO-E/Elexon observations, by lead time.
 
-Every run yields up to two power forecasts of the same regional total, scored on one identical
-sample:
+Every run yields up to two power forecasts of the same quantity, scored on one identical sample:
 
   DIRECT  the model's own `capacityfactor`, mapped back to farms -- the adjoint of
           build_power.py's capacity-weighted distribution:
@@ -19,21 +18,28 @@ sample:
           curve is cubic on the ramp, so A(mean ws) != mean A(ws). Every run gets this line, so a
           weather-only run is scored on equal terms.
 
-Metric is MAE as % of total capacity. BIAS is printed too: the idealised specs curve ignores wake
-losses so it should over-predict at high wind, and whether DIRECT removes that is a testable
-claim MAE alone cannot show.
+PER_FARM chooses what is scored. False: the summed regional total, the operationally relevant
+quantity, and a case counts only when EVERY farm reports (a partial sum is not a known total).
+True: each farm on its own, scored whenever THAT farm reports -- so the farms have different
+sample sizes, which is printed.
 
-REGIMES splits by wind regime, binning on the OBSERVED total power converted to an equivalent
-wind speed through the fleet curve -- truth-conditioned, labelled in m/s to match
+Metric is MAE as % of capacity (the unit's own). BIAS is printed too: the idealised specs curve
+ignores wake losses so it should over-predict at high wind, and whether DIRECT removes that is a
+testable claim MAE alone cannot show.
+
+REGIMES splits by wind regime, binning on the OBSERVED power converted to an equivalent wind
+speed through the unit's own power curve -- truth-conditioned, labelled in m/s to match
 verify_weather.py. Above rated the curve is flat, so the top bin is "at or above rated" and
 cannot be subdivided; that is a property of power, not of the binning.
 
-CURVE_CONTROL adds the BACKWARD window 1/2[A(ws(t-3h)) + A(ws(t))] on the same leads as the
-forward one. It separates the two things the window does -- aligning with the observation, and
-smoothing two forecasts together. If the backward control gains as much as the forward window,
-the gain was smoothing, not alignment.
+CAVEAT the regime table cannot settle on its own: truth-conditioned bins reward an
+UNDER-dispersive forecast in the middle bins and punish it in the tails, with no difference in
+skill. The direct head sits near sigma_p/sigma_o 0.67 and the un-smoothed specs curve near 1.11,
+so part of any middle-bin margin is that gap rather than accuracy. Read it as realised accuracy
+(which it is), not as evidence of where skill lives.
 
-Writes one PNG; prints every number it plots.
+Figures: one PNG (one per regime when PER_FARM and REGIMES are both on -- farms x regimes does
+not fit a readable single figure). Every number plotted is also printed.
 """
 
 from __future__ import annotations
@@ -50,10 +56,10 @@ import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 # ============================== SETTINGS ==============================
-REGION  = "BE"               # "BE" | "UK" | "all"
-SEASON  = "all"              # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-REGIMES = False              # split by observed wind regime
-CURVE_CONTROL = False        # also score the BACKWARD window as an alignment control
+REGION   = "BE"              # "BE" | "UK" | "all"
+SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
+REGIMES  = False             # split by observed wind regime
+PER_FARM = False             # False: the summed regional total. True: one series per farm.
 
 FORECAST_DIRS = {
     "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
@@ -63,7 +69,7 @@ FORECAST_DIRS = {
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
-OUT_DIR    = Path("figures")
+OUT_DIR    = Path("DistrFigures")
 
 CF_VAR = "capacityfactor"
 WS_VAR = "ws100"
@@ -73,7 +79,7 @@ INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 37, 3))
 OBS_STEP_H = 3               # the observation window, and the forecast step
 
-REGIME_WS_EDGES = [4.5, 8.0, 12.0]               # m/s; converted to CF through the fleet curve
+REGIME_WS_EDGES = [4.5, 8.0, 12.0]               # m/s; converted to CF through the unit's curve
 REGIME_LABELS   = ["0-4.5", "4.5-8", "8-12", "12+"]
 # ======================================================================
 
@@ -81,10 +87,8 @@ SEASONS = {"all": None, "DJF": {12, 1, 2}, "MAM": {3, 4, 5},
            "JJA": {6, 7, 8}, "SON": {9, 10, 11}}
 FORECAST_RE = re.compile(r"forecast_(\d{14})")
 FLEET_RE = re.compile(r"\s*(\d+)\s*x\s*(.+?)\s*$")
-METHOD_LABEL = {"direct": "direct (capacity factor)",
-                "curve": "power curve (window mean)",
-                "curve_back": "power curve (BACKWARD control)"}
-STYLE = {"direct": "-", "curve": "--", "curve_back": ":"}
+METHOD_LABEL = {"direct": "direct (capacity factor)", "curve": "power curve (window mean)"}
+STYLE = {"direct": "-", "curve": "--"}
 
 
 def to_180(lon):
@@ -163,15 +167,21 @@ def main():
         raise SystemExit(f"no farms for REGION={REGION!r}; have {sorted(farms_df.region.unique())}")
     turbines = turbines[turbines.farm.isin(farms)]
     cap = farms_df.set_index("farm").loc[farms, "capacity_mw"]
-    cap_total = float(cap.sum())
     curves = build_farm_curves(farms_df, specs, farms)
-    print(f"Region {REGION}: {len(farms)} farms, {cap_total:.0f} MW")
+    print(f"Region {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW")
 
-    # leads that can form the window(s); every method is held to the same set
+    # what gets scored: the summed total, or each farm on its own
+    if PER_FARM:
+        units = [(f, float(cap[f]), np.array([i])) for i, f in enumerate(farms)]
+    else:
+        units = [(f"TOTAL {REGION}", float(cap.sum()), np.arange(len(farms)))]
+    U = len(units)
+    print(f"Scoring {'each farm separately' if PER_FARM else 'the summed regional total'}"
+          f" ({U} series)")
+
+    # leads that can form the window; every method is held to the same set
     dt = pd.Timedelta(hours=OBS_STEP_H)
     leads = [lh for lh in LEAD_HOURS if lh + OBS_STEP_H <= max(LEAD_HOURS)]
-    if CURVE_CONTROL:
-        leads = [lh for lh in leads if lh - OBS_STEP_H >= min(LEAD_HOURS)]
     dropped = sorted(set(LEAD_HOURS) - set(leads))
     if dropped:
         print(f"Leads dropped (no window available): {dropped}")
@@ -192,27 +202,27 @@ def main():
         raise SystemExit("no init times common to all runs")
     print(f"Common inits: {len(inits)} | season {SEASON}")
 
-    # regime thresholds on the OBSERVED total capacity factor, via the fleet curve
+    # regime thresholds on each unit's OWN observed capacity factor, via its own curve
     nreg = len(REGIME_LABELS) if REGIMES else 1
+    edges = {}
     if REGIMES:
-        fleet = lambda ws: sum(curves[f](ws) for f in farms)
-        cf_edges = np.array([float(fleet(np.array([e]))[0]) / cap_total
-                             for e in REGIME_WS_EDGES])
-        for i in range(1, len(cf_edges)):          # a flat curve would tie two thresholds
-            cf_edges[i] = max(cf_edges[i], cf_edges[i - 1] + 1e-9)
-        print("Regime edges: " + ", ".join(f"{e} m/s -> CF {c:.4f}"
-                                           for e, c in zip(REGIME_WS_EDGES, cf_edges)))
-        if cf_edges[-1] >= 0.999:
-            print(f"  WARNING: the fleet is already at rated by {REGIME_WS_EDGES[-1]} m/s, so the "
-                  f"top bin needs CF >= {cf_edges[-1]:.4f} and will be nearly empty.")
+        for uname, ucap, sel in units:
+            e = np.array([float(sum(curves[farms[i]](np.array([v])) for i in sel)[0]) / ucap
+                          for v in REGIME_WS_EDGES])
+            for i in range(1, len(e)):        # a flat curve would tie two thresholds
+                e[i] = max(e[i], e[i - 1] + 1e-9)
+            edges[uname] = e
+            if e[-1] >= 0.999:
+                print(f"  WARNING {uname}: already at rated by {REGIME_WS_EDGES[-1]} m/s, so the "
+                      f"top bin needs CF >= {e[-1]:.4f} and will be nearly empty.")
+        print("Regime edges (first unit): " +
+              ", ".join(f"{v} m/s -> CF {c:.4f}"
+                        for v, c in zip(REGIME_WS_EDGES, edges[units[0][0]])))
 
-    methods = ["direct", "curve"] + (["curve_back"] if CURVE_CONTROL else [])
-    keys = [(r, m) for r in fmaps for m in methods]
-    sae = {k: np.zeros((L, nreg)) for k in keys}
-    sbias = {k: np.zeros((L, nreg)) for k in keys}
-    n = {k: np.zeros((L, nreg)) for k in keys}
-    farm_sae = {k: np.zeros((len(farms), L)) for k in keys}
-    farm_n = {k: np.zeros((len(farms), L)) for k in keys}
+    methods = ["direct", "curve"]
+    sae = {(r, m): np.zeros((U, L, nreg)) for r in fmaps for m in methods}
+    sbias = {k: np.zeros((U, L, nreg)) for k in sae}
+    n = {k: np.zeros((U, L, nreg)) for k in sae}
     has_direct = {r: False for r in fmaps}
     n_nan = {r: 0 for r in fmaps}
     recon = {}
@@ -243,138 +253,139 @@ def main():
 
             for lh in leads:
                 vt = init + pd.Timedelta(hours=lh)
-                if vt not in t2i or vt not in obs.index:
+                nxt = t2i.get(vt + dt)
+                if vt not in t2i or nxt is None or vt not in obs.index:
                     continue
                 ptrue = obs.loc[vt, farms].to_numpy(float)
-                if not np.isfinite(ptrue).all():          # a partial sum is not a known total
-                    continue
-                nxt, prv = t2i.get(vt + dt), t2i.get(vt - dt)
-                if nxt is None or (CURVE_CONTROL and prv is None):
-                    continue
 
                 pred = {"curve": 0.5 * (p_curve[t2i[vt]] + p_curve[nxt])}
-                if CURVE_CONTROL:
-                    pred["curve_back"] = 0.5 * (p_curve[prv] + p_curve[t2i[vt]])
                 if p_direct is not None:
                     pred["direct"] = p_direct[t2i[vt]]
 
-                # one sample for every method: a NaN anywhere drops the case from all of them
-                if not all(np.isfinite(pp).all() for pp in pred.values()):
-                    n_nan[label] += 1
-                    continue
-
-                r = (int(np.digitize(ptrue.sum() / cap_total, cf_edges)) if REGIMES else 0)
                 k = lpos[lh]
-                for m, pp in pred.items():
-                    e = pp.sum() - ptrue.sum()
-                    sae[(label, m)][k, r] += abs(e)
-                    sbias[(label, m)][k, r] += e
-                    n[(label, m)][k, r] += 1
-                    farm_sae[(label, m)][:, k] += np.abs(pp - ptrue)
-                    farm_n[(label, m)][:, k] += 1
+                for u, (uname, ucap, sel) in enumerate(units):
+                    pt = ptrue[sel]
+                    if not np.isfinite(pt).all():   # a partial sum is not a known total
+                        continue
+                    # one sample for every method: a NaN anywhere drops the case from all of them
+                    if not all(np.isfinite(pp[sel]).all() for pp in pred.values()):
+                        n_nan[label] += 1
+                        continue
+                    r = int(np.digitize(pt.sum() / ucap, edges[uname])) if REGIMES else 0
+                    for m, pp in pred.items():
+                        e = pp[sel].sum() - pt.sum()
+                        sae[(label, m)][u, k, r] += abs(e)
+                        sbias[(label, m)][u, k, r] += e
+                        n[(label, m)][u, k, r] += 1
 
     series = [(r, m) for r in fmaps for m in methods
               if not (m == "direct" and not has_direct[r]) and n[(r, m)].sum() > 0]
     if not series:
         raise SystemExit("nothing scored -- check that forecast valid times overlap power_obs")
 
-    def mae_pct(key, r=None):
-        s = sae[key][:, r] if r is not None else sae[key].sum(1)
-        c = n[key][:, r] if r is not None else n[key].sum(1)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            return 100.0 * (s / c) / cap_total
-
-    def bias_mw(key, r=None):
-        s = sbias[key][:, r] if r is not None else sbias[key].sum(1)
-        c = n[key][:, r] if r is not None else n[key].sum(1)
+    def stat(acc, key, u, r=None):
+        s = acc[key][u, :, r] if r is not None else acc[key][u].sum(1)
+        c = n[key][u, :, r] if r is not None else n[key][u].sum(1)
         with np.errstate(invalid="ignore", divide="ignore"):
             return s / c
 
-    print("\nScored cases per lead (methods within a run must tie exactly):")
+    print("\nScored cases per lead (methods within a series must tie exactly):")
     for r in fmaps:
-        got = {m: n[(r, m)].sum(1) for m in methods if (r, m) in dict.fromkeys(series)}
+        got = [n[(r, m)] for m in methods if (r, m) in series]
         if got:
-            same = len({tuple(v) for v in got.values()}) == 1
-            print(f"  {r:22s} {int(list(got.values())[0].min()):5d}-"
-                  f"{int(list(got.values())[0].max()):<5d} per lead | methods tied: {same}"
+            tied = len({tuple(g.sum(2).ravel()) for g in got}) == 1
+            tot = got[0].sum(2)
+            print(f"  {r:22s} {int(tot.min()):5d}-{int(tot.max()):<5d} per series-lead | "
+                  f"methods tied: {tied}"
                   + (f" | {n_nan[r]} case(s) dropped on NaN" if n_nan[r] else ""))
 
-    hdr = f"{'run / method':44s} " + " ".join(f"{lh:>6d}h" for lh in leads)
-    print(f"\n{'='*len(hdr)}\nTOTAL {REGION} POWER — MAE as % of {cap_total:.0f} MW capacity"
-          f"  (season {SEASON})\n{'='*len(hdr)}")
-    print(hdr)
-    for r, m in series:
-        print(f"{r + ' / ' + METHOD_LABEL[m]:44s} " +
-              " ".join(f"{v:7.2f}" for v in mae_pct((r, m))))
-    print(f"\nBIAS [MW]  (specs curve ignores wakes -> expect it positive at high wind)")
-    print(hdr)
-    for r, m in series:
-        print(f"{r + ' / ' + METHOD_LABEL[m]:44s} " +
-              " ".join(f"{v:+7.1f}" for v in bias_mw((r, m))))
+    lab = {(r, m): f"{r} / {METHOD_LABEL[m]}" for r, m in series}
+    wid = max(len(v) for v in lab.values()) + 1
+    hdr = f"{'run / method':{wid}s} " + " ".join(f"{lh:>6d}h" for lh in leads)
+    reg_range = range(nreg) if REGIMES else [None]
 
-    if REGIMES:
-        for r_i, rlab in enumerate(REGIME_LABELS):
-            cnt = max(n[k][:, r_i].max() for k in series)
-            print(f"\nMAE % of capacity  |  regime {rlab} m/s  (up to {cnt:.0f} cases per lead)")
+    for u, (uname, ucap, sel) in enumerate(units):
+        print(f"\n{'='*len(hdr)}\n{uname} — MAE as % of {ucap:.0f} MW  (season {SEASON})"
+              f"\n{'='*len(hdr)}")
+        for r_i in reg_range:
+            if r_i is not None:
+                cnt = max(n[k][u, :, r_i].max() for k in series)
+                print(f"\n  regime {REGIME_LABELS[r_i]} m/s  (up to {cnt:.0f} cases per lead)")
             print(hdr)
-            for r, m in series:
-                print(f"{r + ' / ' + METHOD_LABEL[m]:44s} " +
-                      " ".join(f"{v:7.2f}" for v in mae_pct((r, m), r_i)))
-            print(f"{'  bias [MW]':44s}")
-            for r, m in series:
-                print(f"{r + ' / ' + METHOD_LABEL[m]:44s} " +
-                      " ".join(f"{v:+7.1f}" for v in bias_mw((r, m), r_i)))
+            for k in series:
+                print(f"{lab[k]:{wid}s} " +
+                      " ".join(f"{v:7.2f}" for v in 100.0 * stat(sae, k, u, r_i) / ucap))
+            print(f"{'  bias [MW]':{wid}s}")
+            for k in series:
+                print(f"{lab[k]:{wid}s} " +
+                      " ".join(f"{v:+7.1f}" for v in stat(sbias, k, u, r_i)))
 
-    print(f"\nPer-farm MAE as % of that farm's capacity (mean over leads)")
-    print(f"{'farm':16s} {'cap MW':>8s} " +
-          " ".join(f"{r[:10] + '/' + m[:4]:>16s}" for r, m in series))
-    for i, f in enumerate(farms):
-        cells = []
-        for r, m in series:
-            with np.errstate(invalid="ignore", divide="ignore"):
-                v = np.nanmean(farm_sae[(r, m)][i] / farm_n[(r, m)][i])
-            cells.append(f"{100.0 * v / cap[f]:16.2f}")
-        print(f"{f:16s} {cap[f]:8.0f} " + " ".join(cells))
-
-    # ---------------- figure ----------------
+    # ---------------- figures ----------------
     colors = {r: plt.cm.tab10.colors[i % 10] for i, r in enumerate(fmaps)}
-    tag = f"{REGION}_{SEASON}" + ("_regimes" if REGIMES else "") + \
-          ("_control" if CURVE_CONTROL else "")
-    if REGIMES:
+    handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker="o", ms=4,
+                          label=lab[(r, m)]) for r, m in series]
+    base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "")
+
+    def panel(ax, u, ucap, r_i, title):
+        for k in series:
+            ax.plot(leads, 100.0 * stat(sae, k, u, r_i) / ucap, STYLE[k[1]],
+                    color=colors[k[0]], lw=1.5, marker="o", ms=3)
+        ax.set_title(title, fontsize=10)
+        ax.grid(True, ls="--", alpha=0.5)
+        ax.set_xticks(leads)
+
+    def grid_fig(r_i, suffix, sup):
+        ncol = int(np.ceil(np.sqrt(U)))
+        nrow = int(np.ceil(U / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 3.1 * nrow),
+                                 sharex=True, squeeze=False)
+        for u, (uname, ucap, sel) in enumerate(units):
+            panel(axes[u // ncol][u % ncol], u, ucap, r_i, f"{uname} ({ucap:.0f} MW)")
+        for ax in axes.ravel()[U:]:
+            ax.axis("off")
+        for ax in axes[-1]:
+            ax.set_xlabel("Lead time [h]")
+        for row in axes:
+            row[0].set_ylabel("MAE [% of capacity]")
+        axes[0][0].legend(handles=handles, fontsize=7, framealpha=0.8)
+        fig.suptitle(sup, fontsize=12)
+        fig.tight_layout()
+        out = OUT_DIR / f"power_mae_{base}{suffix}.png"
+        fig.savefig(out, dpi=150)
+        plt.close(fig)
+        print(f"Saved: {out}")
+
+    stamp = f"{len(inits)} inits, season {SEASON}"
+    print()
+    if PER_FARM and REGIMES:
+        # farms x regimes does not fit one readable figure: one PNG per regime
+        for r_i, rlab in enumerate(REGIME_LABELS):
+            grid_fig(r_i, f"_regime{r_i}", f"{REGION} per-farm power MAE — "
+                                           f"observed {rlab} m/s ({stamp})")
+    elif PER_FARM:
+        grid_fig(None, "", f"{REGION} per-farm power MAE ({stamp})")
+    elif REGIMES:
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-        for r_i, (ax, rlab) in enumerate(zip(axes.ravel(), REGIME_LABELS)):
-            for r, m in series:
-                ax.plot(leads, mae_pct((r, m), r_i), STYLE[m], color=colors[r],
-                        lw=1.5, marker="o", ms=3)
-            ax.set_title(f"{rlab} m/s", fontsize=11)
-            ax.grid(True, ls="--", alpha=0.5)
-            ax.set_xticks(leads)
+        for r_i, ax in enumerate(axes.ravel()):
+            panel(ax, 0, units[0][1], r_i, f"{REGIME_LABELS[r_i]} m/s")
         for ax in axes[1]:
             ax.set_xlabel("Lead time [h]")
         for ax in axes[:, 0]:
             ax.set_ylabel("MAE [% of capacity]")
-        fig.suptitle(f"{REGION} total power MAE by observed wind regime "
-                     f"({len(inits)} inits, season {SEASON})", fontsize=12)
+        axes[0, 0].legend(handles=handles, fontsize=7, framealpha=0.8)
+        fig.suptitle(f"{units[0][0]} power MAE by observed wind regime ({stamp})", fontsize=12)
+        fig.tight_layout()
+        out = OUT_DIR / f"power_mae_{base}_regimes.png"
+        fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
     else:
         fig, ax = plt.subplots(figsize=(9.5, 5.5))
-        for r, m in series:
-            ax.plot(leads, mae_pct((r, m)), STYLE[m], color=colors[r], lw=1.6,
-                    marker="o", ms=4, label=f"{r} — {METHOD_LABEL[m]}")
+        panel(ax, 0, units[0][1], None, "")
         ax.set(xlabel="Lead time [h]", ylabel="MAE [% of capacity]")
-        ax.set_xticks(leads)
-        ax.set_title(f"{REGION} total power MAE — {cap_total:.0f} MW, "
-                     f"{len(inits)} inits, season {SEASON}", fontsize=12)
-        ax.grid(True, ls="--", alpha=0.5)
-        ax.legend(fontsize=8, framealpha=0.8)
-    handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker="o", ms=4,
-                          label=f"{r} — {METHOD_LABEL[m]}") for r, m in series]
-    if REGIMES:
-        axes[0, 0].legend(handles=handles, fontsize=7, framealpha=0.8)
-    fig.tight_layout()
-    out = OUT_DIR / f"power_mae_{tag}.png"
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
-    print(f"\nSaved: {out}")
+        ax.set_title(f"{units[0][0]} power MAE — {units[0][1]:.0f} MW, {stamp}", fontsize=12)
+        ax.legend(handles=handles, fontsize=8, framealpha=0.8)
+        fig.tight_layout()
+        out = OUT_DIR / f"power_mae_{base}.png"
+        fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
 
 
 if __name__ == "__main__":
