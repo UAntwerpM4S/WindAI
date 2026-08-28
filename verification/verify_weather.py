@@ -58,7 +58,8 @@ LEAD_HOURS = list(range(3, 37, 3))
 REGIME_EDGES  = [0.0, 4.5, 8.0, 12.0, np.inf]    # m/s, [lo, hi), last open-ended
 REGIME_LABELS = ["0-4.5", "4.5-8", "8-12", "12+"]
 
-N_WORKERS = 8
+N_WORKERS = 8                # NB with DOMAIN="all" the truth array is ~0.9 GB and spawn
+                             # copies it into every worker -- drop this if memory is tight
 # ======================================================================
 
 SEASONS = {"all": None, "DJF": {12, 1, 2}, "MAM": {3, 4, 5},
@@ -125,9 +126,9 @@ def forecast_cell_map(sample_file, lat, lon):
     return j.astype(int)
 
 
-def _init_worker(truth, t_index, fc_cells, bins, leads, nreg):
+def _init_worker(truth, t_index, fc_cells, bins, leads, nreg, var, ncells):
     _W.update(truth=truth, t_index=t_index, fc_cells=fc_cells,
-              bins=bins, leads=leads, nreg=nreg)
+              bins=bins, leads=leads, nreg=nreg, var=var, ncells=ncells)
 
 
 def _score_file(args):
@@ -142,7 +143,13 @@ def _score_file(args):
         raw = nc4.num2date(tv[:], tv.attrs["units"].decode(),
                            tv.attrs.get("calendar", b"standard").decode())
         fmap = {pd.Timestamp(str(t)).tz_localize("UTC").isoformat(): j for j, t in enumerate(raw)}
-        var = f[VARIABLE][:, :]
+        var = f[_W["var"]][:, :]
+    # the cell map came from the run's FIRST file; a file on a different grid would be indexed
+    # with it silently, so refuse rather than return a wrong number
+    if var.shape[1] != _W["ncells"]:
+        raise SystemExit(f"{Path(nc_path).name}: {var.shape[1]} cells, expected "
+                         f"{_W['ncells']} -- the run's grid is not constant, so the cell map "
+                         f"built from its first file does not apply")
 
     for k, lh in enumerate(leads):
         vt = (init + pd.Timedelta(hours=lh)).isoformat()
@@ -240,13 +247,16 @@ def main():
     t_index = {t.isoformat(): i for i, t in enumerate(vtimes)}
     bins = np.asarray(REGIME_EDGES[1:-1]) if regimes else np.zeros(0)
 
-    results = {}
+    results, ncells = {}, {}
     for label in fmaps:
         fc_cells = forecast_cell_map(fmaps[label][inits[0]], lat, lon)
+        with h5py.File(str(fmaps[label][inits[0]]), "r") as fh:
+            ncells[label] = int(fh[VARIABLE].shape[1])
         tasks = [(str(fmaps[label][i]), i.isoformat()) for i in inits]
         acc = np.zeros((len(LEAD_HOURS), nreg, NMOM))
         with Pool(N_WORKERS, initializer=_init_worker,
-                  initargs=(truth, t_index, fc_cells, bins, LEAD_HOURS, nreg)) as pool:
+                  initargs=(truth, t_index, fc_cells, bins, LEAD_HOURS, nreg, VARIABLE,
+                            ncells[label])) as pool:
             for k, a in enumerate(pool.imap_unordered(_score_file, tasks, chunksize=4)):
                 acc += a
                 if k % 500 == 0:
@@ -301,12 +311,15 @@ def main():
     else:
         fig, ax = plt.subplots(figsize=(9, 5))
         print(f"\nRMSE  |  {VARIABLE}, domain {domain}, season {SEASON}")
-        print(f"{'run':22s} " + " ".join(f"{lh:>6d}h" for lh in LEAD_HOURS))
+        print(f"{'run':22s} " + " ".join(f"{lh:>6d}h" for lh in LEAD_HOURS) + f"{'n/lead':>12s}")
         for i, (label, acc) in enumerate(results.items()):
             vals = [rmse_from(acc[k, 0]) for k in range(len(LEAD_HOURS))]
-            print(f"{label:22s} " + " ".join(f"{v:7.3f}" for v in vals))
+            nn = acc[:, 0, 0]
+            print(f"{label:22s} " + " ".join(f"{v:7.3f}" for v in vals) +
+                  f"{int(nn.min()):7d}-{int(nn.max()):<5d}")
             ax.plot(LEAD_HOURS, vals, marker=markers[i % 5], color=colors[i % 10],
                     lw=1.5, label=label)
+        print("  n must match across runs -- if it does not, they are not on the same sample")
         ax.set(xlabel="Lead time [h]", ylabel=f"RMSE {VARIABLE}")
         ax.set_xticks(LEAD_HOURS)
         ax.set_title(f"{VARIABLE} RMSE — {domain} ({cells.size} cells, "

@@ -242,8 +242,16 @@ def main():
     W = W / W.sum(1, keepdims=True)
     ws_f = ws_c @ W.T                                              # (T, F)
     dir_f = np.degrees(np.arctan2(sin_c @ W.T, cos_c @ W.T)) % 360.0
-    print(f"Mean wind direction over all farms: {dir_f.mean():.0f}° "
-          f"(expect a SW-ish prevailing value for the North Sea -- sanity check the convention)")
+    # a LINEAR mean of angles is meaningless (350 deg and 10 deg average to 180, not 0)
+    _a = np.radians(dir_f.ravel())
+    _m = np.degrees(np.arctan2(np.sin(_a).mean(), np.cos(_a).mean())) % 360.0
+    _hist = np.bincount((dir_f.ravel() // 30).astype(int), minlength=12)
+    print(f"Vector-mean wind direction: {_m:.0f}° | modal 30° sector: "
+          f"{int(np.argmax(_hist)) * 30}-{int(np.argmax(_hist)) * 30 + 30}°")
+    print("  Southern North Sea prevails from the SW. If these do not land near 200-250 deg,")
+    print("  wdir100 is NOT 'direction from, clockwise from north' and every angle below needs")
+    print("  reinterpreting before you read physics into it. The geometry test itself is")
+    print("  convention-free, so its verdict stands either way.")
 
     # ---- primary: the CONVERSION bias, no forecast involved ----
     rows, panels = [], {}

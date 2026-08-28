@@ -58,7 +58,12 @@ from scipy.spatial import cKDTree
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-REGIMES  = False             # split by observed wind regime
+REGIMES  = False             # split by wind regime
+REGIME_BY = "cerra-ws"       # "cerra-ws": bin on CERRA truth ws100 at the unit's cells.
+                             # "obs-cf"  : bin on OBSERVED power through the unit's own curve.
+                             #   obs-cf cannot separate winds above rated -- they all give the
+                             #   same power -- so any farm already at rated by the top edge gets
+                             #   an EMPTY top bin. cerra-ws has no such blind spot.
 PER_FARM = False             # False: the summed regional total. True: one series per farm.
 
 FORECAST_DIRS = {
@@ -69,6 +74,7 @@ FORECAST_DIRS = {
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
+TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 OUT_DIR    = Path("DistrFigures")
 
 CF_VAR = "capacityfactor"
@@ -202,10 +208,37 @@ def main():
         raise SystemExit("no init times common to all runs")
     print(f"Common inits: {len(inits)} | season {SEASON}")
 
-    # regime thresholds on each unit's OWN observed capacity factor, via its own curve
     nreg = len(REGIME_LABELS) if REGIMES else 1
+    ws_truth = {}                 # (valid time -> per-unit CERRA ws100), for REGIME_BY=cerra-ws
     edges = {}
-    if REGIMES:
+    if REGIMES and REGIME_BY == "cerra-ws":
+        # capacity-weighted CERRA ws100 over each unit's cells -- always defined, unlike a
+        # capacity-factor threshold, which saturates above rated
+        dz = xr.open_zarr(TRUTH_ZARR, consolidated=False)
+        tv = list(dz.attrs["variables"])
+        td = pd.to_datetime(dz["dates"].values).tz_localize("UTC")
+        glat = np.asarray(dz["latitudes"]).ravel()
+        glon = to_180(np.asarray(dz["longitudes"]).ravel())
+        ck = np.cos(np.radians(float(glat.mean())))
+        _, tc = cKDTree(np.c_[glon * ck, glat]).query(
+            np.c_[to_180(turbines.longitude) * ck, turbines.latitude.to_numpy()], k=1)
+        tt = turbines.assign(cell=tc.astype(int))
+        tcells = np.sort(tt.cell.unique())
+        tpos = {int(c): j for j, c in enumerate(tcells)}
+        keep = np.where((td >= INIT_START) & (td <= INIT_END + pd.Timedelta(hours=max(LEAD_HOURS))))[0]
+        wsc = dz["data"].isel(time=keep, variable=tv.index(WS_VAR),
+                              ensemble=0).values[:, tcells].astype(np.float64)
+        dz.close()
+        Wt = np.zeros((U, tcells.size))
+        for u, (uname, ucap, sel) in enumerate(units):
+            sub = tt[tt.farm.isin([farms[i] for i in sel])]
+            for (fm, c), mw in sub.groupby(["farm", "cell"])["capacity_mw"].sum().items():
+                Wt[u, tpos[int(c)]] += mw
+        Wt = Wt / Wt.sum(1, keepdims=True)
+        ws_truth = {t: v for t, v in zip(td[keep], wsc @ Wt.T)}
+        print(f"Regime binning: CERRA ws100 at each unit's cells, edges "
+              f"{REGIME_WS_EDGES} m/s ({len(ws_truth)} truth times loaded)")
+    elif REGIMES:
         for uname, ucap, sel in units:
             e = np.array([float(sum(curves[farms[i]](np.array([v])) for i in sel)[0]) / ucap
                           for v in REGIME_WS_EDGES])
@@ -233,10 +266,11 @@ def main():
             if c % 500 == 0:
                 print(f"  {c}/{len(inits)}", flush=True)
             with xr.open_dataset(fmap[init]) as ds:
-                key = (ds.sizes.get("values", ds["latitude"].size),)
+                la_, lo_ = ds["latitude"].values, ds["longitude"].values
+                key = (la_.size, round(float(la_[0]), 4), round(float(la_[-1]), 4),
+                       round(float(lo_[0]), 4), round(float(lo_[-1]), 4))
                 if key not in recon:
-                    recon[key] = build_reconstruction(ds["latitude"].values,
-                                                      ds["longitude"].values, turbines, farms)
+                    recon[key] = build_reconstruction(la_, lo_, turbines, farms)
                     print(f"  grid {key[0]} cells -> {recon[key][0].size} farm cells")
                 cell_idx, G = recon[key]
                 ftimes = pd.DatetimeIndex(ds["time"].values).tz_localize("UTC")
@@ -263,20 +297,30 @@ def main():
                     pred["direct"] = p_direct[t2i[vt]]
 
                 k = lpos[lh]
+                nan_here = False
                 for u, (uname, ucap, sel) in enumerate(units):
                     pt = ptrue[sel]
                     if not np.isfinite(pt).all():   # a partial sum is not a known total
                         continue
                     # one sample for every method: a NaN anywhere drops the case from all of them
                     if not all(np.isfinite(pp[sel]).all() for pp in pred.values()):
-                        n_nan[label] += 1
+                        nan_here = True          # count the CASE once, not once per unit
                         continue
-                    r = int(np.digitize(pt.sum() / ucap, edges[uname])) if REGIMES else 0
+                    if not REGIMES:
+                        r = 0
+                    elif REGIME_BY == "cerra-ws":
+                        wv = ws_truth.get(vt)
+                        if wv is None:
+                            continue
+                        r = int(np.digitize(wv[u], REGIME_WS_EDGES))
+                    else:
+                        r = int(np.digitize(pt.sum() / ucap, edges[uname]))
                     for m, pp in pred.items():
                         e = pp[sel].sum() - pt.sum()
                         sae[(label, m)][u, k, r] += abs(e)
                         sbias[(label, m)][u, k, r] += e
                         n[(label, m)][u, k, r] += 1
+                n_nan[label] += nan_here
 
     series = [(r, m) for r in fmaps for m in methods
               if not (m == "direct" and not has_direct[r]) and n[(r, m)].sum() > 0]
@@ -298,6 +342,24 @@ def main():
             print(f"  {r:22s} {int(tot.min()):5d}-{int(tot.max()):<5d} per series-lead | "
                   f"methods tied: {tied}"
                   + (f" | {n_nan[r]} case(s) dropped on NaN" if n_nan[r] else ""))
+
+    def share(u, r_i):
+        """(cases, % of that unit's record) in regime r_i -- how much of the sample this bin is."""
+        k0 = series[0]
+        tot = n[k0][u].sum()
+        c = n[k0][u, :, r_i].sum()
+        return c, (100.0 * c / tot if tot else np.nan)
+
+    if REGIMES:
+        by = "CERRA ws100 at the cells" if REGIME_BY == "cerra-ws" else "observed power via curve"
+        print(f"\nHOW THE SAMPLE SPLITS ACROSS REGIMES   (binned on {by})")
+        print(f"{'unit':22s} " + " ".join(f"{l:>16s}" for l in REGIME_LABELS))
+        for u, (uname, ucap, sel) in enumerate(units):
+            print(f"{uname:22s} " + " ".join(f"{int(c):7d} ({pc:4.1f}%)"
+                                             for c, pc in (share(u, i) for i in range(nreg))))
+        print("  With REGIME_BY='obs-cf' a 0.0% top bin is expected wherever a farm is already at")
+        print("  rated by the top edge: all winds above rated give the same power, so no observed")
+        print("  value can land there. Switch to 'cerra-ws' to bin on the wind itself.")
 
     lab = {(r, m): f"{r} / {METHOD_LABEL[m]}" for r, m in series}
     wid = max(len(v) for v in lab.values()) + 1
@@ -324,7 +386,8 @@ def main():
     colors = {r: plt.cm.tab10.colors[i % 10] for i, r in enumerate(fmaps)}
     handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker="o", ms=4,
                           label=lab[(r, m)]) for r, m in series]
-    base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "")
+    base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "") + \
+           (f"_{REGIME_BY}" if REGIMES else "")
 
     def panel(ax, u, ucap, r_i, title):
         for k in series:
@@ -340,7 +403,11 @@ def main():
         fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 3.1 * nrow),
                                  sharex=True, squeeze=False)
         for u, (uname, ucap, sel) in enumerate(units):
-            panel(axes[u // ncol][u % ncol], u, ucap, r_i, f"{uname} ({ucap:.0f} MW)")
+            t_ = f"{uname} ({ucap:.0f} MW)"
+            if r_i is not None:
+                c_, pc_ = share(u, r_i)
+                t_ += f"\n{int(c_)} cases — {pc_:.1f}% of its record"
+            panel(axes[u // ncol][u % ncol], u, ucap, r_i, t_)
         for ax in axes.ravel()[U:]:
             ax.axis("off")
         for ax in axes[-1]:
@@ -360,20 +427,25 @@ def main():
     if PER_FARM and REGIMES:
         # farms x regimes does not fit one readable figure: one PNG per regime
         for r_i, rlab in enumerate(REGIME_LABELS):
-            grid_fig(r_i, f"_regime{r_i}", f"{REGION} per-farm power MAE — "
-                                           f"observed {rlab} m/s ({stamp})")
+            byl = "CERRA wind" if REGIME_BY == "cerra-ws" else "observed power"
+            grid_fig(r_i, f"_regime{r_i}",
+                     f"{REGION} per-farm power MAE — {rlab} m/s by {byl} ({stamp})")
     elif PER_FARM:
         grid_fig(None, "", f"{REGION} per-farm power MAE ({stamp})")
     elif REGIMES:
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
         for r_i, ax in enumerate(axes.ravel()):
-            panel(ax, 0, units[0][1], r_i, f"{REGIME_LABELS[r_i]} m/s")
+            c_, pc_ = share(0, r_i)
+            panel(ax, 0, units[0][1], r_i,
+                  f"{REGIME_LABELS[r_i]} m/s — {int(c_)} cases ({pc_:.1f}% of the record)")
         for ax in axes[1]:
             ax.set_xlabel("Lead time [h]")
         for ax in axes[:, 0]:
             ax.set_ylabel("MAE [% of capacity]")
         axes[0, 0].legend(handles=handles, fontsize=7, framealpha=0.8)
-        fig.suptitle(f"{units[0][0]} power MAE by observed wind regime ({stamp})", fontsize=12)
+        byl = "CERRA wind" if REGIME_BY == "cerra-ws" else "observed power"
+        fig.suptitle(f"{units[0][0]} power MAE by wind regime, binned on {byl} ({stamp})",
+                     fontsize=12)
         fig.tight_layout()
         out = OUT_DIR / f"power_mae_{base}_regimes.png"
         fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
