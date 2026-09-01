@@ -27,18 +27,24 @@ Metric is MAE as % of capacity (the unit's own). BIAS is printed too: the ideali
 ignores wake losses so it should over-predict at high wind, and whether DIRECT removes that is a
 testable claim MAE alone cannot show.
 
-REGIMES splits by wind regime, binning on the OBSERVED power converted to an equivalent wind
-speed through the unit's own power curve -- truth-conditioned, labelled in m/s to match
-verify_weather.py. Above rated the curve is flat, so the top bin is "at or above rated" and
-cannot be subdivided; that is a property of power, not of the binning.
+BINNING splits the sample, on the quantity REGIME_BY names (CERRA truth ws100 at the unit's
+cells, or observed power through the unit's own curve). Mutually exclusive by construction:
+  "none"       one curve per run/method.
+  "regimes"    FIXED wind bands (REGIME_WS_EDGES), labelled in m/s to match verify_weather.py.
+               With REGIME_BY="obs-cf" the curve is flat above rated, so the top bin is "at or
+               above rated" and cannot be subdivided -- a property of power, not of the binning.
+  "quantiles"  EQUAL-COUNT bins, N_QUANT of them, with edges cut PER UNIT so each farm is split
+               on its own distribution ("this farm's calmest tenth"). Every bin then carries the
+               same number of cases, unlike the fixed bands where the 12+ bin is 22.7% of BE
+               hours and 0-4.5 is 15.5%. Edges are printed.
 
-CAVEAT the regime table cannot settle on its own: truth-conditioned bins reward an
-UNDER-dispersive forecast in the middle bins and punish it in the tails, with no difference in
-skill. The direct head sits near sigma_p/sigma_o 0.67 and the un-smoothed specs curve near 1.11,
-so part of any middle-bin margin is that gap rather than accuracy. Read it as realised accuracy
-(which it is), not as evidence of where skill lives.
+CAVEAT neither binned table can settle anything on its own: truth-conditioned bins reward an
+UNDER-dispersive forecast in the middle and punish it in the tails, with no difference in skill.
+The direct head sits near sigma_p/sigma_o 0.67 and the un-smoothed specs curve near 1.11, so part
+of any middle-bin margin is that gap rather than accuracy. Read it as realised accuracy (which it
+is), not as evidence of where skill lives.
 
-Figures: one PNG (one per regime when PER_FARM and REGIMES are both on -- farms x regimes does
+Figures: one PNG (one per bin when PER_FARM and a binned mode are both on -- farms x bins does
 not fit a readable single figure). Every number plotted is also printed.
 """
 
@@ -58,12 +64,15 @@ from scipy.spatial import cKDTree
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-REGIMES  = False             # split by wind regime
-REGIME_BY = "cerra-ws"       # "cerra-ws": bin on CERRA truth ws100 at the unit's cells.
-                             # "obs-cf"  : bin on OBSERVED power through the unit's own curve.
+BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+N_QUANT  = 10                # BINNING="quantiles": equal-count bins, cut per unit
+REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
+                             # "cerra-ws": CERRA truth ws100 at the unit's cells.
+                             # "obs-cf"  : OBSERVED power through the unit's own curve.
                              #   obs-cf cannot separate winds above rated -- they all give the
-                             #   same power -- so any farm already at rated by the top edge gets
-                             #   an EMPTY top bin. cerra-ws has no such blind spot.
+                             #   same power -- so with "regimes" any farm already at rated by the
+                             #   top edge gets an EMPTY top bin, and with "quantiles" the upper
+                             #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False             # False: the summed regional total. True: one series per farm.
 
 FORECAST_DIRS = {
@@ -173,6 +182,16 @@ def main():
         raise SystemExit(f"no farms for REGION={REGION!r}; have {sorted(farms_df.region.unique())}")
     turbines = turbines[turbines.farm.isin(farms)]
     cap = farms_df.set_index("farm").loc[farms, "capacity_mw"]
+    # turbines.csv supplies the reconstruction weights; farms.csv supplies the capacity every
+    # percentage is divided by. farm_metadata.py keeps them consistent -- but if they ever drift
+    # the MW would be built from one and normalised by the other, silently.
+    tsum = turbines.groupby("farm")["capacity_mw"].sum().reindex(farms)
+    off = (tsum - cap).abs() / cap
+    if (off > 0.001).any():
+        bad = ", ".join(f"{f}: turbines.csv {tsum[f]:.1f} MW vs farms.csv {cap[f]:.1f} MW"
+                        for f in farms if off[f] > 0.001)
+        raise SystemExit(f"capacity mismatch >0.1% -- rerun farm_metadata.py\n  {bad}")
+
     curves = build_farm_curves(farms_df, specs, farms)
     print(f"Region {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW")
 
@@ -208,10 +227,17 @@ def main():
         raise SystemExit("no init times common to all runs")
     print(f"Common inits: {len(inits)} | season {SEASON}")
 
-    nreg = len(REGIME_LABELS) if REGIMES else 1
+    if BINNING not in ("none", "regimes", "quantiles"):
+        raise SystemExit(f"BINNING must be 'none', 'regimes' or 'quantiles', got {BINNING!r}")
+    binned = BINNING != "none"
+    nbin = len(REGIME_LABELS) if BINNING == "regimes" else (N_QUANT if binned else 1)
+    probs = np.arange(1, N_QUANT) / N_QUANT
+    bin_labels = (list(REGIME_LABELS) if BINNING == "regimes" else
+                  [f"{100*i/N_QUANT:.0f}-{100*(i+1)/N_QUANT:.0f}%" for i in range(N_QUANT)]
+                  if binned else [""])
     ws_truth = {}                 # (valid time -> per-unit CERRA ws100), for REGIME_BY=cerra-ws
-    edges = {}
-    if REGIMES and REGIME_BY == "cerra-ws":
+    edges = {}                    # per unit: the nbin-1 interior thresholds np.digitize cuts on
+    if binned and REGIME_BY == "cerra-ws":
         # capacity-weighted CERRA ws100 over each unit's cells -- always defined, unlike a
         # capacity-factor threshold, which saturates above rated
         dz = xr.open_zarr(TRUTH_ZARR, consolidated=False)
@@ -235,27 +261,41 @@ def main():
             for (fm, c), mw in sub.groupby(["farm", "cell"])["capacity_mw"].sum().items():
                 Wt[u, tpos[int(c)]] += mw
         Wt = Wt / Wt.sum(1, keepdims=True)
-        ws_truth = {t: v for t, v in zip(td[keep], wsc @ Wt.T)}
-        print(f"Regime binning: CERRA ws100 at each unit's cells, edges "
-              f"{REGIME_WS_EDGES} m/s ({len(ws_truth)} truth times loaded)")
-    elif REGIMES:
-        for uname, ucap, sel in units:
-            e = np.array([float(sum(curves[farms[i]](np.array([v])) for i in sel)[0]) / ucap
-                          for v in REGIME_WS_EDGES])
-            for i in range(1, len(e)):        # a flat curve would tie two thresholds
-                e[i] = max(e[i], e[i - 1] + 1e-9)
+        wsu = wsc @ Wt.T                                   # (T, U) capacity-weighted truth wind
+        ws_truth = {t: v for t, v in zip(td[keep], wsu)}
+        # quantile edges are cut on every truth time in the window, not only the scored cases --
+        # a close enough approximation and it keeps the edges independent of which run is loaded
+        for u, (uname, ucap, sel) in enumerate(units):
+            edges[uname] = (np.asarray(REGIME_WS_EDGES, float) if BINNING == "regimes"
+                            else np.nanquantile(wsu[:, u], probs))
+        print(f"Binning on CERRA ws100 at each unit's cells "
+              f"({len(ws_truth)} truth times loaded)")
+    elif binned:
+        arr = obs.loc[(obs.index >= INIT_START) &
+                      (obs.index <= INIT_END + pd.Timedelta(hours=max(LEAD_HOURS))),
+                      farms].to_numpy(float)
+        for u, (uname, ucap, sel) in enumerate(units):
+            if BINNING == "regimes":
+                e = np.array([float(sum(curves[farms[i]](np.array([v])) for i in sel)[0]) / ucap
+                              for v in REGIME_WS_EDGES])
+                for i in range(1, len(e)):    # a flat curve would tie two thresholds
+                    e[i] = max(e[i], e[i - 1] + 1e-9)
+                if e[-1] >= 0.999:
+                    print(f"  WARNING {uname}: already at rated by {REGIME_WS_EDGES[-1]} m/s, so "
+                          f"the top bin needs CF >= {e[-1]:.4f} and will be nearly empty.")
+            else:
+                ok = np.isfinite(arr[:, sel]).all(1)   # a partial sum is not a known total
+                e = np.nanquantile(arr[ok][:, sel].sum(1) / ucap, probs)
             edges[uname] = e
-            if e[-1] >= 0.999:
-                print(f"  WARNING {uname}: already at rated by {REGIME_WS_EDGES[-1]} m/s, so the "
-                      f"top bin needs CF >= {e[-1]:.4f} and will be nearly empty.")
-        print("Regime edges (first unit): " +
-              ", ".join(f"{v} m/s -> CF {c:.4f}"
-                        for v, c in zip(REGIME_WS_EDGES, edges[units[0][0]])))
+        print("Binning on observed power through the unit's own curve")
+    if binned:
+        print(f"Bin edges ({units[0][0]}, {BINNING}): " +
+              ", ".join(f"{v:.4f}" for v in edges[units[0][0]]))
 
     methods = ["direct", "curve"]
-    sae = {(r, m): np.zeros((U, L, nreg)) for r in fmaps for m in methods}
-    sbias = {k: np.zeros((U, L, nreg)) for k in sae}
-    n = {k: np.zeros((U, L, nreg)) for k in sae}
+    sae = {(r, m): np.zeros((U, L, nbin)) for r in fmaps for m in methods}
+    sbias = {k: np.zeros((U, L, nbin)) for k in sae}
+    n = {k: np.zeros((U, L, nbin)) for k in sae}
     has_direct = {r: False for r in fmaps}
     n_nan = {r: 0 for r in fmaps}
     recon = {}
@@ -306,13 +346,13 @@ def main():
                     if not all(np.isfinite(pp[sel]).all() for pp in pred.values()):
                         nan_here = True          # count the CASE once, not once per unit
                         continue
-                    if not REGIMES:
+                    if not binned:
                         r = 0
                     elif REGIME_BY == "cerra-ws":
                         wv = ws_truth.get(vt)
                         if wv is None:
                             continue
-                        r = int(np.digitize(wv[u], REGIME_WS_EDGES))
+                        r = int(np.digitize(wv[u], edges[uname]))
                     else:
                         r = int(np.digitize(pt.sum() / ucap, edges[uname]))
                     for m, pp in pred.items():
@@ -350,21 +390,31 @@ def main():
         c = n[k0][u, :, r_i].sum()
         return c, (100.0 * c / tot if tot else np.nan)
 
-    if REGIMES:
+    if binned:
         by = "CERRA ws100 at the cells" if REGIME_BY == "cerra-ws" else "observed power via curve"
-        print(f"\nHOW THE SAMPLE SPLITS ACROSS REGIMES   (binned on {by})")
-        print(f"{'unit':22s} " + " ".join(f"{l:>16s}" for l in REGIME_LABELS))
+        print(f"\nHOW THE SAMPLE SPLITS ACROSS BINS   ({BINNING}, binned on {by})")
+        print(f"{'unit':22s} " + " ".join(f"{l:>16s}" for l in bin_labels))
         for u, (uname, ucap, sel) in enumerate(units):
             print(f"{uname:22s} " + " ".join(f"{int(c):7d} ({pc:4.1f}%)"
-                                             for c, pc in (share(u, i) for i in range(nreg))))
-        print("  With REGIME_BY='obs-cf' a 0.0% top bin is expected wherever a farm is already at")
-        print("  rated by the top edge: all winds above rated give the same power, so no observed")
-        print("  value can land there. Switch to 'cerra-ws' to bin on the wind itself.")
+                                             for c, pc in (share(u, i) for i in range(nbin))))
+        if BINNING == "quantiles":
+            print("  Bins are equal-count BY CONSTRUCTION, so these shares should all read "
+                  f"~{100/N_QUANT:.0f}%.")
+            print("  A share far off that means the edges were cut on a different sample than "
+                  "the one scored")
+            print("  (ties above rated with REGIME_BY='obs-cf' are the usual cause).")
+        else:
+            print("  With REGIME_BY='obs-cf' a 0.0% top bin is expected wherever a farm is "
+                  "already at")
+            print("  rated by the top edge: all winds above rated give the same power, so no "
+                  "observed")
+            print("  value can land there. Switch to 'cerra-ws' to bin on the wind itself.")
 
     lab = {(r, m): f"{r} / {METHOD_LABEL[m]}" for r, m in series}
     wid = max(len(v) for v in lab.values()) + 1
     hdr = f"{'run / method':{wid}s} " + " ".join(f"{lh:>6d}h" for lh in leads)
-    reg_range = range(nreg) if REGIMES else [None]
+    reg_range = range(nbin) if binned else [None]
+    bin_unit = "m/s" if BINNING == "regimes" else ""
 
     for u, (uname, ucap, sel) in enumerate(units):
         print(f"\n{'='*len(hdr)}\n{uname} — MAE as % of {ucap:.0f} MW  (season {SEASON})"
@@ -372,7 +422,7 @@ def main():
         for r_i in reg_range:
             if r_i is not None:
                 cnt = max(n[k][u, :, r_i].max() for k in series)
-                print(f"\n  regime {REGIME_LABELS[r_i]} m/s  (up to {cnt:.0f} cases per lead)")
+                print(f"\n  bin {bin_labels[r_i]} {bin_unit} (up to {cnt:.0f} cases per lead)")
             print(hdr)
             for k in series:
                 print(f"{lab[k]:{wid}s} " +
@@ -387,7 +437,7 @@ def main():
     handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker="o", ms=4,
                           label=lab[(r, m)]) for r, m in series]
     base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "") + \
-           (f"_{REGIME_BY}" if REGIMES else "")
+           (f"_{REGIME_BY}" if binned else "")
 
     def panel(ax, u, ucap, r_i, title):
         for k in series:
@@ -423,31 +473,37 @@ def main():
         print(f"Saved: {out}")
 
     stamp = f"{len(inits)} inits, season {SEASON}"
+    byl = "CERRA wind" if REGIME_BY == "cerra-ws" else "observed power"
     print()
-    if PER_FARM and REGIMES:
-        # farms x regimes does not fit one readable figure: one PNG per regime
-        for r_i, rlab in enumerate(REGIME_LABELS):
-            byl = "CERRA wind" if REGIME_BY == "cerra-ws" else "observed power"
-            grid_fig(r_i, f"_regime{r_i}",
-                     f"{REGION} per-farm power MAE — {rlab} m/s by {byl} ({stamp})")
+    if PER_FARM and binned:
+        # farms x bins does not fit one readable figure: one PNG per bin
+        for r_i, rlab in enumerate(bin_labels):
+            grid_fig(r_i, f"_bin{r_i}",
+                     f"{REGION} per-farm power MAE — {rlab} {bin_unit} by {byl} ({stamp})")
     elif PER_FARM:
         grid_fig(None, "", f"{REGION} per-farm power MAE ({stamp})")
-    elif REGIMES:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-        for r_i, ax in enumerate(axes.ravel()):
+    elif binned:
+        ncol = 2 if nbin <= 4 else 5
+        nrow = int(np.ceil(nbin / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(4.5 * ncol, 3.2 * nrow),
+                                 sharex=True, squeeze=False)
+        axl = axes.ravel()
+        for r_i in range(nbin):
             c_, pc_ = share(0, r_i)
-            panel(ax, 0, units[0][1], r_i,
-                  f"{REGIME_LABELS[r_i]} m/s — {int(c_)} cases ({pc_:.1f}% of the record)")
-        for ax in axes[1]:
+            panel(axl[r_i], 0, units[0][1], r_i,
+                  f"{bin_labels[r_i]} {bin_unit} — {int(c_)} cases ({pc_:.1f}%)")
+        for ax in axl[nbin:]:
+            ax.axis("off")
+        for ax in axes[-1]:
             ax.set_xlabel("Lead time [h]")
-        for ax in axes[:, 0]:
-            ax.set_ylabel("MAE [% of capacity]")
-        axes[0, 0].legend(handles=handles, fontsize=7, framealpha=0.8)
-        byl = "CERRA wind" if REGIME_BY == "cerra-ws" else "observed power"
-        fig.suptitle(f"{units[0][0]} power MAE by wind regime, binned on {byl} ({stamp})",
-                     fontsize=12)
+        for row in axes:
+            row[0].set_ylabel("MAE [% of capacity]")
+        axl[0].legend(handles=handles, fontsize=7, framealpha=0.8)
+        by = ("wind regime" if BINNING == "regimes"
+              else f"{N_QUANT} equal-count bins, cut per unit")
+        fig.suptitle(f"{units[0][0]} power MAE by {by}, binned on {byl} ({stamp})", fontsize=12)
         fig.tight_layout()
-        out = OUT_DIR / f"power_mae_{base}_regimes.png"
+        out = OUT_DIR / f"power_mae_{base}_{BINNING}.png"
         fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
     else:
         fig, ax = plt.subplots(figsize=(9.5, 5.5))

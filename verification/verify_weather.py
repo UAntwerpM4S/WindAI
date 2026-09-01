@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """RMSE of ONE weather variable against the CERRA truth, by lead time.
 
-Two modes, set by REGIMES:
-  REGIMES = False   one RMSE curve per run over the cells DOMAIN selects.
-  REGIMES = True    ws100 only, BE farm cells, one panel per wind regime. The regime of each
-                    (cell, valid time) is set by the TRUTH ws100 there, so a curve reads "when
-                    the true wind was in band B, this run's RMSE was R" -- a conditional on truth.
+Three modes, set by BINNING (mutually exclusive by construction):
+  "none"       one RMSE curve per run over the cells DOMAIN selects.
+  "regimes"    ws100 only, one panel per FIXED wind band (REGIME_EDGES) over whatever DOMAIN
+               selects. The band of each (cell, valid time) is set by the TRUTH ws100 there, so
+               a curve reads "when the true wind was in band B, this run's RMSE was R" -- a
+               conditional on truth. DOMAIN="all" is legitimate and answers a different
+               question from DOMAIN="BE": whether the pattern is domain-wide or confined to
+               the cells carrying the power target.
+  "quantiles"  one panel per EQUAL-COUNT bin of the truth: the lowest 1/N_QUANT of values, the
+               next, and so on. Any VARIABLE, not just ws100. Every panel then holds the same
+               number of cases, so panels are directly comparable and the tails get the same
+               sample as the middle -- which fixed bands do not give (the 12+ band is 22.7% of
+               BE hours, the 0-4.5 band 15.5%). Edges are read off the truth actually loaded,
+               so they follow DOMAIN and SEASON and are printed.
 
-Truth-conditioned bins are NOT neutral to dispersion: shrinking a forecast's variance adds no
-information yet mechanically helps the middle bins and hurts both tails. So "better at 4.5-12,
-worse at 0-4.5 and 12+" is the signature of an under-dispersive forecast, not of skill. Set
-MATCH_VARIANCE to rescale every run to the truth spread first (one linear map per run+lead,
-fitted pooled over regimes -- never per regime). A linear rescale cannot change correlation, so
-whatever survives is skill and whatever vanishes was dispersion. sigma_p/sigma_o and r are
-printed either way.
+Truth-conditioned bins are NOT neutral to dispersion, under either binning: shrinking a
+forecast's variance adds no information yet mechanically helps the middle bins and hurts both
+tails. So "better in the middle, worse at both ends" is the signature of an under-dispersive
+forecast, not of skill. Set MATCH_VARIANCE to rescale every run to the truth spread first (one
+linear map per run+lead, fitted pooled over bins -- never per bin). A linear rescale cannot
+change correlation, so whatever survives is skill and whatever vanishes was dispersion.
+sigma_p/sigma_o and r are printed either way.
 
 Writes one PNG; prints every number it plots. Runs share identical init times and cells.
 """
@@ -33,11 +42,12 @@ import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 # ============================== SETTINGS ==============================
-VARIABLE = "ws100"           # any variable in the truth zarr; regimes need ws100
-DOMAIN   = "BE"              # "all" | "BE" | "BE+UK"   (forced to BE when REGIMES)
+VARIABLE = "ws100"           # any variable in the truth zarr; "regimes" needs ws100
+DOMAIN   = "BE"              # "all" | "BE" | "BE+UK"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-REGIMES  = False             # ws100 only: split by truth wind regime
-MATCH_VARIANCE = False       # regime mode: rescale each run to the truth spread before scoring
+BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+N_QUANT  = 10                # BINNING="quantiles": number of equal-count bins of the truth
+MATCH_VARIANCE = False       # binned modes: rescale each run to the truth spread before scoring
 
 FORECAST_DIRS = {
     "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
@@ -201,15 +211,18 @@ def main():
     mp.set_start_method("spawn", force=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    regimes = REGIMES
+    if BINNING not in ("none", "regimes", "quantiles"):
+        raise SystemExit(f"BINNING must be 'none', 'regimes' or 'quantiles', got {BINNING!r}")
+    binned = BINNING != "none"
     domain = DOMAIN
-    if regimes:
-        if VARIABLE != "ws100":
-            raise SystemExit(f"REGIMES needs VARIABLE='ws100', got {VARIABLE!r}")
-        if domain != "BE":
-            print(f"REGIMES: domain forced from {domain!r} to 'BE'")
-            domain = "BE"
-    nreg = len(REGIME_LABELS) if regimes else 1
+    if BINNING == "regimes" and VARIABLE != "ws100":
+        raise SystemExit(f"'regimes' bins on fixed wind-speed edges, so it needs "
+                         f"VARIABLE='ws100', got {VARIABLE!r}")
+    if binned and domain == "all":
+        print(f"BINNING={BINNING!r} over the FULL domain: ~0.9 GB of truth per worker and one "
+              f"accumulation per bin.\n  Legitimate, but slow -- and it answers a different "
+              f"question from DOMAIN='BE'.")
+    nbin = len(REGIME_LABELS) if BINNING == "regimes" else (N_QUANT if binned else 1)
     months = SEASONS[SEASON]
 
     cells = select_cells(domain)
@@ -245,7 +258,22 @@ def main():
                             ensemble=0).values[:, cells].astype(np.float32)
     ds.close()
     t_index = {t.isoformat(): i for i, t in enumerate(vtimes)}
-    bins = np.asarray(REGIME_EDGES[1:-1]) if regimes else np.zeros(0)
+
+    # bin edges: fixed for "regimes", read off the truth for "quantiles"
+    if BINNING == "regimes":
+        bins, bin_labels = np.asarray(REGIME_EDGES[1:-1]), list(REGIME_LABELS)
+    elif BINNING == "quantiles":
+        s = truth.ravel()[::max(1, truth.size // 5_000_000)].astype(np.float64)
+        bins = np.nanquantile(s, np.arange(1, N_QUANT) / N_QUANT)
+        lo = [float(np.nanmin(s))] + list(bins)
+        hi = list(bins) + [float(np.nanmax(s))]
+        bin_labels = [f"{100*i/N_QUANT:.0f}-{100*(i+1)/N_QUANT:.0f}%" for i in range(N_QUANT)]
+        print(f"\nQuantile edges of truth {VARIABLE} ({s.size} sampled values, "
+              f"domain {domain}, season {SEASON}):")
+        for i, l in enumerate(bin_labels):
+            print(f"  {l:>10s}  {lo[i]:8.3f} .. {hi[i]:8.3f}")
+    else:
+        bins, bin_labels = np.zeros(0), [""]
 
     results, ncells = {}, {}
     for label in fmaps:
@@ -253,9 +281,9 @@ def main():
         with h5py.File(str(fmaps[label][inits[0]]), "r") as fh:
             ncells[label] = int(fh[VARIABLE].shape[1])
         tasks = [(str(fmaps[label][i]), i.isoformat()) for i in inits]
-        acc = np.zeros((len(LEAD_HOURS), nreg, NMOM))
+        acc = np.zeros((len(LEAD_HOURS), nbin, NMOM))
         with Pool(N_WORKERS, initializer=_init_worker,
-                  initargs=(truth, t_index, fc_cells, bins, LEAD_HOURS, nreg, VARIABLE,
+                  initargs=(truth, t_index, fc_cells, bins, LEAD_HOURS, nbin, VARIABLE,
                             ncells[label])) as pool:
             for k, a in enumerate(pool.imap_unordered(_score_file, tasks, chunksize=4)):
                 acc += a
@@ -265,11 +293,13 @@ def main():
         print(f"  {label}: done")
 
     # ---------------- report ----------------
-    tag = f"{VARIABLE}_{domain}_{SEASON}" + ("_regimes" if regimes else "")
-    if MATCH_VARIANCE and regimes:
+    tag = f"{VARIABLE}_{domain}_{SEASON}" + (f"_{BINNING}" if binned else "")
+    if BINNING == "quantiles":
+        tag += f"{N_QUANT}"
+    if MATCH_VARIANCE and binned:
         tag += "_matched"
 
-    print(f"\nsigma_p/sigma_o and correlation r (pooled over regimes, per lead)")
+    print(f"\nsigma_p/sigma_o and correlation r (pooled over bins, per lead)")
     print(f"{'run':22s} " + " ".join(f"{lh:>5d}h" for lh in LEAD_HOURS))
     for label, acc in results.items():
         sd = [dispersion(acc[k].sum(0))[0] for k in range(len(LEAD_HOURS))]
@@ -278,17 +308,22 @@ def main():
         print(f"{'':22s} " + " ".join(f"{v:6.3f}" for v in rr) + "   r")
 
     maps = {}
-    if MATCH_VARIANCE and regimes:
+    if MATCH_VARIANCE and binned:
         for label, acc in results.items():
             maps[label] = [variance_map(acc[k].sum(0)) for k in range(len(LEAD_HOURS))]
         print("\nMATCH_VARIANCE on: each run rescaled to the truth spread per lead "
-              "(fitted pooled over regimes).")
+              "(fitted pooled over bins).")
 
     colors, markers = plt.cm.tab10.colors, ["o", "s", "^", "D", "v"]
-    if regimes:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-        for r, (ax, rlab) in enumerate(zip(axes.ravel(), REGIME_LABELS)):
-            print(f"\nRMSE  |  regime {rlab} m/s")
+    if binned:
+        unit = "m/s" if BINNING == "regimes" else f"of truth {VARIABLE}"
+        ncol = 2 if nbin <= 4 else 5
+        nrow = int(np.ceil(nbin / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(4.5 * ncol, 3.2 * nrow),
+                                 sharex=True, squeeze=False)
+        axl = axes.ravel()
+        for r, (ax, rlab) in enumerate(zip(axl, bin_labels)):
+            print(f"\nRMSE  |  bin {rlab} {unit}")
             print(f"{'run':22s} " + " ".join(f"{lh:>6d}h" for lh in LEAD_HOURS) + "     n")
             for i, (label, acc) in enumerate(results.items()):
                 vals = [rmse_from(acc[k, r], *(maps[label][k] if maps else (0.0, 1.0)))
@@ -297,15 +332,21 @@ def main():
                 print(f"{label:22s} " + " ".join(f"{v:7.3f}" for v in vals) + f" {n:10.0f}")
                 ax.plot(LEAD_HOURS, vals, marker=markers[i % 5], color=colors[i % 10],
                         lw=1.5, ms=4, label=label)
-            ax.set_title(f"{rlab} m/s", fontsize=11)
+            ax.set_title(f"{rlab} {unit}", fontsize=10)
             ax.grid(True, ls="--", alpha=0.5)
             ax.set_xticks(LEAD_HOURS)
-        for ax in axes[1]:
+        for ax in axl[nbin:]:
+            ax.axis("off")
+        for ax in axes[-1]:
             ax.set_xlabel("Lead time [h]")
-        for ax in axes[:, 0]:
-            ax.set_ylabel(f"RMSE {VARIABLE} [m/s]")
-        axes[0, 0].legend(fontsize=8, framealpha=0.8)
-        fig.suptitle(f"{VARIABLE} RMSE by truth wind regime — BE farm cells "
+        for row in axes:
+            row[0].set_ylabel(f"RMSE {VARIABLE}")
+        axl[0].legend(fontsize=8, framealpha=0.8)
+        dom_lbl = {"all": "full domain", "BE": "BE farm cells",
+                   "BE+UK": "BE+UK farm cells"}[domain]
+        by = ("truth wind regime" if BINNING == "regimes"
+              else f"{N_QUANT} equal-count bins of truth {VARIABLE}")
+        fig.suptitle(f"{VARIABLE} RMSE by {by} — {dom_lbl} "
                      f"({cells.size} cells, {len(inits)} inits, season {SEASON})"
                      + (" — variance matched" if maps else ""), fontsize=12)
     else:
