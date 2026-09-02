@@ -109,6 +109,13 @@ FLEET_RE = re.compile(r"\s*(\d+)\s*x\s*(.+?)\s*$")
 METHOD_LABEL = {"direct": "direct (capacity factor)", "curve": "power curve (window mean)"}
 STYLE = {"direct": "-", "curve": "--"}
 
+# Okabe-Ito: distinguishable under deuteranopia, protanopia and tritanopia. Ordered for contrast
+# on white; yellow last because it washes out in a thin line. RUNS differ by colour AND marker,
+# METHODS by linestyle, so the figure survives both colour-vision deficiency and greyscale.
+CB_COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
+             "#56B4E9", "#000000", "#F0E442"]
+CB_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+
 
 def to_180(lon):
     return ((np.asarray(lon, dtype=float) + 180.0) % 360.0) - 180.0
@@ -437,8 +444,9 @@ def main():
                       " ".join(f"{v:+7.1f}" for v in stat(sbias, k, u, r_i)))
 
     # ---------------- figures ----------------
-    colors = {r: plt.cm.tab10.colors[i % 10] for i, r in enumerate(fmaps)}
-    handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker="o", ms=4,
+    colors = {r: CB_COLORS[i % len(CB_COLORS)] for i, r in enumerate(fmaps)}
+    marks = {r: CB_MARKERS[i % len(CB_MARKERS)] for i, r in enumerate(fmaps)}
+    handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker=marks[r], ms=5,
                           label=lab[(r, m)]) for r, m in series]
     base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "") + \
            (f"_{REGIME_BY}" if binned else "")
@@ -446,7 +454,8 @@ def main():
     def panel(ax, u, ucap, r_i, title):
         for k in series:
             ax.plot(leads, 100.0 * stat(sae, k, u, r_i) / ucap, STYLE[k[1]],
-                    color=colors[k[0]], lw=1.5, marker="o", ms=3)
+                    color=colors[k[0]], lw=1.5, marker=marks[k[0]], ms=4,
+                    markerfacecolor="none" if k[1] == "curve" else colors[k[0]])
         ax.set_title(title, fontsize=10)
         ax.grid(True, ls="--", alpha=0.5)
         ax.set_xticks(leads)

@@ -73,6 +73,13 @@ N_WORKERS = 8                # NB with DOMAIN="all" the truth array is ~0.9 GB a
                              # copies it into every worker -- drop this if memory is tight
 # ======================================================================
 
+# Okabe-Ito: distinguishable under deuteranopia, protanopia and tritanopia. Ordered for contrast
+# on white; yellow is last because it is the one that washes out in a thin line. Runs also differ
+# by MARKER, so the figure survives greyscale printing as well.
+CB_COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
+             "#56B4E9", "#000000", "#F0E442"]
+CB_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+
 SEASONS = {"all": None, "DJF": {12, 1, 2}, "MAM": {3, 4, 5},
            "JJA": {6, 7, 8}, "SON": {9, 10, 11}}
 FORECAST_RE = re.compile(r"forecast_(\d{14})")
@@ -315,7 +322,7 @@ def main():
         print("\nMATCH_VARIANCE on: each run rescaled to the truth spread per lead "
               "(fitted pooled over bins).")
 
-    colors, markers = plt.cm.tab10.colors, ["o", "s", "^", "D", "v"]
+    colors, markers = CB_COLORS, CB_MARKERS
     if binned:
         unit = "m/s" if BINNING == "regimes" else f"of truth {VARIABLE}"
         ncol = 2 if nbin <= 4 else 5
@@ -331,7 +338,7 @@ def main():
                         for k in range(len(LEAD_HOURS))]
                 n = acc[:, r, 0].sum()
                 print(f"{label:22s} " + " ".join(f"{v:7.3f}" for v in vals) + f" {n:10.0f}")
-                ax.plot(LEAD_HOURS, vals, marker=markers[i % 5], color=colors[i % 10],
+                ax.plot(LEAD_HOURS, vals, marker=markers[i % len(markers)], color=colors[i % len(colors)],
                         lw=1.5, ms=4, label=label)
             ax.set_title(f"{rlab} {unit}", fontsize=10)
             ax.grid(True, ls="--", alpha=0.5)
@@ -359,7 +366,7 @@ def main():
             nn = acc[:, 0, 0]
             print(f"{label:22s} " + " ".join(f"{v:7.3f}" for v in vals) +
                   f"{int(nn.min()):7d}-{int(nn.max()):<5d}")
-            ax.plot(LEAD_HOURS, vals, marker=markers[i % 5], color=colors[i % 10],
+            ax.plot(LEAD_HOURS, vals, marker=markers[i % len(markers)], color=colors[i % len(colors)],
                     lw=1.5, label=label)
         print("  n must match across runs -- if it does not, they are not on the same sample")
         ax.set(xlabel="Lead time [h]", ylabel=f"RMSE {VARIABLE}")
