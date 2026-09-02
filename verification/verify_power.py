@@ -64,7 +64,7 @@ from scipy.spatial import cKDTree
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+BINNING  = "regimes"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
 N_QUANT  = 10                # BINNING="quantiles": equal-count bins, cut per unit
 REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              # "cerra-ws": CERRA truth ws100 at the unit's cells.
@@ -73,13 +73,17 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   same power -- so with "regimes" any farm already at rated by the
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
-PER_FARM = False             # False: the summed regional total. True: one series per farm.
+PER_FARM = False            # False: the summed regional total. True: one series per farm.
+
 
 FORECAST_DIRS = {
-    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-    "VanillaCapacityGT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
-    "HighCapacityGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-    "VeryHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+#    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+ #  "VanillaCapacityGT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+   # "PowerGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
+  "VanillaFinetune_NT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaFinetune_NT"),
+   # "VanillaFinetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaFinetune"),
+  #  "HighPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+     "HighPowerGTFinetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacity_Finetune"),
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
