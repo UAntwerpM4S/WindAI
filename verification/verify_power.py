@@ -61,6 +61,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
+import farm_curves as fc
+
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
@@ -74,6 +76,21 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False            # False: the summed regional total. True: one series per farm.
+CURVE_MODE = "hub"          # the CURVE baseline: "cubic" | "curve" | "hub"  (farm_curves.py)
+                            # "cubic": turbine_specs.csv through a hard-cornered cubic at ws100.
+                            #   Refitting three of its parameters removes 87% of its gap to the
+                            #   real farms, so it is a straw man -- kept only for comparison.
+                            # "curve": the real turbine's power curve at ws100.
+                            # "hub"  : that curve at the turbine's OWN hub height (71-109 m here,
+                            #   all previously fed 100 m wind).
+                            # "calib": "hub" plus a per-farm wind multiplier and plateau scale
+                            #   fitted on CALIB_START..CALIB_END -- what an operator with
+                            #   production history deploys, and the strongest curve baseline.
+CALIB_START = pd.Timestamp("2020-01-01 00:00:00", tz="UTC")   # CURVE_MODE="calib" only.
+CALIB_END   = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")   # Must end before INIT_START:
+                            # power_obs.csv starts 2020-01-01, and this window is exactly what
+                            # the model saw (its training + validation), so both sides learn from
+                            # the same history and are judged on the same held-out year.
 
 
 FORECAST_DIRS = {
@@ -87,6 +104,8 @@ FORECAST_DIRS = {
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
+CURVE_DIR  = WPOWER_DIR / "powercurves"        # PyWake GenericWindTurbine curves, one per type
+EWW_CSV    = WPOWER_DIR / "farmdetails.csv"    # EWW open database: turbine_type and hub_height
 TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 OUT_DIR    = Path("DistrFigures")
 
@@ -142,41 +161,6 @@ def build_reconstruction(fc_lat, fc_lon, turbines, farms):
     return cell_idx, G
 
 
-def turbine_power(ws, cut_in, rated_ws, cut_out, rated_mw):
-    """One turbine: 0 below cut-in, cubic ramp to rated, flat at rated, 0 above cut-out."""
-    ws = np.asarray(ws, dtype=float)
-    out = np.zeros_like(ws)
-    ramp = (ws >= cut_in) & (ws < rated_ws)
-    out[ramp] = rated_mw * (ws[ramp] ** 3 - cut_in ** 3) / (rated_ws ** 3 - cut_in ** 3)
-    out[(ws >= rated_ws) & (ws < cut_out)] = rated_mw
-    return out
-
-
-def build_farm_curves(farms_df, specs, farms):
-    """farm -> callable(ws) -> MW, the fleet's summed curve rescaled to the nameplate."""
-    curves, meta = {}, farms_df.set_index("farm")
-    for farm in farms:
-        parts = []
-        for chunk in str(meta.loc[farm, "fleet"]).split(";"):
-            m = FLEET_RE.match(chunk)
-            if not m:
-                raise SystemExit(f"{farm}: cannot parse fleet entry {chunk!r}")
-            if m.group(2) not in specs.index:
-                raise SystemExit(f"{farm}: turbine type {m.group(2)!r} not in turbine_specs.csv")
-            parts.append((int(m.group(1)), specs.loc[m.group(2)]))
-        scale = float(meta.loc[farm, "capacity_mw"]) / \
-            sum(c * float(s["rated_power_mw"]) for c, s in parts)
-
-        def curve(ws, parts=parts, scale=scale):
-            tot = np.zeros_like(np.asarray(ws, dtype=float))
-            for count, s in parts:
-                tot += count * turbine_power(ws, float(s["cut_in_ms"]), float(s["rated_ws_ms"]),
-                                             float(s["cut_out_ms"]), float(s["rated_power_mw"]))
-            return tot * scale
-        curves[farm] = curve
-    return curves
-
-
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -203,7 +187,26 @@ def main():
                         for f in farms if off[f] > 0.001)
         raise SystemExit(f"capacity mismatch >0.1% -- rerun farm_metadata.py\n  {bad}")
 
-    curves = build_farm_curves(farms_df, specs, farms)
+    # every count and capacity must agree before a baseline built on them means anything
+    curves_lib = fc.load_curves(CURVE_DIR) if CURVE_MODE != "cubic" else None
+    if CURVE_MODE != "cubic":
+        turbines = fc.attach_eww(turbines, EWW_CSV)
+    fc.validate(farms, farms_df, turbines, specs, curves_lib)
+    calib = None
+    if CURVE_MODE == "calib":
+        # an in-sample calibration would be a fake baseline, not a strong one
+        if CALIB_END >= INIT_START:
+            raise SystemExit(f"calibration window ends {CALIB_END} but scoring starts "
+                             f"{INIT_START} -- overlapping, so the baseline would be in-sample")
+        calib = fc.calibrate(farms, farms_df, turbines, specs, curves_lib, obs, TRUTH_ZARR,
+                             CALIB_START, CALIB_END)
+    curves = fc.build(farms, farms_df, turbines, specs, CURVE_MODE, curves_lib, calib=calib)
+    print(f"\nCURVE baseline: {CURVE_MODE}  " + {
+        "cubic": "(turbine_specs.csv cubic at ws100 -- the old, weak baseline)",
+        "curve": "(real curves at ws100)",
+        "hub":   "(real curves, ws100 sheared to each turbine's hub height)",
+        "calib": f"(hub curves, alpha and scale fitted {CALIB_START.date()}..{CALIB_END.date()})",
+    }[CURVE_MODE])
     print(f"Region {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW")
 
     # what gets scored: the summed total, or each farm on its own
