@@ -22,11 +22,20 @@ Three curves per farm, on the same axes:
 If IMPLIED tracks OBSERVED, the head learned the conversion including the losses. If it tracks
 SPEC, it learned the textbook curve and not the losses. If it is flat, it learned a level.
 
-Two numbers decide it rather than eyeballing:
-  * closeness -- occupancy-weighted RMS distance from IMPLIED to OBSERVED vs to SPEC. Below 1
-    means the model is nearer the real farm than the spec sheet is.
+Three numbers decide it rather than eyeballing:
+  * to OBSERVED -- occupancy-weighted RMS distance from IMPLIED to the real farm's curve, in
+    % of capacity. THE headline number: it says how far the learned conversion is from the
+    farm's actual one, and it needs no reference to the spec sheet.
+  * noise floor -- bootstrap SE of the observed binned median, weighted the same way. The
+    distance two independent estimates of the SAME farm's curve would sit apart. A model
+    cannot get closer to the observed curve than the observed curve is to itself, so
+    "to OBSERVED / floor" says how much room is actually left.
   * wind-explained -- how much of the model's power variance its own wind accounts for. A
     conversion is a function of wind, so this must be high; a climatology need not be.
+
+The spec-sheet ratio is kept as CONTEXT, not as a verdict. d_obs turns out to be roughly
+constant across farms while d_spec varies by a factor of seven, so the ratio mostly describes
+how wrong the spec sheet is for that farm rather than how good the model is.
 
 CAVEAT: power_obs at t is the mean over [t, t+3h), so OBSERVED is binned on the window-mean
 wind. The model's power is trained on that same window mean while its ws100 is instantaneous,
@@ -52,13 +61,18 @@ REGION   = "BE"
 LEAD     = 33                  # lead hour the implied curve is read at
 WS_EDGES = np.arange(0.0, 25.1, 0.5)     # wind bins for all three curves
 MIN_BIN  = 30                 # a bin with fewer cases is not plotted
-RAMP     = (3.0, 13.0)        # m/s window the closeness score is computed over
+RAMP     = (3.0, 13.0)        # m/s window the scores are computed over
+N_BOOT   = 200                # resamples for the observed curve's noise floor
+
 
 FORECAST_DIRS = {
-    "HighCapacityGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-    "VeryHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-    "HighPowerGTFinetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacity_Finetune"),
-
+    #"RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+   "SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
+    "Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+   "H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
+ #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
 }
 
 TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
@@ -129,6 +143,19 @@ def binned(x, y, edges, min_n):
     return mid, med, cnt
 
 
+def boot_floor(x, y, edges, min_n, n_boot, rng):
+    """Bootstrap SE of the binned median, per bin. This is the floor `to OBSERVED` is measured
+    against: the observed curve is itself an estimate, and a model cannot sit closer to it than
+    two independent estimates of it would sit to each other."""
+    idx = np.digitize(x, edges) - 1
+    se = np.full(edges.size - 1, np.nan)
+    for b in range(se.size):
+        yb = y[idx == b]
+        if yb.size >= min_n:
+            se[b] = np.std([np.median(rng.choice(yb, yb.size)) for _ in range(n_boot)])
+    return se
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -179,11 +206,13 @@ def main():
     ws_win = np.full_like(ws_f, np.nan)
     ws_win[ok] = 0.5 * (ws_f[ok] + ws_f[nxt[ok]])
 
-    observed = {}
+    observed, floor = {}, {}
+    rng = np.random.default_rng(0)
     for i, f in enumerate(farms):
         o = obs[f].reindex(times).to_numpy(float)
         m = np.isfinite(o) & np.isfinite(ws_win[:, i])
         observed[f] = binned(ws_win[m, i], 100.0 * o[m] / cap[f], WS_EDGES, MIN_BIN)
+        floor[f] = boot_floor(ws_win[m, i], 100.0 * o[m] / cap[f], WS_EDGES, MIN_BIN, N_BOOT, rng)
         print(f"  observed curve {f:14s} {int(m.sum()):6d} cases")
 
     # ---- the model's implied curve ----
@@ -226,32 +255,53 @@ def main():
     # ---- the two numbers that decide it ----
     mid = 0.5 * (WS_EDGES[:-1] + WS_EDGES[1:])
     band = (mid >= RAMP[0]) & (mid <= RAMP[1])
-    print(f"\n{'='*100}\nDID IT LEARN A CONVERSION OR A LEVEL?   scored over {RAMP[0]}-{RAMP[1]} m/s"
-          f"\n{'='*100}")
-    print(f"{'run':20s} {'farm':14s} {'to OBSERVED':>12s} {'to SPEC':>9s} {'ratio':>7s} "
-          f"{'wind-expl':>10s} {'implied range':>14s}")
+    # Bins scored: in the ramp band, with an observed median, and populated by EVERY run. With a
+    # per-run mask the SPEC distance changed by up to 40% between runs for the same farm -- it
+    # involves only the farm, so it must not depend on which run is being scored.
+    keep = {}
+    for f in farms:
+        ok = band & np.isfinite(observed[f][1])
+        for label in implied:
+            ok = ok & np.isfinite(implied[label][f][1])
+        keep[f] = ok
+    thin = [f for f in farms if keep[f].sum() < 3]
+    if thin:
+        print(f"\n  WARNING too few shared bins to score: {', '.join(thin)}")
+
+    print(f"\n{'='*112}\nDID IT LEARN A CONVERSION OR A LEVEL?   scored over {RAMP[0]}-{RAMP[1]} m/s"
+          f", on bins populated by all {len(implied)} runs\n{'='*112}")
+    print(f"{'run':20s} {'farm':14s} {'to OBSERVED':>12s} {'floor':>7s} {'x floor':>8s} "
+          f"{'to SPEC':>9s} {'ratio':>7s} {'wind-expl':>10s} {'range':>7s}")
     for label in implied:
-        rat = []
+        col = {k: [] for k in ("obs", "flo", "rat")}
         for f in farms:
             om, oc = observed[f][1], observed[f][2]
-            im = implied[label][f][1]
-            sp = 100.0 * curves[f](mid) / cap[f]
-            w = np.where(band & np.isfinite(om) & np.isfinite(im), oc, 0.0)
+            im, sp = implied[label][f][1], 100.0 * curves[f](mid) / cap[f]
+            w = np.where(keep[f], oc, 0.0)
             if w.sum() == 0:
                 continue
-            d_obs = np.sqrt(np.nansum(w * (im - om) ** 2) / w.sum())
-            d_spec = np.sqrt(np.nansum(w * (sp - om) ** 2) / w.sum())
-            rat.append(d_obs / d_spec)
-            rng_ = np.nanmax(im) - np.nanmin(im)
-            print(f"{label:20s} {f:14s} {d_obs:11.2f}% {d_spec:8.2f}% {d_obs/d_spec:7.2f} "
-                  f"{100*wind_expl[label][f]:9.1f}% {rng_:13.1f}%")
-        print(f"{label:20s} {'MEAN':14s} {'':11s}  {'':8s} {np.mean(rat):7.2f}\n")
-    print("  ratio < 1  : the model's implied curve is closer to the real farm than the spec")
-    print("               sheet is -- it learned the losses, not just the textbook shape.")
-    print("  ratio > 1  : it is no better than the spec curve.")
-    print("  wind-expl  : share of the model's power variance explained by its own wind. A")
-    print("               conversion is a function of wind, so this should be high (>90%).")
-    print("               A low value with a flat implied range means it learned a LEVEL.")
+            rms = lambda v: float(np.sqrt(np.nansum(w * v ** 2) / w.sum()))
+            d_obs, d_spec, flo = rms(im - om), rms(sp - om), rms(floor[f])
+            col["obs"].append(d_obs); col["flo"].append(d_obs / flo); col["rat"].append(d_obs / d_spec)
+            print(f"{label:20s} {f:14s} {d_obs:11.2f}% {flo:6.2f}% {d_obs/flo:8.1f} "
+                  f"{d_spec:8.2f}% {d_obs/d_spec:7.2f} {100*wind_expl[label][f]:9.1f}% "
+                  f"{np.nanmax(im) - np.nanmin(im):6.1f}%")
+        print(f"{label:20s} {'MEAN':14s} {np.mean(col['obs']):11.2f}% {'':6s} "
+              f"{np.mean(col['flo']):8.1f} {'':9s} {np.mean(col['rat']):7.2f}\n")
+    print("  to OBSERVED : the headline. How far the learned conversion sits from the farm's")
+    print("                real one, in % of capacity. No spec sheet involved.")
+    print("  floor       : bootstrap SE of the observed curve itself. x floor = how many times")
+    print("                the irreducible noise the model is away -- near 1 is as good as the")
+    print("                data can show, 10+ means real room left.")
+    print("  ratio       : CONTEXT only. d_obs is near-constant across farms while d_spec varies")
+    print("                sevenfold, so a low ratio mostly says the spec sheet was badly wrong")
+    print("                for that farm, not that the model was especially good there.")
+    print("  wind-expl   : share of the model's power variance explained by its own wind. A level")
+    print("                would be near zero. It cannot reach 100%: the head's power is a 3h")
+    print("                mean while its ws100 is instantaneous, which caps the correlation.")
+    print("  range       : span of the implied curve -- but a narrow one can mean an under-")
+    print("                dispersed WIND (fewer extreme bins populated), not a flat power")
+    print("                response. Read it with sigma_p/sigma_o from verify_weather.py.")
 
     # ---- figure ----
     ncol = int(np.ceil(np.sqrt(len(farms)))); nrow = int(np.ceil(len(farms) / ncol))

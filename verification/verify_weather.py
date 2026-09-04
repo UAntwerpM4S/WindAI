@@ -45,17 +45,17 @@ from scipy.spatial import cKDTree
 VARIABLE = "ws100"           # any variable in the truth zarr; "regimes" needs ws100
 DOMAIN   = "BE"              # "all" | "BE" | "BE+UK"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-BINNING  = "quantiles"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
 N_QUANT  = 10                # BINNING="quantiles": number of equal-count bins of the truth
 MATCH_VARIANCE = False       # binned modes: rescale each run to the truth spread before scoring
 
 
 FORECAST_DIRS = {
-    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-  #  "VanillaCapacityGT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
-   # "PowerGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-   "HighPowerGT025": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHCapacity_025"),
-    "HighPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+  #  "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SemiHighCapacity_Finetune"),
+    "Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+   "H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacity_Finetune"),
+    "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacity_Finetune"),
 }
 TRUTH_ZARR   = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 TURBMASK_SRC = Path("/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr")

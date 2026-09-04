@@ -1,6 +1,6 @@
-checkpoint: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/inference-last.ckpt
+checkpoint: /mnt/weatherloss/WindPower/training/WPDistr/VanillaPowerGTFinetune/checkpoint/b5b86e46dc9b433fa6e3f7383a9f6c43/inference-last.ckpt
 lead_time: 37
-date: "2025-07-31T09:00:00"
+date: "2024-08-01T00:00:00"
 device: cuda
 input:
   dataset:
@@ -13,4 +13,4 @@ input:
 output:
   extract_lam:      
     output:
-      netcdf: WPDistr/VeryHighCapacity_Finetune/forecast_20250731090000.nc
+      netcdf: WPDistr/Vanilla_Finetune/forecast_20240801000000.nc

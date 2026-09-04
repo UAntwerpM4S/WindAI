@@ -38,6 +38,10 @@ The plateau table also prints the MEAN observed power above rated. MSE fits the 
 so if above-rated output is left-skewed the head is right to sit below the plateau, and that part
 of the under-prediction is a property of the target rather than a defect. Only the remainder is
 the head's own compression. mean-minus-median quantifies the split.
+
+Every run is scored on the init times COMMON to all of them. Runs no longer share a sample -- the
+fine-tunes were inferred on a 730-init subsample against ~2900 for the co-trained runs -- so
+without the intersection the table would compare different samples rather than different models.
 """
 
 from __future__ import annotations
@@ -58,9 +62,15 @@ LOW_FRAC   = 0.5              # "low tail" = above-rated hours producing below t
 LEADS      = list(range(3, 34, 3))
 
 FORECAST_DIRS = {
-    "HighCapacityGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-    "VeryHighCapacityGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    #"RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+   "SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
+    "Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+   "H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
+ #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
 }
+
 TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")
 
@@ -161,14 +171,28 @@ def main():
     print(f"  fleet mean-minus-median above rated: {gap:+.1f}% of capacity. Compare this against")
     print(f"  the head's above-rated bias below: that share of it is the target's skew, not the head.")
 
+    # ---- every run on the SAME inits ----
+    # Runs no longer share an init set: the fine-tunes were inferred on a 730-init subsample and
+    # the co-trained runs on the full ~2900. Scoring each on whatever files it happens to have
+    # would compare different samples, so intersect first -- as verify_power.py does.
+    allfiles = {label: {parse_init(p): p for p in sorted(d.glob("forecast_*.nc"))
+                        if INIT_START <= parse_init(p) <= INIT_END}
+                for label, d in FORECAST_DIRS.items()}
+    for label, f in allfiles.items():
+        print(f"{label}: {len(f)} files")
+    empty = [l for l, f in allfiles.items() if not f]
+    if empty:
+        raise SystemExit(f"no forecast files for: {', '.join(empty)}")
+    common = sorted(set.intersection(*(set(f) for f in allfiles.values())))
+    if not common:
+        raise SystemExit("no init times common to all runs")
+    print(f"Common inits: {len(common)}")
+
     # ---- score the four series in the above-rated regime ----
     print(f"\n{'='*104}\nABOVE RATED (CERRA ws >= {RATED_BAND} m/s), leads "
           f"+{LEADS[0]}..{LEADS[-1]}h\n{'='*104}")
     for label, d in FORECAST_DIRS.items():
-        files = {parse_init(p): p for p in sorted(d.glob("forecast_*.nc"))
-                 if INIT_START <= parse_init(p) <= INIT_END}
-        if not files:
-            print(f"\n{label}: no forecast files -- skipped"); continue
+        files = {i: allfiles[label][i] for i in common}
         with xr.open_dataset(sorted(files.values())[0]) as f0:
             if CF_VAR not in f0:
                 print(f"\n{label}: no {CF_VAR!r} -- skipped"); continue
@@ -244,7 +268,11 @@ def main():
             print(f"  which is {100*(tot[0]-tot[1])/head:.0f}% of what the TRUTH-wind clamp achieves.")
         print( "  near 100% of the oracle => the model's own wind was already sufficient, and the")
         print( "  failure sits in the power head rather than in the wind. Below ~70% => the wind")
-        print( "  is part of the problem and the censoring account is incomplete.")
+        print( "  is part of the problem.")
+        print( "  For a FINE-TUNED run read that second case carefully: fine-tuning on power alone")
+        print( "  degrades the run's own ws100, so a low recovery there means the fine-tune broke")
+        print( "  the wind, not that the head never had the information. Check the run's curve-path")
+        print( "  MAE in verify_power.py before concluding anything about the head.")
 
 
 if __name__ == "__main__":

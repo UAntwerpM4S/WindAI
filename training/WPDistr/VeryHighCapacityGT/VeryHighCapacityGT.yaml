@@ -21,11 +21,11 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/WPDistr/WPDistrgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGT/checkpoint/f2baebf0b95b4d8dafb493d3fb36d29a/anemoi-by_epoch-epoch_007-step_007500.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGT/checkpoint/f2baebf0b95b4d8dafb493d3fb36d29a/anemoi-by_time-epoch_007-step_007500.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune
+    root: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber
     logs:
       root: logs
       wandb: wandb
@@ -608,8 +608,8 @@ model:
 # ============================================================
 
 training:
-  run_id: null #df8a680556d848d8b824c63943534d6f
-  fork_run_id: null #df8a680556d848d8b824c63943534d6f
+  run_id: null #81daa05665cb4f4daf1452e60657465d
+  fork_run_id: null #81daa05665cb4f4daf1452e60657465d
   load_weights_only: True
   transfer_learning: false
 
@@ -642,13 +642,15 @@ training:
   loss_gradient_scaling: false
 
   training_loss:
-    _target_: anemoi.training.losses.MSELoss
+    _target_: anemoi.training.losses.HuberLoss
+    delta: 0.1
     scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
     ignore_nans: true
 
   validation_metrics:
-    mse:
-      _target_: anemoi.training.losses.MSELoss
+    huber:
+      _target_: anemoi.training.losses.HuberLoss
+      delta: 0.1
       scalers: ['node_weights'] #,'nan_mask_weights']   
       ignore_nans: true
 
@@ -664,8 +666,12 @@ training:
         w: 0 #0.001
         z: 0 #12
         mcc: 0 #0.1
-        ws10: 0 #1 
-        ws100: 0 #1 
+        ws10: 0 
+        ws100: 0
+        wdir100_cos: 0
+        wdir100_sin: 0
+        wdir10_cos: 0
+        wdir10_sin: 0 
         capacityfactor: 100
 
 
@@ -712,7 +718,7 @@ training:
     max: 1
 
   max_epochs: 40
-  max_steps: 3000
+  max_steps: 10000
 
 #   lr:
 #     warmup: 1000
@@ -724,7 +730,7 @@ training:
   lr:
     warmup: 200
     rate: 0.00003
-    iterations: 3000
+    iterations: 10000
     min: 3.0e-07
 
 

@@ -21,11 +21,11 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/WPDistr/WPDistrgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/ExtremelyHighCapacityGT/checkpoint/2e40b415e7294eb8972c16d791f3d685/anemoi-by_time-epoch_011-step_150000.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/ExtremelyHighCapacityGT/checkpoint/51b2bef7c5054445889321b2db0a883c/anemoi-by_epoch-epoch_007-step_007500.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WPDistr/ExtremelyHighCapacityGT
+    root: /mnt/weatherloss/WindPower/training/WPDistr/ExtremelyHighCapacityGTFinetune
     logs:
       root: logs
       wandb: wandb
@@ -139,8 +139,8 @@ dataloader:
     # predict: 1
 
   limit_batches:
-    training: 1000
-    validation: 10
+    training: 500  
+    validation: null 
     test: 20
     # predict: 20
 
@@ -301,7 +301,7 @@ dataloader:
 
   training:
     dataset: ${dataloader.dataset.dataset}
-    start: "2015-01-01"
+    start: "2020-01-01" #"2015-01-01"
     end: "2024-01-31"
     frequency: ${data.frequency}
     drop: []
@@ -368,7 +368,7 @@ diagnostics:
 
   checkpoint:
     every_n_minutes:
-      save_frequency: 60
+      save_frequency: 5
       num_models_saved: 3
     every_n_epochs:
       save_frequency: 1
@@ -396,8 +396,8 @@ diagnostics:
       authentication: false
       log_model: false
       tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
-      experiment_name: "100Capacity"
-      project_name: "100Capacity"
+      experiment_name: "VanillaPowerGT"
+      project_name: "VanillaPowerGT"
       system: true
       terminal: true
       run_name: null
@@ -424,8 +424,8 @@ graph:
         _target_: anemoi.graphs.nodes.AnemoiDatasetNodes
         dataset:
           cutout:
-            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/New_Cerra_A_large.zarr
-            - dataset: /mnt/weatherloss/WindPower/data/WindAI/Anemoidatasets/era5_A_large.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr
+            - dataset: /mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_era5_A.zarr
           min_distance_km: 0
           adjust: all
       attributes:
@@ -608,8 +608,8 @@ model:
 # ============================================================
 
 training:
-  run_id: 2e40b415e7294eb8972c16d791f3d685
-  fork_run_id: 2e40b415e7294eb8972c16d791f3d685
+  run_id: null #df8a680556d848d8b824c63943534d6f
+  fork_run_id: null #df8a680556d848d8b824c63943534d6f
   load_weights_only: True
   transfer_learning: false
 
@@ -649,24 +649,24 @@ training:
   validation_metrics:
     mse:
       _target_: anemoi.training.losses.MSELoss
-      scalers: ['node_weights']
+      scalers: ['node_weights'] #,'nan_mask_weights']   
       ignore_nans: true
 
   scalers:
     general_variable:
       _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
       weights:
-        default: 1
-        q: 0.6
-        t: 6
-        u: 0.8
-        v: 0.5
-        w: 0.001
-        z: 12
-        mcc: 0.1
-        ws10: 1 
-        ws100: 1 
-        capacityfactor: 1000
+        default: 0 #1
+        q: 0 #0.6
+        t: 0 #6
+        u: 0 #0.8
+        v: 0 #0.5
+        w: 0 #0.001
+        z: 0 #12
+        mcc: 0 #0.1
+        ws10: 0 #1 
+        ws100: 0 #1 
+        capacityfactor: 150
 
 
     pressure_level:
@@ -708,11 +708,11 @@ training:
 
   rollout:
     start: 1
-    epoch_increment: 1
-    max: 40
+    epoch_increment: 0
+    max: 1
 
   max_epochs: 40
-  max_steps: 7500
+  max_steps: 5000
 
 #   lr:
 #     warmup: 1000
@@ -722,13 +722,12 @@ training:
 #     min: 3.0e-07
   
   lr:
-    warmup: 1000
-    rate: 0.0000064 #8.0e-07
-    iterations: 7500
+    warmup: 200
+    rate: 0.00003
+    iterations: 5000
     min: 3.0e-07
-   # warmup_t: 100
 
 
 
 
-  submodules_to_freeze: []
+  submodules_to_freeze: [encoder,processor]

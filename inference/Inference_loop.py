@@ -7,16 +7,13 @@ end_date = datetime(2025, 7, 31, 9)
 interval = timedelta(hours=3)
 
 checkpoints = {
-    #     "WPDistr/SemiHighCapacity": (
-    #      "/mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGT/checkpoint/79c61ab7f58845249c7619a5d2ae3adc/",
-    #     "inference-last.ckpt"
-    # ),
-        "WPDistr/VeryHighCapacity_Finetune": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d",
+
+        "WPDistr/Vanilla_Finetune": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/VanillaPowerGTFinetune/checkpoint/b5b86e46dc9b433fa6e3f7383a9f6c43/",
         "inference-last.ckpt"
     ),
 
-        #   "EGU/TF00":  ("/mnt/weatherloss/WindPower/training/EGU26/BigTransformer/checkpoint/606532fc724149bcb7eb378f22d29d61","inference-anemoi-by_epoch-epoch_015-step_100000.ckpt"),
+  
 }
 
 for tag, (ckpt_dir, ckpt_name) in checkpoints.items():

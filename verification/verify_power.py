@@ -9,23 +9,31 @@ Every run yields up to two power forecasts of the same quantity, scored on one i
           Only runs that carry the variable get this line.
 
   CURVE   the classical baseline: forecast ws100 at the farm (capacity-weighted over its cells)
-          pushed through that farm's own aggregate specs power curve, then AVERAGED over the
-          observation's own window:
-              P(farm,t) = 1/2 [ A(ws100(t)) + A(ws100(t+3h)) ]
-          power_obs at t is the MEAN over [t, t+3h), so DIRECT is trained on a window mean while
-          an instantaneous curve is not -- grading a snapshot against an average charges an error
-          that is bookkeeping, not skill. Averaging the POWERS (not the winds) removes it: the
-          curve is cubic on the ramp, so A(mean ws) != mean A(ws). Every run gets this line, so a
-          weather-only run is scored on equal terms.
+          pushed through that farm's own power curve. power_obs at t is the MEAN over
+          [t, t+3h), and DIRECT is trained on that mean, so a curve must be made to predict the
+          same mean or it is charged an error that is bookkeeping rather than skill. HOW depends
+          on what the curve is, and CURVE_KIND records it:
+              specs      instantaneous, so average the POWERS: 1/2[A(ws_t) + A(ws_t+3h)].
+                         Averaging powers, not winds -- the curve is cubic on the ramp, so
+                         A(mean ws) != mean A(ws).
+              empirical  already measured mean-to-mean, so read it at the mean WIND,
+                         g(1/2[ws_t + ws_t+3h]), and do not average again.
+          Every run gets these lines, so a weather-only run is scored on equal terms.
 
 PER_FARM chooses what is scored. False: the summed regional total, the operationally relevant
 quantity, and a case counts only when EVERY farm reports (a partial sum is not a known total).
 True: each farm on its own, scored whenever THAT farm reports -- so the farms have different
 sample sizes, which is printed.
 
-Metric is MAE as % of capacity (the unit's own). BIAS is printed too: the idealised specs curve
-ignores wake losses so it should over-predict at high wind, and whether DIRECT removes that is a
-testable claim MAE alone cannot show.
+METRIC is MAE or RMSE, as % of capacity (the unit's own). The choice is not cosmetic: MAE is
+minimised by the conditional MEDIAN and RMSE by the conditional MEAN, and the two sides are fitted
+to different functionals -- the measured curve to a median or mean of each bin (farm_curves
+BIN_STAT), the model to its own squared-error training loss. A curve summarised by the median and
+scored on MAE is fitted to the functional it is graded on, which flatters it for a reason that is
+not skill. Score both ways, or pair BIN_STAT="mean" with METRIC="rmse", before reading a margin as
+accuracy. BIAS is printed too: the idealised specs curve ignores wake losses so it should
+over-predict at high wind, and whether DIRECT removes that is a testable claim neither metric
+alone can show.
 
 BINNING splits the sample, on the quantity REGIME_BY names (CERRA truth ws100 at the unit's
 cells, or observed power through the unit's own curve). Mutually exclusive by construction:
@@ -65,6 +73,9 @@ import farm_curves as fc
 
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
+METRIC   = "mae"             # "mae" | "rmse" -- see the METRIC note in the docstring. RMSE is
+                             # aggregated from summed SQUARED errors, so the all-bins number is
+                             # the true overall RMSE, not an average of the per-bin ones.
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
 BINNING  = "regimes"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
 N_QUANT  = 10                # BINNING="quantiles": equal-count bins, cut per unit
@@ -76,44 +87,47 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False            # False: the summed regional total. True: one series per farm.
-CURVE_MODE = "hub"          # the CURVE baseline: "cubic" | "curve" | "hub"  (farm_curves.py)
-                            # "cubic": turbine_specs.csv through a hard-cornered cubic at ws100.
-                            #   Refitting three of its parameters removes 87% of its gap to the
-                            #   real farms, so it is a straw man -- kept only for comparison.
-                            # "curve": the real turbine's power curve at ws100.
-                            # "hub"  : that curve at the turbine's OWN hub height (71-109 m here,
-                            #   all previously fed 100 m wind).
-                            # "calib": "hub" plus a per-farm wind multiplier and plateau scale
-                            #   fitted on CALIB_START..CALIB_END -- what an operator with
-                            #   production history deploys, and the strongest curve baseline.
-CALIB_START = pd.Timestamp("2020-01-01 00:00:00", tz="UTC")   # CURVE_MODE="calib" only.
-CALIB_END   = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")   # Must end before INIT_START:
+CURVE_MODES = ["specs","empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
+                            # "specs"    : turbine_specs.csv through the cubic law. Nothing
+                            #   observed, nothing fitted -- the manufacturer curve.
+                            # "empirical": the farm's own MEASURED curve, by the method of bins
+                            #   (IEC 61400-12-1) over TRAIN_START..TRAIN_END. Standard practice in
+                            #   wind power forecasting, and the strong baseline: it carries the
+                            #   farm's real wake, availability and electrical
+                            #   losses, which no datasheet does.
+TRAIN_START = pd.Timestamp("2021-01-01 00:00:00", tz="UTC")   # where "empirical" is
+                            # measured. Must end before INIT_START:
+TRAIN_END   = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")
                             # power_obs.csv starts 2020-01-01, and this window is exactly what
                             # the model saw (its training + validation), so both sides learn from
                             # the same history and are judged on the same held-out year.
 
 
 FORECAST_DIRS = {
-#    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
- #  "VanillaCapacityGT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
-   # "PowerGT":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacityGT"),
-  "VanillaFinetune_NT":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaFinetune_NT"),
-   # "VanillaFinetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaFinetune"),
-  #  "HighPowerGT": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-     "HighPowerGTFinetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacity_Finetune"),
+    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+   #"SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
+    #"Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+   #"H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
+ #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+   # "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
+    #"VH_Finetune_7var": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune_7var"),
+   # "VH_Finetune_Half": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Half_Finetune"),
+       "VH_Finetune_5k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_5k_Finetune"),
+      # "VH_Finetune_10k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_10k_Finetune"),
+
+
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
-CURVE_DIR  = WPOWER_DIR / "powercurves"        # PyWake GenericWindTurbine curves, one per type
-EWW_CSV    = WPOWER_DIR / "farmdetails.csv"    # EWW open database: turbine_type and hub_height
 TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 OUT_DIR    = Path("DistrFigures")
 
 CF_VAR = "capacityfactor"
 WS_VAR = "ws100"
 
-INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
-INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
+INIT_START = pd.Timestamp("2024-8-01 00:00:00", tz="UTC")
+INIT_END   = pd.Timestamp("2025-7-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 37, 3))
 OBS_STEP_H = 3               # the observation window, and the forecast step
 
@@ -125,8 +139,26 @@ SEASONS = {"all": None, "DJF": {12, 1, 2}, "MAM": {3, 4, 5},
            "JJA": {6, 7, 8}, "SON": {9, 10, 11}}
 FORECAST_RE = re.compile(r"forecast_(\d{14})")
 FLEET_RE = re.compile(r"\s*(\d+)\s*x\s*(.+?)\s*$")
-METHOD_LABEL = {"direct": "direct (capacity factor)", "curve": "power curve (window mean)"}
-STYLE = {"direct": "-", "curve": "--"}
+CURVE_NAME = {"specs": "specs power curve", "empirical": "measured power curve"}
+CURVE_STYLE = {"specs": "--", "empirical": ":"}
+# How each curve must be READ to predict the observation's 3h mean. They differ, and using the
+# wrong one silently costs the curve accuracy that is bookkeeping rather than skill:
+#   "instant" the curve maps a SNAPSHOT wind to a snapshot power, so the POWERS are averaged:
+#             0.5[A(ws_t) + A(ws_t+3h)]. Correct for specs -- a physical curve is instantaneous.
+#   "window"  the curve was MEASURED as window-mean wind -> window-mean power (the IEC convention
+#             bins averaged wind against averaged power over the same window), so the smoothing
+#             is already inside it. It is read at the mean WIND, g(0.5[ws_t + ws_t+3h]), and the
+#             powers are NOT averaged again -- doing both would smooth the ramp twice.
+CURVE_KIND = {"specs": "instant", "empirical": "window"}
+
+
+def mlabel(m):
+    return ("direct (capacity factor)" if m == "direct"
+            else f"{CURVE_NAME[m.split(':')[1]]} (window mean)")
+
+
+def mstyle(m):
+    return "-" if m == "direct" else CURVE_STYLE[m.split(":")[1]]
 
 # Okabe-Ito: distinguishable under deuteranopia, protanopia and tritanopia. Ordered for contrast
 # on white; yellow last because it washes out in a thin line. RUNS differ by colour AND marker,
@@ -187,26 +219,22 @@ def main():
                         for f in farms if off[f] > 0.001)
         raise SystemExit(f"capacity mismatch >0.1% -- rerun farm_metadata.py\n  {bad}")
 
-    # every count and capacity must agree before a baseline built on them means anything
-    curves_lib = fc.load_curves(CURVE_DIR) if CURVE_MODE != "cubic" else None
-    if CURVE_MODE != "cubic":
-        turbines = fc.attach_eww(turbines, EWW_CSV)
-    fc.validate(farms, farms_df, turbines, specs, curves_lib)
-    calib = None
-    if CURVE_MODE == "calib":
-        # an in-sample calibration would be a fake baseline, not a strong one
-        if CALIB_END >= INIT_START:
-            raise SystemExit(f"calibration window ends {CALIB_END} but scoring starts "
-                             f"{INIT_START} -- overlapping, so the baseline would be in-sample")
-        calib = fc.calibrate(farms, farms_df, turbines, specs, curves_lib, obs, TRUTH_ZARR,
-                             CALIB_START, CALIB_END)
-    curves = fc.build(farms, farms_df, turbines, specs, CURVE_MODE, curves_lib, calib=calib)
-    print(f"\nCURVE baseline: {CURVE_MODE}  " + {
-        "cubic": "(turbine_specs.csv cubic at ws100 -- the old, weak baseline)",
-        "curve": "(real curves at ws100)",
-        "hub":   "(real curves, ws100 sheared to each turbine's hub height)",
-        "calib": f"(hub curves, alpha and scale fitted {CALIB_START.date()}..{CALIB_END.date()})",
-    }[CURVE_MODE])
+    # counts and capacities must agree before a baseline built on them means anything
+    fc.validate(farms, farms_df, turbines, specs)
+    cset = {}
+    for m in CURVE_MODES:
+        if m == "specs":
+            cset[m] = fc.build_specs(farms, farms_df, specs)
+        else:
+            # measuring the curve on the scored period would be a fake baseline, not a strong one
+            if TRAIN_END >= INIT_START:
+                raise SystemExit(f"curve measured to {TRAIN_END} but scoring starts {INIT_START}"
+                                 f" -- overlapping, so the baseline would be in-sample")
+            cset[m] = fc.empirical(farms, farms_df, turbines, obs, TRUTH_ZARR,
+                                   TRAIN_START, TRAIN_END)
+    print("\nCURVE baselines: " + ", ".join(
+        CURVE_NAME[m] + (f" (measured {TRAIN_START.date()}..{TRAIN_END.date()})"
+                         if m == "empirical" else "") for m in CURVE_MODES))
     print(f"Region {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW")
 
     # what gets scored: the summed total, or each farm on its own
@@ -241,6 +269,8 @@ def main():
         raise SystemExit("no init times common to all runs")
     print(f"Common inits: {len(inits)} | season {SEASON}")
 
+    if METRIC not in ("mae", "rmse"):
+        raise SystemExit(f"METRIC must be 'mae' or 'rmse', got {METRIC!r}")
     if BINNING not in ("none", "regimes", "quantiles"):
         raise SystemExit(f"BINNING must be 'none', 'regimes' or 'quantiles', got {BINNING!r}")
     binned = BINNING != "none"
@@ -290,7 +320,8 @@ def main():
                       farms].to_numpy(float)
         for u, (uname, ucap, sel) in enumerate(units):
             if BINNING == "regimes":
-                e = np.array([float(sum(curves[farms[i]](np.array([v])) for i in sel)[0]) / ucap
+                e = np.array([float(sum(cset[CURVE_MODES[0]][farms[i]](np.array([v]))
+                                for i in sel)[0]) / ucap
                               for v in REGIME_WS_EDGES])
                 for i in range(1, len(e)):    # a flat curve would tie two thresholds
                     e[i] = max(e[i], e[i - 1] + 1e-9)
@@ -306,10 +337,11 @@ def main():
         print(f"Bin edges ({units[0][0]}, {BINNING}): " +
               ", ".join(f"{v:.4f}" for v in edges[units[0][0]]))
 
-    methods = ["direct", "curve"]
-    sae = {(r, m): np.zeros((U, L, nbin)) for r in fmaps for m in methods}
-    sbias = {k: np.zeros((U, L, nbin)) for k in sae}
-    n = {k: np.zeros((U, L, nbin)) for k in sae}
+    methods = ["direct"] + [f"curve:{m}" for m in CURVE_MODES]
+    serr = {(r, m): np.zeros((U, L, nbin)) for r in fmaps for m in methods}
+    sbias = {k: np.zeros((U, L, nbin)) for k in serr}
+    n = {k: np.zeros((U, L, nbin)) for k in serr}
+    sq = METRIC == "rmse"
     has_direct = {r: False for r in fmaps}
     n_nan = {r: 0 for r in fmaps}
     recon = {}
@@ -335,18 +367,28 @@ def main():
             t2i = {t: j for j, t in enumerate(ftimes)}
             w = G / G.sum(1, keepdims=True)
             ws_farm = ws @ w.T                                        # (T, F) capacity-weighted
-            p_curve = np.column_stack([curves[f](ws_farm[:, i])       # (T, F) MW
-                                       for i, f in enumerate(farms)])
+            # row j of ws_win is the mean wind over the window [t_j, t_j+3h) that the
+            # observation at t_j averages over; the forecast steps at OBS_STEP_H, so that
+            # window is the pair (j, j+1) and the guard below holds it to that.
+            ws_win = 0.5 * (ws_farm[:-1] + ws_farm[1:])
+            p_curve = {m: np.column_stack([cset[m][f](w[:, i])          # (T or T-1, F) MW
+                                           for i, f in enumerate(farms)])
+                       for m in CURVE_MODES
+                       for w in [ws_farm if CURVE_KIND[m] == "instant" else ws_win]}
             p_direct = cf @ G.T if cf is not None else None
 
             for lh in leads:
                 vt = init + pd.Timedelta(hours=lh)
                 nxt = t2i.get(vt + dt)
-                if vt not in t2i or nxt is None or vt not in obs.index:
+                # nxt must be the NEXT step: a window curve is indexed by the pair (j, j+1)
+                if (vt not in t2i or nxt is None or vt not in obs.index
+                        or nxt != t2i[vt] + 1):
                     continue
                 ptrue = obs.loc[vt, farms].to_numpy(float)
-
-                pred = {"curve": 0.5 * (p_curve[t2i[vt]] + p_curve[nxt])}
+                pred = {f"curve:{m}":
+                        (0.5 * (p_curve[m][t2i[vt]] + p_curve[m][nxt])
+                         if CURVE_KIND[m] == "instant" else p_curve[m][t2i[vt]])
+                        for m in CURVE_MODES}
                 if p_direct is not None:
                     pred["direct"] = p_direct[t2i[vt]]
 
@@ -371,7 +413,7 @@ def main():
                         r = int(np.digitize(pt.sum() / ucap, edges[uname]))
                     for m, pp in pred.items():
                         e = pp[sel].sum() - pt.sum()
-                        sae[(label, m)][u, k, r] += abs(e)
+                        serr[(label, m)][u, k, r] += e * e if sq else abs(e)
                         sbias[(label, m)][u, k, r] += e
                         n[(label, m)][u, k, r] += 1
                 n_nan[label] += nan_here
@@ -381,11 +423,20 @@ def main():
     if not series:
         raise SystemExit("nothing scored -- check that forecast valid times overlap power_obs")
 
-    def stat(acc, key, u, r=None):
+    def _mean(acc, key, u, r):
         s = acc[key][u, :, r] if r is not None else acc[key][u].sum(1)
         c = n[key][u, :, r] if r is not None else n[key][u].sum(1)
         with np.errstate(invalid="ignore", divide="ignore"):
             return s / c
+
+    def score(key, u, r=None):
+        """The metric in MW. Squared errors ADD across bins, so the r=None aggregate is the true
+        overall RMSE and not a mean of the per-bin ones."""
+        v = _mean(serr, key, u, r)
+        return np.sqrt(v) if sq else v
+
+    def bias(key, u, r=None):
+        return _mean(sbias, key, u, r)
 
     print("\nScored cases per lead (methods within a series must tie exactly):")
     for r in fmaps:
@@ -424,14 +475,15 @@ def main():
                   "observed")
             print("  value can land there. Switch to 'cerra-ws' to bin on the wind itself.")
 
-    lab = {(r, m): f"{r} / {METHOD_LABEL[m]}" for r, m in series}
+    lab = {(r, m): f"{r} / {mlabel(m)}" for r, m in series}
     wid = max(len(v) for v in lab.values()) + 1
     hdr = f"{'run / method':{wid}s} " + " ".join(f"{lh:>6d}h" for lh in leads)
+    MET = METRIC.upper()
     reg_range = range(nbin) if binned else [None]
     bin_unit = "m/s" if BINNING == "regimes" else ""
 
     for u, (uname, ucap, sel) in enumerate(units):
-        print(f"\n{'='*len(hdr)}\n{uname} — MAE as % of {ucap:.0f} MW  (season {SEASON})"
+        print(f"\n{'='*len(hdr)}\n{uname} — {MET} as % of {ucap:.0f} MW  (season {SEASON})"
               f"\n{'='*len(hdr)}")
         for r_i in reg_range:
             if r_i is not None:
@@ -440,25 +492,38 @@ def main():
             print(hdr)
             for k in series:
                 print(f"{lab[k]:{wid}s} " +
-                      " ".join(f"{v:7.2f}" for v in 100.0 * stat(sae, k, u, r_i) / ucap))
+                      " ".join(f"{v:7.2f}" for v in 100.0 * score(k, u, r_i) / ucap))
             print(f"{'  bias [MW]':{wid}s}")
             for k in series:
                 print(f"{lab[k]:{wid}s} " +
-                      " ".join(f"{v:+7.1f}" for v in stat(sbias, k, u, r_i)))
+                      " ".join(f"{v:+7.1f}" for v in bias(k, u, r_i)))
 
     # ---------------- figures ----------------
     colors = {r: CB_COLORS[i % len(CB_COLORS)] for i, r in enumerate(fmaps)}
     marks = {r: CB_MARKERS[i % len(CB_MARKERS)] for i, r in enumerate(fmaps)}
-    handles = [plt.Line2D([], [], color=colors[r], ls=STYLE[m], marker=marks[r], ms=5,
-                          label=lab[(r, m)]) for r, m in series]
+    # runs x methods would be one entry per combination -- 12 lines at fontsize 7. Split it:
+    # colour and marker identify the RUN, linestyle identifies the METHOD, so the legend is
+    # runs + methods rather than runs * methods, and it states the encoding instead of listing it.
+    runs_in = [r for r in fmaps if any(k[0] == r for k in series)]
+    meth_in = [m for m in methods if any(k[1] == m for k in series)]
+    handles = ([plt.Line2D([], [], color=colors[r], marker=marks[r], ls="-", ms=5, label=r)
+                for r in runs_in]
+               + [plt.Line2D([], [], color="0.35", ls=mstyle(m), lw=1.8, label=mlabel(m))
+                  for m in meth_in])
+    NLEG = len(handles)
+
+    def put_legend(fig):
+        """One legend for the whole figure, under it -- not squeezed into the first panel."""
+        fig.legend(handles=handles, loc="lower center", ncol=min(NLEG, 4), fontsize=8,
+                   frameon=False, bbox_to_anchor=(0.5, 0.0))
     base = f"{REGION}_{SEASON}" + ("_perfarm" if PER_FARM else "") + \
            (f"_{REGIME_BY}" if binned else "")
 
     def panel(ax, u, ucap, r_i, title):
         for k in series:
-            ax.plot(leads, 100.0 * stat(sae, k, u, r_i) / ucap, STYLE[k[1]],
+            ax.plot(leads, 100.0 * score(k, u, r_i) / ucap, mstyle(k[1]),
                     color=colors[k[0]], lw=1.5, marker=marks[k[0]], ms=4,
-                    markerfacecolor="none" if k[1] == "curve" else colors[k[0]])
+                    markerfacecolor=colors[k[0]] if k[1] == "direct" else "none")
         ax.set_title(title, fontsize=10)
         ax.grid(True, ls="--", alpha=0.5)
         ax.set_xticks(leads)
@@ -479,11 +544,11 @@ def main():
         for ax in axes[-1]:
             ax.set_xlabel("Lead time [h]")
         for row in axes:
-            row[0].set_ylabel("MAE [% of capacity]")
-        axes[0][0].legend(handles=handles, fontsize=7, framealpha=0.8)
+            row[0].set_ylabel(f"{MET} [% of capacity]")
         fig.suptitle(sup, fontsize=12)
-        fig.tight_layout()
-        out = OUT_DIR / f"power_mae_{base}{suffix}.png"
+        fig.tight_layout(rect=(0, 0.04 + 0.03 * (NLEG > 4), 1, 1))
+        put_legend(fig)
+        out = OUT_DIR / f"power_{METRIC}_{base}{suffix}.png"
         fig.savefig(out, dpi=150)
         plt.close(fig)
         print(f"Saved: {out}")
@@ -495,9 +560,9 @@ def main():
         # farms x bins does not fit one readable figure: one PNG per bin
         for r_i, rlab in enumerate(bin_labels):
             grid_fig(r_i, f"_bin{r_i}",
-                     f"{REGION} per-farm power MAE — {rlab} {bin_unit} by {byl} ({stamp})")
+                     f"{REGION} per-farm power {MET} — {rlab} {bin_unit} by {byl} ({stamp})")
     elif PER_FARM:
-        grid_fig(None, "", f"{REGION} per-farm power MAE ({stamp})")
+        grid_fig(None, "", f"{REGION} per-farm power {MET} ({stamp})")
     elif binned:
         ncol = 2 if nbin <= 4 else 5
         nrow = int(np.ceil(nbin / ncol))
@@ -513,24 +578,25 @@ def main():
         for ax in axes[-1]:
             ax.set_xlabel("Lead time [h]")
         for row in axes:
-            row[0].set_ylabel("MAE [% of capacity]")
-        axl[0].legend(handles=handles, fontsize=7, framealpha=0.8)
+            row[0].set_ylabel(f"{MET} [% of capacity]")
         by = ("wind regime" if BINNING == "regimes"
               else f"{N_QUANT} equal-count bins, cut per unit")
-        fig.suptitle(f"{units[0][0]} power MAE by {by}, binned on {byl} ({stamp})", fontsize=12)
-        fig.tight_layout()
-        out = OUT_DIR / f"power_mae_{base}_{BINNING}.png"
+        fig.suptitle(f"{units[0][0]} power {MET} by {by}, binned on {byl} ({stamp})", fontsize=12)
+        fig.tight_layout(rect=(0, 0.04 + 0.03 * (NLEG > 4), 1, 1))
+        put_legend(fig)
+        out = OUT_DIR / f"power_{METRIC}_{base}_{BINNING}.png"
         fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
     else:
         fig, ax = plt.subplots(figsize=(9.5, 5.5))
         panel(ax, 0, units[0][1], None, "")
-        ax.set(xlabel="Lead time [h]", ylabel="MAE [% of capacity]")
-        ax.set_title(f"{units[0][0]} power MAE — {units[0][1]:.0f} MW, {stamp}", fontsize=12)
-        ax.legend(handles=handles, fontsize=8, framealpha=0.8)
-        fig.tight_layout()
-        out = OUT_DIR / f"power_mae_{base}.png"
+        ax.set(xlabel="Lead time [h]", ylabel=f"{MET} [% of capacity]")
+        ax.set_title(f"{units[0][0]} power {MET} — {units[0][1]:.0f} MW, {stamp}", fontsize=12)
+        fig.tight_layout(rect=(0, 0.04 + 0.03 * (NLEG > 4), 1, 1))
+        put_legend(fig)
+        out = OUT_DIR / f"power_{METRIC}_{base}.png"
         fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved: {out}")
 
 
 if __name__ == "__main__":
     main()
+
