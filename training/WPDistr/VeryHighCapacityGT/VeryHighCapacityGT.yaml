@@ -2,7 +2,7 @@
 defaults:
   - _self_
 
-config_validation: true
+config_validation: false
 
 # ============================================================
 # SYSTEM
@@ -393,6 +393,7 @@ diagnostics:
     mlflow:
       enabled: true
       offline: true
+      save_dir: null
       authentication: false
       log_model: false
       tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
@@ -558,7 +559,9 @@ model:
     layer_kernels: ${model.layer_kernels}
 
   decoder:
-    _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
+    _target_: cf_head.CFHeadGraphTransformerBackwardMapper   # was anemoi...GraphTransformerBackwardMapper
+    cf_index: 54          
+    cf_hidden: 128
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1
@@ -568,6 +571,19 @@ model:
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
+
+
+  # decoder:
+  #   _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
+  #   trainable_size: ${model.trainable_parameters.hidden2data}
+  #   sub_graph_edge_attributes: ${model.attributes.edges}
+  #   num_chunks: 1
+  #   mlp_hidden_ratio: 2
+  #   num_heads: 8
+  #   initialise_data_extractor_zero: false
+  #   qk_norm: false
+  #   cpu_offload: ${model.cpu_offload}
+  #   layer_kernels: ${model.layer_kernels}
 
   residual:
     _target_: anemoi.models.layers.residual.SkipConnection
@@ -643,14 +659,14 @@ training:
 
   training_loss:
     _target_: anemoi.training.losses.HuberLoss
-    delta: 0.1
+    delta: 0.5
     scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
     ignore_nans: true
 
   validation_metrics:
     huber:
       _target_: anemoi.training.losses.HuberLoss
-      delta: 0.1
+      delta: 0.5
       scalers: ['node_weights'] #,'nan_mask_weights']   
       ignore_nans: true
 
@@ -666,10 +682,10 @@ training:
         w: 0 #0.001
         z: 0 #12
         mcc: 0 #0.1
-        ws10: 0 
-        ws100: 0
-        wdir100_cos: 0
-        wdir100_sin: 0
+        ws10: 0
+        ws100: 1
+        wdir100_cos: 0.5
+        wdir100_sin: 0.5
         wdir10_cos: 0
         wdir10_sin: 0 
         capacityfactor: 100
@@ -718,7 +734,7 @@ training:
     max: 1
 
   max_epochs: 40
-  max_steps: 10000
+  max_steps: 5000
 
 #   lr:
 #     warmup: 1000
@@ -730,7 +746,7 @@ training:
   lr:
     warmup: 200
     rate: 0.00003
-    iterations: 10000
+    iterations: 5000
     min: 3.0e-07
 
 

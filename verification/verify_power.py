@@ -111,10 +111,12 @@ FORECAST_DIRS = {
    #"H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
  #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
    # "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
-    #"VH_Finetune_7var": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune_7var"),
-   # "VH_Finetune_Half": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Half_Finetune"),
-       "VH_Finetune_5k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_5k_Finetune"),
-      # "VH_Finetune_10k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_10k_Finetune"),
+      # "VH_Finetune_5k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_5k_Finetune"),
+     #  "Huber_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune"),
+    "Huber_Finetune2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune2"),
+    "Huber_Head1": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead1"),
+        "Huber_Head2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead2"),
+
 
 
 }

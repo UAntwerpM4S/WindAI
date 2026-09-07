@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 START      = datetime(2024, 8, 1, 0)
 END        = datetime(2025, 7, 31, 9)
 STEP       = timedelta(hours=3)
-N_PER_DAY  = 8
+N_PER_DAY  = 2
 SEED       = 0
 LEAD_TIME  = 37
 INIT_LIST  = "sampled_inits.txt"     # written once, so the sample is on the record
@@ -38,32 +38,22 @@ THREADS = max(1, N_CORES // WORKERS)
 INNER = "/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr"
 OUTER = "/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_era5_A.zarr"
 CHECKPOINTS = {
-    # "WPDistr/HC_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/HighCapacityGTFinetune/checkpoint/a1c74e76ef364f2daca5c101683ed083/",
+    # "WindAI/RegularWeather": (
+    #     "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
     #     "inference-last.ckpt"),
-    # "WPDistr/SHC_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGTFinetune/checkpoint/98e167eb8e1c43f8a00c251844f10ea9/",
-    #     "inference-last.ckpt"),
-    # "WPDistr/VHC_10k_Finetune": (
+    "WPDistr/HuberCFHead3": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/HuberCFHead3/", 
+        "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
+    # "WPDistr/VHC_5k_Finetune": (
     #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
-    #     "inference-anemoi-by_time-epoch_019-step_010000.ckpt"),
-    "WPDistr/VHC_5k_Finetune": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
-        "inference-anemoi-by_epoch-epoch_009-step_005000.ckpt"),
-    # "WPDistr/VHC_Half_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
-    #     "inference-anemoi-by_epoch-epoch_002-step_001500.ckpt"),
-    # "WPDistr/VHC_Finetune_7var": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune7var/checkpoint/c9816c65a50242ac82f2beb917bfef5f/",
-    #     "inference-last.ckpt"),
-    # "WPDistr/VHC_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
-    #     "inference-last.ckpt"),
-    # "WPDistr/Vanilla_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/VanillaPowerGTFinetune/checkpoint/b5b86e46dc9b433fa6e3f7383a9f6c43/",
-    #     "inference-last.ckpt"),
+    #     "inference-anemoi-by_epoch-epoch_009-step_005000.ckpt"),
+
 }
+
+CF_HEAD_DIR = "/mnt/weatherloss/WindPower/training"
+
 # ======================================================================
+
 
 _lock = threading.Lock()
 _done = [0]
@@ -93,6 +83,9 @@ def run_one(job, tmpdir, total):
     """One forecast in its own process on one GPU. Returns (tag, ok)."""
     idx, tag, ckpt, init, out = job
     gpu = idx % N_GPUS
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu),
+               OMP_NUM_THREADS=str(THREADS), MKL_NUM_THREADS=str(THREADS),
+               PYTHONPATH=CF_HEAD_DIR + os.pathsep + os.environ.get("PYTHONPATH", ""))
     date_str = init.strftime("%Y-%m-%dT%H:%M:%S")
     cfg = os.path.join(tmpdir, f"cfg_{idx}.yaml")     # per TASK: concurrent tasks must not share
     with open(cfg, "w") as f:
@@ -114,8 +107,6 @@ output:
     output:
       netcdf: {out}
 """)
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu),
-               OMP_NUM_THREADS=str(THREADS), MKL_NUM_THREADS=str(THREADS))
     # output is captured so six concurrent runs do not interleave into unreadable noise; it is
     # printed only when the run fails, which is when you actually need it
     p = subprocess.run(["anemoi-inference", "run", cfg], env=env,

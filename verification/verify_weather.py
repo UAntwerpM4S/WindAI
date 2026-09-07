@@ -50,12 +50,21 @@ N_QUANT  = 10                # BINNING="quantiles": number of equal-count bins o
 MATCH_VARIANCE = False       # binned modes: rescale each run to the truth spread before scoring
 
 
+
 FORECAST_DIRS = {
-  #  "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-    "SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SemiHighCapacity_Finetune"),
-    "Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
-   "H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HighCapacity_Finetune"),
-    "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacity_Finetune"),
+    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+   #"SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
+    #"Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
+   #"H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
+ "VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+   # "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
+       "VH_Finetune_5k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_5k_Finetune"),
+       "Huber_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune"),
+    #       "Huber_Finetune2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune2"),
+                    "Huber_Finetune3": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune3"),
+
+
 }
 TRUTH_ZARR   = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
 TURBMASK_SRC = Path("/mnt/weatherloss/WindPower/data/WPDistr/power_cerra_src.zarr")
