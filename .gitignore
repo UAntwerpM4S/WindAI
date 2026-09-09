@@ -74,3 +74,4 @@ inference/*.ipynb
 data/BOZ_Turbines/token.txt
 data/NorthSea/Power/token.txt
 *.sw?
+AnemoiOLD/
