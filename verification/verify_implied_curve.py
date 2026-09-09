@@ -12,20 +12,34 @@ The head predicts power. It could have learned either of two very different thin
       also removes a mean bias, and would pass every test in verify_power.py, but the implied
       curve would be flat-ish and carry little of the model's own wind signal.
 
-Three curves per farm, on the same axes:
+Four curves per farm, on the same axes:
 
   SPEC      the manufacturer curve from turbine_specs.csv -- an ideal turbine in clean air.
-  OBSERVED  binned median of observed power against CERRA wind -- what the farm really does,
-            losses and all. This is the target the model should be matching.
+  OBSERVED  binned median of observed power against CERRA wind OVER THE SCORED PERIOD -- what
+            the farm really did while the forecasts were being scored. This is the target.
+  MEASURED  the BASELINE the head is compared against in verify_power.py: the same method of
+            bins, but fitted on TRAIN_START..TRAIN_END, a window that ends before scoring
+            begins. Built by calling farm_curves.empirical with the same arguments verify_power
+            uses, so it is the identical object, not a re-implementation.
   IMPLIED   binned median of the model's power against the model's own wind, at LEAD.
 
 If IMPLIED tracks OBSERVED, the head learned the conversion including the losses. If it tracks
 SPEC, it learned the textbook curve and not the losses. If it is flat, it learned a level.
 
-Three numbers decide it rather than eyeballing:
+MEASURED vs OBSERVED is the baseline's own handicap, and it is worth reading before crediting
+the head with anything. The two are the same farm measured in two different windows, so any gap
+between them is NON-STATIONARITY -- availability, curtailment, derates, turbines swapped -- not
+model error. The head beats this curve in verify_power.py; the `MEAS->OBS` block below says how
+much of that win is simply the curve being stale. Note the head is if anything staler: its
+training data ends 2024-01-31, the curve is fitted through 2024-07-31.
+
+Four numbers decide it rather than eyeballing:
   * to OBSERVED -- occupancy-weighted RMS distance from IMPLIED to the real farm's curve, in
     % of capacity. THE headline number: it says how far the learned conversion is from the
     farm's actual one, and it needs no reference to the spec sheet.
+  * to MEASURED -- the same distance to the baseline curve. Small means the head reproduced the
+    baseline; the interesting case is `to OBSERVED` small while `to MEASURED` is not, which
+    says the head tracked the farm's CURRENT behaviour rather than its historical curve.
   * noise floor -- bootstrap SE of the observed binned median, weighted the same way. The
     distance two independent estimates of the SAME farm's curve would sit apart. A model
     cannot get closer to the observed curve than the observed curve is to itself, so
@@ -56,8 +70,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
+import farm_curves as fc          # same module verify_power.py builds its baselines with
+
 # ============================== SETTINGS ==============================
 REGION   = "BE"
+EXCLUDE_FARMS = []             # keep identical to verify_power.py -- see the note there
 LEAD     = 33                  # lead hour the implied curve is read at
 WS_EDGES = np.arange(0.0, 25.1, 0.5)     # wind bins for all three curves
 MIN_BIN  = 30                 # a bin with fewer cases is not plotted
@@ -66,13 +83,15 @@ N_BOOT   = 200                # resamples for the observed curve's noise floor
 
 
 FORECAST_DIRS = {
-    #"RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-   "SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
-    "Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
-  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
-   "H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
- #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-    "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
+    "MixedRollout": Path("/mnt/weatherloss/WindPower/inference/WPDistr/MixedRollout"),
+    "VH":           Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    # earlier runs, kept for reference:
+    # "HuberCFHead5Mixed": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead5Mixed"),
+    # "Huber_Head1":       Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead1"),
+    # "SH_Finetune":       Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
+    # "Vanilla_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
+    # "H_Finetune":        Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
+    # "VH_Finetune":       Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
 }
 
 TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
@@ -83,6 +102,12 @@ WS_VAR, CF_VAR = "ws100", "capacityfactor"
 INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 OBS_STEP_H = 3
+
+# The MEASURED baseline curve. Keep these identical to verify_power.py or the curve drawn here
+# is not the curve that was scored there. The guard below is the same one verify_power applies:
+# fitting the baseline on the scored period would make it in-sample and the comparison fake.
+TRAIN_START = pd.Timestamp("2021-01-01 00:00:00", tz="UTC")
+TRAIN_END   = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")
 # ======================================================================
 
 FORECAST_RE = re.compile(r"forecast_(\d{14})")
@@ -168,13 +193,26 @@ def main():
 
     farms = (farms_df.farm.tolist() if REGION == "all"
              else farms_df[farms_df.region.str.upper() == REGION].farm.tolist())
+    if EXCLUDE_FARMS:
+        unknown = set(EXCLUDE_FARMS) - set(farms)
+        if unknown:
+            raise SystemExit(f"EXCLUDE_FARMS names farms not in REGION={REGION!r}: "
+                             f"{sorted(unknown)}")
+        farms = [f for f in farms if f not in EXCLUDE_FARMS]
+        print(f"EXCLUDED: {', '.join(EXCLUDE_FARMS)} -- {len(farms)} farms remain")
     turbines = turbines[turbines.farm.isin(farms)]
     cap = farms_df.set_index("farm").loc[farms, "capacity_mw"]
     tsum = turbines.groupby("farm")["capacity_mw"].sum().reindex(farms)
     if ((tsum - cap).abs() / cap > 0.001).any():
         raise SystemExit("turbines.csv and farms.csv capacities disagree -- rerun farm_metadata.py")
     curves = build_farm_curves(farms_df, specs, farms)
-    print(f"Region {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW | lead +{LEAD}h\n")
+
+    if TRAIN_END >= INIT_START:
+        raise SystemExit(f"baseline curve measured to {TRAIN_END} but scoring starts "
+                         f"{INIT_START} -- overlapping, so the baseline would be in-sample")
+    measured = fc.empirical(farms, farms_df, turbines, obs, TRUTH_ZARR, TRAIN_START, TRAIN_END)
+
+    print(f"\nRegion {REGION}: {len(farms)} farms, {float(cap.sum()):.0f} MW | lead +{LEAD}h\n")
 
     # ---- CERRA wind at the farm cells, and the observed curve ----
     ds = xr.open_zarr(TRUTH_ZARR, consolidated=False)
@@ -268,28 +306,62 @@ def main():
     if thin:
         print(f"\n  WARNING too few shared bins to score: {', '.join(thin)}")
 
-    print(f"\n{'='*112}\nDID IT LEARN A CONVERSION OR A LEVEL?   scored over {RAMP[0]}-{RAMP[1]} m/s"
-          f", on bins populated by all {len(implied)} runs\n{'='*112}")
-    print(f"{'run':20s} {'farm':14s} {'to OBSERVED':>12s} {'floor':>7s} {'x floor':>8s} "
-          f"{'to SPEC':>9s} {'ratio':>7s} {'wind-expl':>10s} {'range':>7s}")
+    # ---- how stale is the baseline? model-independent, so it gets its own block ----
+    # MEASURED and OBSERVED are the same farm binned the same way in two different windows, so
+    # the gap between them is non-stationarity, not model error. It is the handicap the baseline
+    # carries into verify_power.py, and the head has to beat only what is left after it.
+    print(f"\n{'='*90}\nBASELINE STALENESS -- the measured curve ({TRAIN_START.date()}.."
+          f"{TRAIN_END.date()}) against what the farm actually did\n"
+          f"while the forecasts were scored ({INIT_START.date()}..{INIT_END.date()})\n{'='*90}")
+    print(f"{'farm':14s} {'MEAS->OBS':>10s} {'floor':>7s} {'x floor':>8s} {'plateau shift':>14s}")
+    d_meas_obs = {}
+    for f in farms:
+        om, oc = observed[f][1], observed[f][2]
+        me = 100.0 * measured[f](mid) / cap[f]
+        w = np.where(keep[f], oc, 0.0)
+        if w.sum() == 0:
+            continue
+        rms = lambda v, w=w: float(np.sqrt(np.nansum(w * v ** 2) / w.sum()))
+        d_meas_obs[f] = rms(me - om)
+        flo = rms(floor[f])
+        top = mid >= RAMP[1]
+        shift = float(np.nanmax(om[top]) - np.nanmax(me[top])) if top.any() else np.nan
+        print(f"{f:14s} {d_meas_obs[f]:9.2f}% {flo:6.2f}% {d_meas_obs[f]/flo:8.1f} "
+              f"{shift:+13.2f}%")
+    print(f"{'MEAN':14s} {np.mean(list(d_meas_obs.values())):9.2f}%")
+    print("  plateau shift : observed top minus measured top above the ramp band. Positive means")
+    print("                  the farm ran HIGHER than its historical curve during the test year,")
+    print("                  so the baseline under-predicts there through no fault of the model.")
+
+    print(f"\n{'='*124}\nDID IT LEARN A CONVERSION OR A LEVEL?   scored over {RAMP[0]}-{RAMP[1]} m/s"
+          f", on bins populated by all {len(implied)} runs\n{'='*124}")
+    print(f"{'run':20s} {'farm':14s} {'to OBSERVED':>12s} {'to MEASURED':>12s} {'floor':>7s} "
+          f"{'x floor':>8s} {'to SPEC':>9s} {'ratio':>7s} {'wind-expl':>10s} {'range':>7s}")
     for label in implied:
-        col = {k: [] for k in ("obs", "flo", "rat")}
+        col = {k: [] for k in ("obs", "mea", "flo", "rat")}
         for f in farms:
             om, oc = observed[f][1], observed[f][2]
             im, sp = implied[label][f][1], 100.0 * curves[f](mid) / cap[f]
+            me = 100.0 * measured[f](mid) / cap[f]
             w = np.where(keep[f], oc, 0.0)
             if w.sum() == 0:
                 continue
             rms = lambda v: float(np.sqrt(np.nansum(w * v ** 2) / w.sum()))
-            d_obs, d_spec, flo = rms(im - om), rms(sp - om), rms(floor[f])
-            col["obs"].append(d_obs); col["flo"].append(d_obs / flo); col["rat"].append(d_obs / d_spec)
-            print(f"{label:20s} {f:14s} {d_obs:11.2f}% {flo:6.2f}% {d_obs/flo:8.1f} "
-                  f"{d_spec:8.2f}% {d_obs/d_spec:7.2f} {100*wind_expl[label][f]:9.1f}% "
-                  f"{np.nanmax(im) - np.nanmin(im):6.1f}%")
-        print(f"{label:20s} {'MEAN':14s} {np.mean(col['obs']):11.2f}% {'':6s} "
-              f"{np.mean(col['flo']):8.1f} {'':9s} {np.mean(col['rat']):7.2f}\n")
+            d_obs, d_mea, d_spec = rms(im - om), rms(im - me), rms(sp - om)
+            flo = rms(floor[f])
+            col["obs"].append(d_obs); col["mea"].append(d_mea)
+            col["flo"].append(d_obs / flo); col["rat"].append(d_obs / d_spec)
+            print(f"{label:20s} {f:14s} {d_obs:11.2f}% {d_mea:11.2f}% {flo:6.2f}% "
+                  f"{d_obs/flo:8.1f} {d_spec:8.2f}% {d_obs/d_spec:7.2f} "
+                  f"{100*wind_expl[label][f]:9.1f}% {np.nanmax(im) - np.nanmin(im):6.1f}%")
+        print(f"{label:20s} {'MEAN':14s} {np.mean(col['obs']):11.2f}% {np.mean(col['mea']):11.2f}% "
+              f"{'':6s} {np.mean(col['flo']):8.1f} {'':9s} {np.mean(col['rat']):7.2f}\n")
     print("  to OBSERVED : the headline. How far the learned conversion sits from the farm's")
     print("                real one, in % of capacity. No spec sheet involved.")
+    print("  to MEASURED : same distance to the BASELINE curve verify_power.py scores against.")
+    print("                Compare it with MEAS->OBS above: if the head is closer to OBSERVED")
+    print("                than the baseline is, it tracked the farm's current behaviour rather")
+    print("                than reproducing a historical curve -- which is the whole claim.")
     print("  floor       : bootstrap SE of the observed curve itself. x floor = how many times")
     print("                the irreducible noise the model is away -- near 1 is as good as the")
     print("                data can show, 10+ means real room left.")
@@ -311,7 +383,9 @@ def main():
         ax = axs[i // ncol][i % ncol]
         ax.plot(mid, 100.0 * curves[f](mid) / cap[f], color="0.55", lw=2, ls="--",
                 label="spec sheet (ideal)")
-        ax.plot(mid, observed[f][1], "k-", lw=2.5, label="observed (real farm)")
+        ax.plot(mid, 100.0 * measured[f](mid) / cap[f], color="0.25", lw=2, ls=":",
+                label=f"measured baseline ({TRAIN_START.year}-{TRAIN_END.year})")
+        ax.plot(mid, observed[f][1], "k-", lw=2.5, label="observed (real farm, scored period)")
         for j, label in enumerate(implied):
             ax.plot(mid, implied[label][f][1], lw=1.8,
                     color=plt.cm.tab10.colors[j], label=f"implied — {label}")

@@ -18,6 +18,9 @@ Every run yields up to two power forecasts of the same quantity, scored on one i
                          A(mean ws) != mean A(ws).
               empirical  already measured mean-to-mean, so read it at the mean WIND,
                          g(1/2[ws_t + ws_t+3h]), and do not average again.
+          The SPACE axis follows the same rule (SPECS_PER_CELL): the specs curve is converted
+          per cell and the POWERS capacity-weighted, while the empirical curve was measured
+          against farm-mean wind and is read there.
           Every run gets these lines, so a weather-only run is scored on equal terms.
 
 PER_FARM chooses what is scored. False: the summed regional total, the operationally relevant
@@ -73,6 +76,21 @@ import farm_curves as fc
 
 # ============================== SETTINGS ==============================
 REGION   = "BE"              # "BE" | "UK" | "all"
+EXCLUDE_FARMS = []           # farms dropped from the region before anything is built.
+                             # ["Northwester2"] runs the availability sensitivity: verify_
+                             # availability.py shows it ran at 0.812 of its historical plateau
+                             # through the scored year (93.4% of above-rated hours below 90%,
+                             # against 27.2% in the fit window; every other farm within 0.03).
+                             # That is a derate, not a forecast error, and it is detected from
+                             # CERRA truth wind and observed power alone -- no model enters it,
+                             # so the criterion is the same whichever system is being scored.
+                             # Report BOTH runs: all farms answers "does this forecast power
+                             # better operationally", where derates are part of the job; the
+                             # reduced set answers "is the learned conversion better", where a
+                             # derate is not a conversion. Note the derate penalised the direct
+                             # head MORE than the curve (over-prediction 20.2% vs 16.9% of that
+                             # farm's capacity above rated), so excluding it is not what makes
+                             # the head win -- say so rather than leaving it to be asked.
 METRIC   = "mae"             # "mae" | "rmse" -- see the METRIC note in the docstring. RMSE is
                              # aggregated from summed SQUARED errors, so the all-bins number is
                              # the true overall RMSE, not an average of the per-bin ones.
@@ -153,6 +171,16 @@ CURVE_STYLE = {"specs": "--", "empirical": ":"}
 #             powers are NOT averaged again -- doing both would smooth the ramp twice.
 CURVE_KIND = {"specs": "instant", "empirical": "window"}
 
+# The same reasoning, applied to SPACE instead of time. A farm spans several cells, and the curve
+# is nonlinear, so averaging over them does not commute with converting: on the cubic ramp
+# A(mean_c ws) < mean_c A(ws), and past the knee the sign flips.
+#   True  -- convert each cell's wind, then capacity-weight the POWERS. The physical operation.
+#   False -- capacity-weight the WINDS, then convert once. The historical behaviour.
+# Only "specs" is affected. "empirical" was MEASURED against farm-mean wind, so the spatial spread
+# is already inside it for the same reason the window smoothing is -- reading it per cell would
+# smooth twice, exactly as CURVE_KIND guards against on the time axis.
+SPECS_PER_CELL = True
+
 
 def mlabel(m):
     return ("direct (capacity factor)" if m == "direct"
@@ -209,6 +237,15 @@ def main():
              else farms_df[farms_df.region.str.upper() == REGION].farm.tolist())
     if not farms:
         raise SystemExit(f"no farms for REGION={REGION!r}; have {sorted(farms_df.region.unique())}")
+    if EXCLUDE_FARMS:
+        unknown = set(EXCLUDE_FARMS) - set(farms)
+        if unknown:
+            raise SystemExit(f"EXCLUDE_FARMS names farms not in REGION={REGION!r}: "
+                             f"{sorted(unknown)} -- a typo would silently exclude nothing")
+        farms = [f for f in farms if f not in EXCLUDE_FARMS]
+        print(f"EXCLUDED from the region: {', '.join(EXCLUDE_FARMS)} -- "
+              f"{len(farms)} farms remain. Every number below, the capacity it is normalised "
+              f"by, and both curve baselines are rebuilt without them.")
     turbines = turbines[turbines.farm.isin(farms)]
     cap = farms_df.set_index("farm").loc[farms, "capacity_mw"]
     # turbines.csv supplies the reconstruction weights; farms.csv supplies the capacity every
@@ -373,10 +410,16 @@ def main():
             # observation at t_j averages over; the forecast steps at OBS_STEP_H, so that
             # window is the pair (j, j+1) and the guard below holds it to that.
             ws_win = 0.5 * (ws_farm[:-1] + ws_farm[1:])
-            p_curve = {m: np.column_stack([cset[m][f](w[:, i])          # (T or T-1, F) MW
-                                           for i, f in enumerate(farms)])
-                       for m in CURVE_MODES
-                       for w in [ws_farm if CURVE_KIND[m] == "instant" else ws_win]}
+            p_curve = {}                                                # (T or T-1, F) MW
+            for m in CURVE_MODES:
+                if CURVE_KIND[m] == "instant" and SPECS_PER_CELL:
+                    # convert each CELL, then capacity-weight the powers (see SPECS_PER_CELL)
+                    p_curve[m] = np.column_stack([cset[m][f](ws) @ w[i]
+                                                  for i, f in enumerate(farms)])
+                else:
+                    wsrc = ws_farm if CURVE_KIND[m] == "instant" else ws_win
+                    p_curve[m] = np.column_stack([cset[m][f](wsrc[:, i])
+                                                  for i, f in enumerate(farms)])
             p_direct = cf @ G.T if cf is not None else None
 
             for lh in leads:
