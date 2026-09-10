@@ -104,6 +104,8 @@ from anemoi.models.distributed.shapes import change_channels_in_shape
 from anemoi.models.layers.mapper import GraphTransformerBackwardMapper
 
 CF_HIDDEN = 128          # width of the private head; ~66k params vs the 513 capacityfactor owns
+CF_LAYERS = 1            # hidden layers. 1 reproduces MixedRollout; see the note below on why 2
+                         # is the better place to spend parameters than a wider 1.
 ZERO_INIT_OUTPUT = True  # start as an exact no-op so a warm start is unchanged at step 0
 EXPECT_N_OUT = 55        # decoder output channels for this dataset; asserted against config drift
 
@@ -150,11 +152,47 @@ FREEZE_ALL_BUT_HEAD = False
 STATIC_INDEX = []
 EXPECT_IN_DST = 136      # asserted, because STATIC_INDEX is meaningless if the layout changed
 
+# PER-CELL AFFINE CALIBRATION ON capacityfactor
+# --------------------------------------------
+# Three attempts to make the head produce PER-FARM plateaus have now come back null, on the full
+# test year, each inside the ~0.07 pp run-to-run noise:
+#   STATIC_INDEX = [129,130,131]   capacity/turbinecount handed to the branch    +0.07
+#   cf_layers = 2                  a second hidden layer, +16k parameters        +0.07
+#   wdir100_cos/sin in the loss    direction preserved in the shared latent      +0.06
+# The two architectural runs agreed with EACH OTHER to 0.001 pp at every lead in every bin, which
+# is what identical training trajectories look like: the additions changed nothing the head
+# computes. So the plateau is not an INFORMATION problem, not a CAPACITY problem, and not a
+# REPRESENTATION problem. The head can already tell the farms apart and still emits one plateau
+# near 93% of nameplate for farms whose real plateaus run 89.7% (Northwester2) to 97.4%
+# (Nobelwind); that plateau correlates -0.88 with each farm's 12+ bias.
+#
+# What is left is GRADIENT WEIGHT. Above rated is ~5% of hours and each farm occupies 1-2 of the
+# 172 cells, so pricing Northwester2's ceiling correctly moves the fleet MAE by ~0.04 pp. The
+# signal exists and the optimiser has almost no reason to chase it.
+#
+# This stops asking the network to LEARN the map from capacity to plateau and simply gives every
+# data node its own scale and offset on the capacityfactor channel:
+#       cf_cell  ->  scale * cf_cell + bias
+# initialised to (1, 0), so it is an exact no-op at step 0 like the branch itself. Only cells that
+# carry a real target ever receive gradient -- nan_mask_weights zeroes the rest -- so the ~77k
+# other entries stay exactly at (1, 0) and the parameter is 172 farm cells wide in practice.
+#
+# THIS IS NOT AN UNFAIR ADVANTAGE. The measured-curve baseline gets a per-farm plateau BY
+# CONSTRUCTION: farm_curves.empirical fits one curve per farm from the training window. Denying
+# the head the same freedom is what the comparison has been doing so far. Both sides fit their
+# per-farm calibration on the same period and neither sees the scored year.
+#
+# It is a sharp test: if a free parameter per cell cannot fix the plateau, nothing inside the head
+# can, and the limit lies in the target or the training window rather than the model.
+# Requires no grid sharding -- see the assertion in post_process.
+CF_CELL_AFFINE = False
+
 
 class CFHeadGraphTransformerBackwardMapper(GraphTransformerBackwardMapper):
     """GraphTransformerBackwardMapper with an extra private MLP on one output channel."""
 
-    def __init__(self, *args, cf_index: int, cf_hidden: int = CF_HIDDEN, **kwargs) -> None:
+    def __init__(self, *args, cf_index: int, cf_hidden: int = CF_HIDDEN,
+                 cf_layers: int = CF_LAYERS, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         assert self.out_channels_dst == EXPECT_N_OUT, (
             f"decoder writes {self.out_channels_dst} channels, expected {EXPECT_N_OUT}. The "
@@ -177,18 +215,45 @@ class CFHeadGraphTransformerBackwardMapper(GraphTransformerBackwardMapper):
         # the latent is normalised alone; the static channels are appended afterwards so one
         # LayerNorm over 512+3 dimensions cannot bury them
         self.cf_norm = nn.LayerNorm(self.hidden_dim)
-        self.cf_head = nn.Sequential(
-            nn.Linear(self.hidden_dim + len(self.static_index), cf_hidden),
-            nn.GELU(),
-            nn.Linear(cf_hidden, 1),
-        )
+        # WIDTH OR DEPTH?
+        # The measured failure is an INTERACTION, not a missing basis function: the head emits
+        # ~one plateau (~93% of nameplate) for farms whose real plateaus span 89.7%-97.4%, and
+        # that per-farm plateau correlates -0.88 with the 12+ bias. Reproducing "identify which
+        # farm this cell belongs to, THEN apply that farm's ramp and ceiling" needs the output to
+        # depend on farm identity and wind level jointly. One hidden layer can only write
+        # sum_i w_i * act(a_i . x) -- a sum of ridge functions, which represents a product of two
+        # factors only by piling up units. Two layers compose it directly: the first forms
+        # farm-identifying and wind-level features, the second combines them. So depth is aimed
+        # at the specific defect and width is not, and it is cheaper: 512->128->128->1 is 82k
+        # parameters against 131k for 512->256->1.
+        # This pairs with STATIC_INDEX. With capacity/turbinecount concatenated onto the normed
+        # latent, layer one can gate on capacity and layer two can apply the curve it selected --
+        # which is the whole point of feeding those channels past the frozen trunk.
+        layers, d_in = [], self.hidden_dim + len(self.static_index)
+        for _ in range(cf_layers):
+            layers += [nn.Linear(d_in, cf_hidden), nn.GELU()]
+            d_in = cf_hidden
+        layers.append(nn.Linear(d_in, 1))
+        self.cf_head = nn.Sequential(*layers)
         if ZERO_INIT_OUTPUT:
             nn.init.zeros_(self.cf_head[-1].weight)
             nn.init.zeros_(self.cf_head[-1].bias)
 
+        # PER-CELL AFFINE CALIBRATION -- see the note above CF_CELL_AFFINE
+        if CF_CELL_AFFINE:
+            n_dst = int(kwargs["dst_grid_size"])
+            self.cf_cell_scale = nn.Parameter(torch.ones(n_dst))
+            self.cf_cell_bias = nn.Parameter(torch.zeros(n_dst))
+            print(f"[cf_head] per-cell affine over {n_dst:,} data nodes "
+                  f"({2*n_dst:,} parameters, of which only the ~172 with a capacityfactor target "
+                  f"ever receive gradient)", flush=True)
+
         # Tag the private parameters. trunk_lr.SplitLRAdamW reads this to build two param groups;
         # the tag is inert under a plain AdamW, so it is always safe to set.
-        for p in list(self.cf_norm.parameters()) + list(self.cf_head.parameters()):
+        private = list(self.cf_norm.parameters()) + list(self.cf_head.parameters())
+        if CF_CELL_AFFINE:
+            private += [self.cf_cell_scale, self.cf_cell_bias]
+        for p in private:
             p._cf_head_param = True
 
         if FREEZE_ALL_BUT_HEAD:
@@ -196,7 +261,7 @@ class CFHeadGraphTransformerBackwardMapper(GraphTransformerBackwardMapper):
             # frozen by submodules_to_freeze as before.
             kept = frozen = 0
             for name, param in self.named_parameters():
-                if name.startswith(("cf_head.", "cf_norm.")):
+                if name.startswith(("cf_head.", "cf_norm.", "cf_cell_")):
                     kept += param.numel()
                 else:
                     param.requires_grad_(False)
@@ -248,6 +313,19 @@ class CFHeadGraphTransformerBackwardMapper(GraphTransformerBackwardMapper):
         """Mirror BackwardMapperPostProcessMixin.post_process, plus the private cf branch."""
         out = self.node_data_extractor(x_dst).clone()
         out[..., self.cf_index] += self._cf_branch(x_dst)
+
+        # getattr, not the attribute: checkpoints pickled before this existed must keep running.
+        scale = getattr(self, "cf_cell_scale", None)
+        if scale is not None:
+            # The parameter is indexed POSITIONALLY, so the rows here must be every data node in
+            # graph order. That holds with num_gpus_per_model=1 and the decoder's num_chunks=1.
+            # Shard or chunk the grid and each call would see a slice with no offset to align it,
+            # silently calibrating the wrong cells -- so fail loudly instead.
+            assert out.shape[-2] == scale.shape[0], (
+                f"per-cell affine expects all {scale.shape[0]} data nodes in one call, got "
+                f"{out.shape[-2]}. The grid is sharded or chunked; CF_CELL_AFFINE cannot align."
+            )
+            out[..., self.cf_index] = (out[..., self.cf_index] * scale) + self.cf_cell_bias
         if not keep_x_dst_sharded:
             out = gather_tensor(
                 out, 0, change_channels_in_shape(shapes_dst, self.out_channels_dst), model_comm_group

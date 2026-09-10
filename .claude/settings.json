@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/weatherloss/WindPower/training/CI/GNN/checkpoint/**)",
+      "Read(//mnt/weatherloss/WindPower/training/CI/GraphTransformer/checkpoint/**)",
+      "Read(//mnt/weatherloss/WindPower/training/CI/Transformer/checkpoint/**)",
+      "Read(//mnt/weatherloss/WindPower/training/**)",
+      "Read(//mnt/**)",
+      "Bash(mount)",
+      "Bash(ls commands/)",
+      "Bash(sed -n '1,80p' commands/run.py)",
+      "Bash(find / -path \"*anemoi/models/layers/processor.py\")",
+      "Bash(find / -path \"*anemoi/models/layers/mapper.py\")",
+      "Bash(find / -path \"*anemoi/models/layers/block.py\")"
+    ]
+  }
+}
