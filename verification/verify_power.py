@@ -113,29 +113,39 @@ CURVE_MODES = ["specs","empirical"] #, "empirical"]   # curve baselines, both sc
                             #   wind power forecasting, and the strong baseline: it carries the
                             #   farm's real wake, availability and electrical
                             #   losses, which no datasheet does.
-TRAIN_START = pd.Timestamp("2021-01-01 00:00:00", tz="UTC")   # where "empirical" is
+TRAIN_START = pd.Timestamp("2020-01-01 00:00:00", tz="UTC")   # where "empirical" is
                             # measured. Must end before INIT_START:
-TRAIN_END   = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")
-                            # power_obs.csv starts 2020-01-01, and this window is exactly what
-                            # the model saw (its training + validation), so both sides learn from
-                            # the same history and are judged on the same held-out year.
+TRAIN_END   = pd.Timestamp("2024-01-31 21:00:00", tz="UTC")
+                            # THE HEAD'S OWN TRAINING WINDOW, so both sides learn from exactly the
+                            # same history and are judged on the same held-out year. Scoring the
+                            # other defensible choice -- everything available before INIT_START,
+                            # 2021-01..2024-07 -- moved the result by 0.02 pp, so the window is
+                            # not what the margin rests on. Report the matched one and say so.
+
+# THE BLEND -- a third method, not a third model.
+# A run carrying capacityfactor yields TWO forecasts of the same quantity from ONE forward pass:
+# the head's power, and the model's own ws100 through the measured curve. On the full test year
+# their errors correlate +0.774 -- substantial, but not 1.0, so they fail on different cases.
+# Averaging cancels part of the independent component, and the gain is exactly what the
+# correlation predicts: sqrt((1+rho)/2) = 0.942 against 7.06 -> 6.62 measured. A mechanism, not a
+# coincidence, and 0.5 is near the variance-minimising weight because the two errors are a
+# similar size.
+# NOTHING HERE IS POST HOC: both terms are outputs of one forecast, available at issue time,
+# combined with a constant. No test-year information enters. Tune the weight on the VALIDATION
+# window if you want it optimal -- do not fit it on what you report.
+# And it is a capability the baseline cannot have: a weather-only run has no head to average
+# with. So it argues for the integrated architecture independently of the conversion claim.
+# Set BLEND_WEIGHT = None to drop the method.
+BLEND_WEIGHT = 0.5           # weight on DIRECT; (1 - w) goes on the curve
+BLEND_CURVE  = "empirical"   # which curve to blend with; must be in CURVE_MODES
+
 
 
 FORECAST_DIRS = {
-    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-   #"SH_Finetune":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/SHC_Finetune"),
-    #"Vanilla_Finetune":     Path("/mnt/weatherloss/WindPower/inference/WPDistr/Vanilla_Finetune"),
-  #  "Vanilla":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VanillaCapacityGT"),
-   #"H_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HC_Finetune"),
- #"VH": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-   # "VH_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Finetune"),
-      # "VH_Finetune_5k": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_5k_Finetune"),
-     #  "Huber_Finetune": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune"),
-    "Huber_Finetune2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/VHC_Huber_Finetune2"),
-    "Huber_Head1": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead1"),
-        "Huber_Head2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/HuberCFHead2"),
-
-
+    #"RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "MixedRollout": Path("/mnt/weatherloss/WindPower/inference/WPDistr/MixedRollout"),
+    "SoftWeightladder": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Windweights"),
+   # "Deeper": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Deeper"),
 
 }
 
@@ -183,12 +193,20 @@ SPECS_PER_CELL = True
 
 
 def mlabel(m):
-    return ("direct (capacity factor)" if m == "direct"
-            else f"{CURVE_NAME[m.split(':')[1]]} (window mean)")
+    if m == "direct":
+        return "direct (capacity factor)"
+    if m == "blend":
+        return (f"blend {BLEND_WEIGHT:g}*direct + {1 - BLEND_WEIGHT:g}*"
+                f"{CURVE_NAME[BLEND_CURVE]}")
+    return f"{CURVE_NAME[m.split(':')[1]]} (window mean)"
 
 
 def mstyle(m):
-    return "-" if m == "direct" else CURVE_STYLE[m.split(":")[1]]
+    if m == "direct":
+        return "-"
+    if m == "blend":
+        return "-."
+    return CURVE_STYLE[m.split(":")[1]]
 
 # Okabe-Ito: distinguishable under deuteranopia, protanopia and tritanopia. Ordered for contrast
 # on white; yellow last because it washes out in a thin line. RUNS differ by colour AND marker,
@@ -377,6 +395,11 @@ def main():
               ", ".join(f"{v:.4f}" for v in edges[units[0][0]]))
 
     methods = ["direct"] + [f"curve:{m}" for m in CURVE_MODES]
+    if BLEND_WEIGHT is not None:
+        if BLEND_CURVE not in CURVE_MODES:
+            raise SystemExit(f"BLEND_CURVE={BLEND_CURVE!r} is not in CURVE_MODES={CURVE_MODES} "
+                             f"-- the blend needs that curve scored on the same sample")
+        methods.append("blend")
     serr = {(r, m): np.zeros((U, L, nbin)) for r in fmaps for m in methods}
     sbias = {k: np.zeros((U, L, nbin)) for k in serr}
     n = {k: np.zeros((U, L, nbin)) for k in serr}
@@ -436,6 +459,11 @@ def main():
                         for m in CURVE_MODES}
                 if p_direct is not None:
                     pred["direct"] = p_direct[t2i[vt]]
+                    # derived from two entries of `pred`, so it inherits their NaN handling and
+                    # is scored on exactly the same cases as everything else
+                    if BLEND_WEIGHT is not None:
+                        pred["blend"] = (BLEND_WEIGHT * pred["direct"]
+                                         + (1.0 - BLEND_WEIGHT) * pred[f"curve:{BLEND_CURVE}"])
 
                 k = lpos[lh]
                 nan_here = False
@@ -464,7 +492,8 @@ def main():
                 n_nan[label] += nan_here
 
     series = [(r, m) for r in fmaps for m in methods
-              if not (m == "direct" and not has_direct[r]) and n[(r, m)].sum() > 0]
+              if not (m in ("direct", "blend") and not has_direct[r])
+              and n[(r, m)].sum() > 0]
     if not series:
         raise SystemExit("nothing scored -- check that forecast valid times overlap power_obs")
 

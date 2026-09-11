@@ -139,8 +139,8 @@ dataloader:
     # predict: 1
 
   limit_batches:
-    training: 500  
-    validation: null 
+    training: 500
+    validation: 100 
     test: 20
     # predict: 20
 
@@ -439,9 +439,9 @@ graph:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
           masks:
             _target_: anemoi.graphs.nodes.attributes.CutOutMask
-        # turbine_mask:
-        #   _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
-        #   variable: turbinemask
+        turbine_mask:
+          _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
+          variable: turbmask
 
     hidden:
       node_builder:
@@ -559,9 +559,10 @@ model:
     layer_kernels: ${model.layer_kernels}
 
   decoder:
-    _target_: cf_head.CFHeadGraphTransformerBackwardMapper   # was anemoi...GraphTransformerBackwardMapper
-    cf_index: 54          
+    _target_: cf_head.CFHeadGraphTransformerBackwardMapper
+    cf_index: 54
     cf_hidden: 128
+    cf_layers: 1
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1
@@ -658,44 +659,58 @@ training:
   loss_gradient_scaling: false
 
   training_loss:
-    _target_: anemoi.training.losses.HuberLoss
-    delta: 0.5
-    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
-    ignore_nans: true
+    _target_: combined_loss.ScalerAwareCombinedLoss
+    loss_weights: [1, 1]
+    losses:
+      - _target_: anemoi.training.losses.HuberLoss
+        delta: 1.0
+        scalers: ['pressure_level', 'weather_variable', 'node_weights',
+                  'nan_mask_weights', 'farm_boost']        # ← the only change
+        ignore_nans: true
+      - _target_: anemoi.training.losses.MAELoss          
+        scalers: ['power_variable', 'node_weights', 'nan_mask_weights']
+        ignore_nans: true
+    scalers: ['pressure_level', 'weather_variable', 'power_variable', 'node_weights',
+              'nan_mask_weights', 'farm_boost']
+
 
   validation_metrics:
     huber:
       _target_: anemoi.training.losses.HuberLoss
-      delta: 0.5
-      scalers: ['node_weights'] #,'nan_mask_weights']   
+      delta: 0.25
+      scalers: ['node_weights'] #, 'nan_mask_weights']
       ignore_nans: true
 
+
   scalers:
-    general_variable:
+    weather_variable:
       _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
       weights:
-        default: 0 #1
-        q: 0 #0.6
-        t: 0 #6
-        u: 0 #0.8
-        v: 0 #0.5
-        w: 0 #0.001
-        z: 0 #12
-        mcc: 0 #0.1
-        ws10: 0
-        ws100: 1
-        wdir100_cos: 0.5
-        wdir100_sin: 0.5
-        wdir10_cos: 0
-        wdir10_sin: 0 
-        capacityfactor: 100
+        default: 0
+        capacityfactor: 0
+        ws10: 0.5
+        ws100: 0.5
 
+    farm_boost:                                                          # ← add
+      _target_: farm_scalers.FarmBoostScaler
+      nodes_name: ${graph.data}
+      nodes_attribute_name: turbine_mask
+      boost: 50
+      norm: null
+
+
+    power_variable:
+      _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
+      weights:
+        default: 0
+        capacityfactor: 100
 
     pressure_level:
       _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
       group: pl
       y_intercept: 0.2
       slope: 0.001
+
 
     nan_mask_weights:
       _target_: anemoi.training.losses.scalers.NaNMaskScaler
@@ -730,8 +745,8 @@ training:
 
   rollout:
     start: 1
-    epoch_increment: 0
-    max: 1
+    epoch_increment: 1
+    max: 6
 
   max_epochs: 40
   max_steps: 5000

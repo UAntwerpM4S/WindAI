@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""What did the per-cell affine actually learn? Read it out and test it against the real plateaus.
+
+CF_CELL_AFFINE gave every data node a free scale and offset on capacityfactor, initialised to
+(1, 0). The fleet score came back null (+0.02 pp) but the bin table said something sharper: the
+output was pulled DOWN everywhere, erasing the 8-12 over-prediction (+21.8 -> -0.1 MW) and
+DEEPENING the 12+ under-prediction (-47.7 -> -74.3). The plateau got worse.
+
+That is the reading FROM the forecasts. This checks it at the source, in the parameters, where
+there is no inference or scoring in between. Two outcomes and they mean opposite things:
+
+  scales ANTI-CORRELATE with each farm's measured plateau
+      the parameter did what it was designed to do -- pulled the low-plateau farms down more
+      than the high-plateau ones. The mechanism works and the fleet metric simply does not
+      reward it, which is a weaker claim than the bin table suggests.
+
+  scales are near-UNIFORMLY below 1, uncorrelated with the plateau
+      the parameter was spent on a global level correction for the 8-12 band, not on farm
+      identity. The plateau is not something a fleet-MAE objective will fix with any parameter,
+      which is the strong claim -- and this is what the bin table predicts.
+
+Data nodes are matched to farms through the checkpoint's OWN supporting arrays --
+latitudes/longitudes indexed by grid_indices -- rather than by assuming the CERRA block comes
+first in the cutout. The ordering is an implementation detail of anemoi-datasets; the coordinates
+are not.
+
+Prints a per-farm table and the correlation. Saves one PNG.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Unpickling the checkpoint imports the decoder by module path, so `cf_head` must be importable
+# HERE -- this one runs in-process, unlike rank_checkpoints.py which sets it for a subprocess.
+# Doing it in the script means the result does not depend on what the calling shell exported.
+TRAINING_DIR = "/mnt/weatherloss/WindPower/training"
+if TRAINING_DIR not in sys.path:
+    sys.path.insert(0, TRAINING_DIR)
+
+import numpy as np
+import pandas as pd
+import torch
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
+from anemoi.utils.checkpoints import load_metadata
+
+import farm_curves as fc
+
+# ============================== SETTINGS ==============================
+REGION = "BE"
+CKPT = Path("/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/"
+            "checkpoint/NodeSpecial/inference-last.ckpt")
+
+TRAIN_START = pd.Timestamp("2020-01-01 00:00:00", tz="UTC")   # the head's own training window,
+TRAIN_END   = pd.Timestamp("2024-01-31 21:00:00", tz="UTC")   # so the plateaus are comparable
+
+WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")
+TRUTH_ZARR = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
+OUT_DIR    = Path("DistrFigures")
+# ======================================================================
+
+
+def to_180(lon):
+    return ((np.asarray(lon, dtype=float) + 180.0) % 360.0) - 180.0
+
+
+def main():
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ---- the learned parameters ----
+    # weights_only=False: this is a pickled model object, and cf_head must be importable.
+    model = torch.load(CKPT, weights_only=False, map_location="cpu")
+    dec = model.model.decoder
+    if not hasattr(dec, "cf_cell_scale"):
+        raise SystemExit(f"{CKPT.name} has no cf_cell_scale -- CF_CELL_AFFINE was off for this run")
+    scale = dec.cf_cell_scale.detach().numpy()
+    bias = dec.cf_cell_bias.detach().numpy()
+
+    # ---- where each data node is, from the checkpoint's own arrays ----
+    _, arrays = load_metadata(CKPT, supporting_arrays=True)
+    idx = np.asarray(arrays["grid_indices"]).ravel().astype(int)
+    nlat = np.asarray(arrays["latitudes"]).ravel()[idx]
+    nlon = to_180(np.asarray(arrays["longitudes"]).ravel()[idx])
+    assert scale.shape[0] == idx.size, (
+        f"parameter is {scale.shape[0]} long but the model has {idx.size} data nodes")
+
+    # ---- farms, and each farm's cells among those nodes ----
+    farms_df = pd.read_csv(WPOWER_DIR / "farms.csv")
+    turbines = pd.read_csv(WPOWER_DIR / "turbines.csv")
+    obs = pd.read_csv(WPOWER_DIR / "power_obs.csv", index_col=0, parse_dates=True)
+    if obs.index.tz is None:
+        obs.index = obs.index.tz_localize("UTC")
+    farms = farms_df[farms_df.region.str.upper() == REGION].farm.tolist()
+    turbines = turbines[turbines.farm.isin(farms)]
+    cap = farms_df.set_index("farm").loc[farms, "capacity_mw"]
+
+    ck = np.cos(np.radians(float(nlat.mean())))
+    _, node = cKDTree(np.c_[nlon * ck, nlat]).query(
+        np.c_[to_180(turbines.longitude) * ck, turbines.latitude.to_numpy()], k=1)
+    turbines = turbines.assign(node=node.astype(int))
+
+    # ---- the real plateaus, the same objects verify_power.py scores against ----
+    curve = fc.empirical(farms, farms_df, turbines, obs, TRUTH_ZARR, TRAIN_START, TRAIN_END)
+    probe = np.arange(0.25, 25.0, 0.25)
+
+    print(f"\n{CKPT.parent.name}/{CKPT.name}")
+    print(f"{idx.size:,} data nodes | scale init 1.0, bias init 0.0\n")
+    moved = np.abs(scale - 1.0) > 1e-6
+    print(f"  nodes whose scale moved at all : {int(moved.sum()):,} of {idx.size:,} "
+          f"({100*moved.mean():.2f}%)")
+    print(f"  scale over those               : {scale[moved].min():.4f} .. "
+          f"{scale[moved].max():.4f}, mean {scale[moved].mean():.4f}")
+    print(f"  bias  over those               : {bias[moved].min():+.4f} .. "
+          f"{bias[moved].max():+.4f}, mean {bias[moved].mean():+.4f}\n")
+
+    hdr = (f"{'farm':14s} {'cells':>5s} {'plateau':>9s} {'scale':>8s} {'bias':>9s} "
+           f"{'cf 0.93 ->':>11s}")
+    print("=" * len(hdr)); print(hdr); print("=" * len(hdr))
+    rows = []
+    for f in farms:
+        nodes = sorted(turbines[turbines.farm == f].node.unique())
+        wts = turbines[turbines.farm == f].groupby("node")["capacity_mw"].sum().reindex(nodes)
+        wts = (wts / wts.sum()).to_numpy()
+        s = float(scale[nodes] @ wts)
+        b = float(bias[nodes] @ wts)
+        plateau = float(curve[f](probe).max()) / float(cap[f])      # fraction of nameplate
+        rows.append({"farm": f, "cells": len(nodes), "plateau": plateau,
+                     "scale": s, "bias": b, "at93": s * 0.93 + b})
+        print(f"{f:14s} {len(nodes):5d} {100*plateau:8.1f}% {s:8.4f} {b:+9.4f} "
+              f"{100*(s*0.93+b):10.1f}%")
+    df = pd.DataFrame(rows)
+
+    r = float(np.corrcoef(df.plateau, df.scale)[0, 1])
+    print(f"\n  corr(measured plateau, learned scale) = {r:+.3f}")
+    print("    strongly POSITIVE would mean the parameter learned farm identity: low-plateau")
+    print("    farms pulled down further. Near ZERO means it was spent on a global level shift")
+    print("    and never distinguished the farms, which is the stronger negative result.")
+    print(f"  spread of learned scales: {df.scale.min():.4f} .. {df.scale.max():.4f} "
+          f"({100*(df.scale.max()-df.scale.min()):.2f} pp of range)")
+    print(f"  spread of real plateaus : {100*df.plateau.min():.1f}% .. "
+          f"{100*df.plateau.max():.1f}% ({100*(df.plateau.max()-df.plateau.min()):.1f} pp)")
+    print("  if the second range is much wider than the first, the parameter did not even")
+    print("  attempt the per-farm correction it was given the freedom to make.")
+
+    # ---- figure ----
+    fig, axs = plt.subplots(1, 2, figsize=(11.5, 4.6))
+    axs[0].scatter(100 * df.plateau, df.scale, s=45, color="C0")
+    for _, r_ in df.iterrows():
+        axs[0].annotate(r_.farm, (100 * r_.plateau, r_.scale), fontsize=7,
+                        xytext=(3, 3), textcoords="offset points")
+    axs[0].axhline(1.0, color="0.5", lw=1, ls="--")
+    axs[0].set_xlabel("measured plateau [% of nameplate]")
+    axs[0].set_ylabel("learned per-cell scale")
+    axs[0].set_title(f"Did it learn farm identity?   corr {r:+.3f}", fontsize=10)
+
+    x = np.arange(len(df))
+    axs[1].bar(x - 0.2, 100 * df.plateau, 0.4, label="measured plateau", color="0.55")
+    axs[1].bar(x + 0.2, 100 * df.at93, 0.4, label="head's 93% after calibration", color="C1")
+    axs[1].set_xticks(x); axs[1].set_xticklabels(df.farm, rotation=45, ha="right", fontsize=7)
+    axs[1].set_ylabel("% of nameplate")
+    axs[1].set_title("Where the calibrated plateau lands vs the real one", fontsize=10)
+    axs[1].legend(fontsize=8)
+    for ax in axs:
+        ax.grid(alpha=0.3)
+    fig.suptitle(f"Per-cell affine, learned — {CKPT.parent.name}", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    out = OUT_DIR / f"cell_affine_{REGION}.png"
+    fig.savefig(out, dpi=150); plt.close(fig)
+    print(f"\nSaved: {out}")
+
+
+if __name__ == "__main__":
+    main()

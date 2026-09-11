@@ -41,9 +41,15 @@ CHECKPOINTS = {
     # "WindAI/RegularWeather": (
     #     "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
     #     "inference-last.ckpt"),
-    "WPDistr/HuberCFHead3": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/HuberCFHead3/", 
+        "WPDistr/Windweights": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/Windweights/", 
         "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
+    # "WPDistr/Static": (
+    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/Static/", 
+    #     "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
+    # "WPDistr/MixedRollout": (
+    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/MixedRollout/", 
+    #     "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
     # "WPDistr/VHC_5k_Finetune": (
     #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
     #     "inference-anemoi-by_epoch-epoch_009-step_005000.ckpt"),

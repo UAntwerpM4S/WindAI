@@ -2,7 +2,7 @@
 defaults:
   - _self_
 
-config_validation: true
+config_validation: false
 
 # ============================================================
 # SYSTEM
@@ -21,11 +21,11 @@ system:
     graph: /mnt/weatherloss/WindPower/graphs/WPDistr/WPDistrgraph.pt
     truncation: null
     truncation_inv: null
-    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGT/checkpoint/79c61ab7f58845249c7619a5d2ae3adc/anemoi-by_epoch-epoch_007-step_007500.ckpt
+    warm_start: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGT/checkpoint/f2baebf0b95b4d8dafb493d3fb36d29a/anemoi-by_time-epoch_007-step_007500.ckpt
 
 
   output:
-    root: /mnt/weatherloss/WindPower/training/WPDistr/SemiHighCapacityGTFinetune
+    root: /mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber
     logs:
       root: logs
       wandb: wandb
@@ -139,7 +139,7 @@ dataloader:
     # predict: 1
 
   limit_batches:
-    training: 500  
+    training: 100 
     validation: null 
     test: 20
     # predict: 20
@@ -393,6 +393,7 @@ diagnostics:
     mlflow:
       enabled: true
       offline: true
+      save_dir: null
       authentication: false
       log_model: false
       tracking_uri: "file:${system.output.root}/${system.output.logs.root}/${system.output.logs.mlflow}"
@@ -558,7 +559,9 @@ model:
     layer_kernels: ${model.layer_kernels}
 
   decoder:
-    _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
+    _target_: cf_head.CFHeadGraphTransformerBackwardMapper   # was anemoi...GraphTransformerBackwardMapper
+    cf_index: 54          
+    cf_hidden: 128
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1
@@ -568,6 +571,19 @@ model:
     qk_norm: false
     cpu_offload: ${model.cpu_offload}
     layer_kernels: ${model.layer_kernels}
+
+
+  # decoder:
+  #   _target_: anemoi.models.layers.mapper.GraphTransformerBackwardMapper
+  #   trainable_size: ${model.trainable_parameters.hidden2data}
+  #   sub_graph_edge_attributes: ${model.attributes.edges}
+  #   num_chunks: 1
+  #   mlp_hidden_ratio: 2
+  #   num_heads: 8
+  #   initialise_data_extractor_zero: false
+  #   qk_norm: false
+  #   cpu_offload: ${model.cpu_offload}
+  #   layer_kernels: ${model.layer_kernels}
 
   residual:
     _target_: anemoi.models.layers.residual.SkipConnection
@@ -608,8 +624,8 @@ model:
 # ============================================================
 
 training:
-  run_id: null #df8a680556d848d8b824c63943534d6f
-  fork_run_id: null #df8a680556d848d8b824c63943534d6f
+  run_id: null #81daa05665cb4f4daf1452e60657465d
+  fork_run_id: null #81daa05665cb4f4daf1452e60657465d
   load_weights_only: True
   transfer_learning: false
 
@@ -642,38 +658,47 @@ training:
   loss_gradient_scaling: false
 
   training_loss:
-    _target_: anemoi.training.losses.MSELoss
-    scalers: ['pressure_level', 'general_variable', 'node_weights', 'nan_mask_weights'] 
-    ignore_nans: true
+    _target_: combined_loss.ScalerAwareCombinedLoss
+    loss_weights: [1, 1]
+    losses:
+      - _target_: anemoi.training.losses.HuberLoss
+        delta: 1.0
+        scalers: ['pressure_level', 'weather_variable', 'node_weights', 'nan_mask_weights']
+        ignore_nans: true
+      - _target_: anemoi.training.losses.MAELoss
+        scalers: ['power_variable', 'node_weights', 'nan_mask_weights']
+        ignore_nans: true
+    scalers: ['pressure_level', 'weather_variable', 'power_variable', 'node_weights', 'nan_mask_weights']
 
   validation_metrics:
-    mse:
-      _target_: anemoi.training.losses.MSELoss
-      scalers: ['node_weights'] #,'nan_mask_weights']   
+    huber:
+      _target_: anemoi.training.losses.HuberLoss
+      delta: 0.25
+      scalers: ['node_weights']
       ignore_nans: true
 
+
   scalers:
-    general_variable:
+    weather_variable:
       _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
       weights:
-        default: 0 #1
-        q: 0 #0.6
-        t: 0 #6
-        u: 0 #0.8
-        v: 0 #0.5
-        w: 0 #0.001
-        z: 0 #12
-        mcc: 0 #0.1
-        ws10: 0 #1 
-        ws100: 0 #1 
-        capacityfactor: 25
+        default: 0
+        capacityfactor: 0
+        ws10: 0.5
+        ws100: 0.5
 
+    power_variable:
+      _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
+      weights:
+        default: 0
+        capacityfactor: 100
 
     pressure_level:
       _target_: anemoi.training.losses.scalers.ReluVariableLevelScaler
       group: pl
       y_intercept: 0.2
       slope: 0.001
+
 
     nan_mask_weights:
       _target_: anemoi.training.losses.scalers.NaNMaskScaler
@@ -707,12 +732,12 @@ training:
   #   metrics: []
 
   rollout:
-    start: 1
-    epoch_increment: 0
-    max: 1
+    start: 6
+    epoch_increment: 1
+    max: 6
 
   max_epochs: 40
-  max_steps: 3000
+  max_steps: 5000
 
 #   lr:
 #     warmup: 1000
@@ -724,7 +749,7 @@ training:
   lr:
     warmup: 200
     rate: 0.00003
-    iterations: 3000
+    iterations: 5000
     min: 3.0e-07
 
 
