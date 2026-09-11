@@ -95,8 +95,8 @@ LayerNorm(512) -> Linear(512, 128) -> GELU -> Linear(128, 1)     66,817 params
 Zero-initialised final layer, added as a residual into output channel 54 only, so at step 0 the
 model is bit-identical to the warm start. Pointwise, therefore safe under grid sharding. It lives
 inside `decoder`, which is why `submodules_to_freeze: [encoder, processor]` leaves it trainable.
-`STATIC_INDEX = []` — the raw-forcing passthrough is **off** in this run.
-`FREEZE_ALL_BUT_HEAD = False`.
+That is the whole head — `cf_head.py` now contains nothing else, every switch it used to carry
+having been tested and removed (see *Ruled out* below).
 
 `cf_index: 54` is the **model output** index, not the zarr index (64). 67 data variables − 12
 forcings = 55 output channels, `capacityfactor` last.
@@ -214,10 +214,50 @@ importable at the same module path forever.
 | `combined_loss.ScalerAwareCombinedLoss` | anemoi 0.8.1 bug: `CombinedLoss.__init__` does `del self.scaler` but `GraphForecaster.update_scalers` reads `if name in self.loss.scaler` unconditionally (`train/tasks/base.py:319`), so any updating scaler crashes on batch 1 | subclass restores `.scaler` as a membership test over the sub-losses |
 
 **Ruled out along the way**, each with a mechanism: Huber δ0.5 and δ0.175; `ws100: 1.0`;
-the raw-forcing static passthrough (0.01–0.03 pp, but tested under δ0.25 — a confounded negative);
 freezing the whole decoder (wind +0.05, conversion +1.15); `LeakyHardtanhBounding` (upper clamp
 inert, upside ≤0.06 pp); `trainable_parameters.data` node embeddings (`.data` is dead config,
 only `.hidden` is read and changing it breaks the warm start).
+
+### The per-farm plateau: four nulls, and what they close off
+
+The head emits ~one plateau (~93% of nameplate) for farms whose real plateaus span 89.7%
+(Northwester2) to 97.4% (Nobelwind); that plateau correlates −0.88 with each farm's 12+ bias. Four
+attempts to fix it were trained and scored on the full test year. **All four landed inside the
+~0.07 pp run-to-run seed noise**, and the code for each has been deleted rather than left as a dead
+switch — this table is the record.
+
+| attempt | what it supplied | result |
+|---|---|---|
+| `STATIC_INDEX = [129,130,131]` | `capacity`/`turbinecount`/`turbmask` handed straight to the branch, bypassing the frozen trunk | +0.07 — **information** is not the limit |
+| `cf_layers = 2` | a second hidden layer, +16k params, so farm identity and wind level can interact | +0.07 — **capacity** is not the limit |
+| `wdir100_cos/sin` in the loss | direction preserved in the shared latent | +0.06 — **representation** is not the limit |
+| `CF_CELL_AFFINE` | a **free** scale and offset per data node on capacityfactor, init at identity | +0.00 fleet, plateau 0.27 pp **worse** |
+
+The first two agreed with each other to 0.001 pp at every lead in every bin — identical training
+trajectories, i.e. the additions changed nothing the head computes. The fourth is the decisive one:
+that parameter needed no learning at all, and the bin table says where it went — the output was
+pulled **down** everywhere, erasing the 8–12 over-prediction (+21.8 → −0.1 MW) and deepening the
+12+ under-prediction (−47.7 → −74.3 MW).
+
+So the plateau is not something the model cannot express. It is something the **objective does not
+want**: above rated is a fraction of the 22% of hours in the 12+ bin, each farm is 1–2 of the 172
+target cells, and a fleet MAE will always rather spend a parameter on the 8–12 band that carries
+32% of the samples.
+
+A `PlateauWeightedMAE` confirmed that directly, by up-weighting the power term where the *target*
+was near rated: the hard version cost **+0.19 pp** on fleet MAE; the soft version was neutral
+(−0.02) and moved the 12+ bias by −15.2 MW. The plateau is therefore *fixable and worth ~0 on the
+headline* — a trade to make deliberately if per-farm error is the claim, not a gain.
+
+### Also removed
+
+`farm_scalers.FarmBoostScaler` (up-weight the wind loss at the 172 farm cells — it would have moved
+the claim from "converts better" to "knows where the farms are", and was never run to a scored
+result), `trunk_lr.SplitLRAdamW` (a continuous knob between the frozen-decoder and full-LR
+endpoints — superseded, because matching the rollout recovered the wind outright: +0.54 → −0.05),
+and `farm_metrics.FarmMaskedMAE` (a validation metric masked to cells with a real target — the
+right fix for the ~99.8%-fabricated-zeros problem, but no config ever used it; `rank_checkpoints.py`
+does the selection from forecasts instead). All recoverable from git if a future run needs them.
 
 ---
 

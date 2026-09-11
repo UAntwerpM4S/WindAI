@@ -4,8 +4,8 @@
 The stock validation metric cannot rank these runs: capacityfactor is a diagnostic, so the inverse
 imputer never restores its NaNs (imputer.py:93-98, 260) and the logged metric averages ~99.8%
 fabricated zeros. It moved 0.3% across six lead times and called step 499 better than step 4999 --
-the checkpoint that actually scored 6.94. farm_metrics.FarmMaskedMAE fixes that for FUTURE runs;
-this script recovers the same ranking for checkpoints that ALREADY EXIST, by forecasting with them.
+the checkpoint that actually scored 6.94. So checkpoint selection has to be done from FORECASTS,
+which is what this script does -- and it works on checkpoints that already exist.
 
 It scores two numbers per checkpoint, on the VALIDATION window, at the farm cells only:
 

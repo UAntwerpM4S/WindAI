@@ -212,9 +212,24 @@ def main():
           f"{100*np.nanmean(best)/total_cap:6.2f} %cap")
     print(f"  share of cases where 0h is NOT the best shift: "
           f"{100*np.mean(which != 0):.1f}%")
-    print(f"\n  This bounds how much of even the IRREDUCIBLE term is really timing. If the shifted")
-    print(f"  number collapses, then much of what looks like availability is the observation and")
-    print(f"  the wind being out of phase, and no local correction reaches it.")
+    print("\n  READ THE BEST-SHIFT NUMBER WITH CARE. Taking the minimum over five options is an")
+    print("  ORACLE: even with NO timing error at all, picking the smallest of five correlated")
+    print("  errors lands well below any single one. A null simulation reproduces the observed")
+    print("  numbers almost exactly -- 46% of the 0h error and 87% of cases preferring a shift,")
+    print("  against 48% and 65.8% measured. So this line alone says almost nothing.")
+    print("\n  The honest test is a FIXED shift applied to every case. A systematic lag -- a")
+    print("  timestamp convention, or CERRA running early or late against the meter -- shows up")
+    print("  as one column beating 0h for EVERYBODY. Per-case selection cannot produce that.\n")
+    print(f"  {'fixed shift':>13}{'MAE %cap':>11}{'vs 0h':>9}")
+    fixed = {s_: pc(d[f"shift{s_}"] - d.obs) for s_ in SHIFTS}
+    best_fixed = min(fixed.values())
+    for s_ in SHIFTS:
+        v = fixed[s_]
+        print(f"  {s_:+10d} h{v:11.2f}{v - fixed[0]:+9.2f}"
+              + ("   <- best fixed" if v == best_fixed else ""))
+    print("\n  If every fixed shift is WORSE than 0h there is no systematic lag, the best-shift")
+    print("  figure above is selection, and the residual is genuine scatter rather than timing")
+    print("  you could correct.")
 
     # ---- by regime ----
     b = np.digitize(d.ws_truth, WS_EDGES)

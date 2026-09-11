@@ -439,9 +439,6 @@ graph:
           _target_: anemoi.graphs.nodes.attributes.BooleanNot
           masks:
             _target_: anemoi.graphs.nodes.attributes.CutOutMask
-        turbine_mask:
-          _target_: anemoi.graphs.nodes.attributes.masks.NonmissingAnemoiDatasetVariable
-          variable: turbmask
 
     hidden:
       node_builder:
@@ -562,7 +559,6 @@ model:
     _target_: cf_head.CFHeadGraphTransformerBackwardMapper
     cf_index: 54
     cf_hidden: 128
-    cf_layers: 1
     trainable_size: ${model.trainable_parameters.hidden2data}
     sub_graph_edge_attributes: ${model.attributes.edges}
     num_chunks: 1
@@ -664,14 +660,13 @@ training:
     losses:
       - _target_: anemoi.training.losses.HuberLoss
         delta: 1.0
-        scalers: ['pressure_level', 'weather_variable', 'node_weights',
-                  'nan_mask_weights', 'farm_boost']        # ← the only change
+        scalers: ['pressure_level', 'weather_variable', 'node_weights', 'nan_mask_weights']
         ignore_nans: true
       - _target_: anemoi.training.losses.MAELoss          
         scalers: ['power_variable', 'node_weights', 'nan_mask_weights']
         ignore_nans: true
     scalers: ['pressure_level', 'weather_variable', 'power_variable', 'node_weights',
-              'nan_mask_weights', 'farm_boost']
+              'nan_mask_weights']
 
 
   validation_metrics:
@@ -690,14 +685,6 @@ training:
         capacityfactor: 0
         ws10: 0.5
         ws100: 0.5
-
-    farm_boost:                                                          # ← add
-      _target_: farm_scalers.FarmBoostScaler
-      nodes_name: ${graph.data}
-      nodes_attribute_name: turbine_mask
-      boost: 50
-      norm: null
-
 
     power_variable:
       _target_: anemoi.training.losses.scalers.GeneralVariableLossScaler
