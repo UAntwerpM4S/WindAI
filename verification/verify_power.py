@@ -95,7 +95,7 @@ METRIC   = "mae"             # "mae" | "rmse" -- see the METRIC note in the docs
                              # aggregated from summed SQUARED errors, so the all-bins number is
                              # the true overall RMSE, not an average of the per-bin ones.
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-BINNING  = "regimes"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
 N_QUANT  = 10                # BINNING="quantiles": equal-count bins, cut per unit
 REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              # "cerra-ws": CERRA truth ws100 at the unit's cells.
@@ -105,7 +105,7 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False            # False: the summed regional total. True: one series per farm.
-CURVE_MODES = ["specs","empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
+CURVE_MODES = ["empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
                             # "specs"    : turbine_specs.csv through the cubic law. Nothing
                             #   observed, nothing fitted -- the manufacturer curve.
                             # "empirical": the farm's own MEASURED curve, by the method of bins
@@ -139,12 +139,24 @@ TRAIN_END   = pd.Timestamp("2024-01-31 21:00:00", tz="UTC")
 BLEND_WEIGHT = 0.5           # weight on DIRECT; (1 - w) goes on the curve
 BLEND_CURVE  = "empirical"   # which curve to blend with; must be in CURVE_MODES
 
+# THE CERRA TRANSFORMER -- a REFERENCE line, not a scored method. The WindPowerTransformer trained
+# on CERRA wind 2020-01..2024-01 (val 2024-02..07) and pushed with RegularWeather forecast wind
+# over 2024-08..2025-07 (/mnt/weatherloss/cerra_check). These numbers were computed THERE, on
+# RegularWeather's own 2909 inits, not re-scored on this script's sample. They are only valid for
+# the BE regional total, all 10 farms, full year, MAE -- so the line is drawn only in that
+# configuration and skipped (with a note) otherwise.
+TRANSFORMER = True
+TRANSFORMER_MAE = {3: 5.25, 6: 5.68, 9: 5.96, 12: 6.09, 15: 6.25, 18: 6.53,   # % of capacity
+                   21: 6.77, 24: 7.01, 27: 7.21, 30: 7.36, 33: 7.55}
+TRANSFORMER_SUMMARY = "MAE 6.52 %, RMSE 228.1 MW, bias -50.4 MW over 2909 inits"
+TRANSFORMER_LABEL = "CERRA transformer <- RegularWeather wind (reference, own sample)"
+
 
 
 FORECAST_DIRS = {
-    #"RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
     "MixedRollout": Path("/mnt/weatherloss/WindPower/inference/WPDistr/MixedRollout"),
-    "SoftWeightladder": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Windweights"),
+    #"SoftWeightladder": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Windweights"),
    # "Deeper": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Deeper"),
 
 }
@@ -311,6 +323,23 @@ def main():
         print(f"Leads dropped (no window available): {dropped}")
     lpos = {lh: k for k, lh in enumerate(leads)}
     L = len(leads)
+
+    # the reference numbers only mean something in the configuration they were computed in
+    tf_why = [w for w, bad in (("BINNING != 'none'", BINNING != "none"),
+                               ("PER_FARM", PER_FARM),
+                               ("METRIC != 'mae'", METRIC != "mae"),
+                               ("REGION != 'BE'", REGION != "BE"),
+                               ("EXCLUDE_FARMS set", bool(EXCLUDE_FARMS)),
+                               ("SEASON != 'all'", SEASON != "all")) if bad]
+    show_tf = TRANSFORMER and not tf_why
+    if TRANSFORMER and tf_why:
+        print(f"TRANSFORMER reference line skipped ({', '.join(tf_why)}): its numbers are for the "
+              f"BE regional total, all farms, full year, MAE only.")
+    elif show_tf:
+        if set(TRANSFORMER_MAE) != set(leads):
+            raise SystemExit(f"TRANSFORMER_MAE leads {sorted(TRANSFORMER_MAE)} != scored leads "
+                             f"{leads}")
+        print(f"TRANSFORMER reference: {TRANSFORMER_SUMMARY} -- NOT re-scored on this sample.")
 
     months = SEASONS[SEASON]
     fmaps = {}
@@ -550,7 +579,7 @@ def main():
             print("  value can land there. Switch to 'cerra-ws' to bin on the wind itself.")
 
     lab = {(r, m): f"{r} / {mlabel(m)}" for r, m in series}
-    wid = max(len(v) for v in lab.values()) + 1
+    wid = max([len(v) for v in lab.values()] + ([len(TRANSFORMER_LABEL)] if show_tf else [])) + 1
     hdr = f"{'run / method':{wid}s} " + " ".join(f"{lh:>6d}h" for lh in leads)
     MET = METRIC.upper()
     reg_range = range(nbin) if binned else [None]
@@ -567,6 +596,9 @@ def main():
             for k in series:
                 print(f"{lab[k]:{wid}s} " +
                       " ".join(f"{v:7.2f}" for v in 100.0 * score(k, u, r_i) / ucap))
+            if show_tf:
+                print(f"{TRANSFORMER_LABEL:{wid}s} " +
+                      " ".join(f"{TRANSFORMER_MAE[lh]:7.2f}" for lh in leads))
             print(f"{'  bias [MW]':{wid}s}")
             for k in series:
                 print(f"{lab[k]:{wid}s} " +
@@ -584,6 +616,9 @@ def main():
                 for r in runs_in]
                + [plt.Line2D([], [], color="0.35", ls=mstyle(m), lw=1.8, label=mlabel(m))
                   for m in meth_in])
+    TF_STYLE = dict(color="#000000", ls="-", marker="*", ms=7, lw=1.8)
+    if show_tf:                    # its own entry: it is neither a run nor a scored method
+        handles.append(plt.Line2D([], [], label=TRANSFORMER_LABEL, **TF_STYLE))
     NLEG = len(handles)
 
     def put_legend(fig):
@@ -663,6 +698,8 @@ def main():
     else:
         fig, ax = plt.subplots(figsize=(9.5, 5.5))
         panel(ax, 0, units[0][1], None, "")
+        if show_tf:
+            ax.plot(leads, [TRANSFORMER_MAE[lh] for lh in leads], **TF_STYLE)
         ax.set(xlabel="Lead time [h]", ylabel=f"{MET} [% of capacity]")
         ax.set_title(f"{units[0][0]} power {MET} — {units[0][1]:.0f} MW, {stamp}", fontsize=12)
         fig.tight_layout(rect=(0, 0.04 + 0.03 * (NLEG > 4), 1, 1))
