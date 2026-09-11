@@ -75,3 +75,6 @@ data/BOZ_Turbines/token.txt
 data/NorthSea/Power/token.txt
 *.sw?
 AnemoiOLD/
+
+#Sweep outputs (checkpoints, logs, state, figures); sweep.py itself stays tracked
+training/WPDistr/Sweep/*/
