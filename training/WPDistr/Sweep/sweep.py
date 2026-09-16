@@ -94,11 +94,19 @@ VAL_BATCHES  = 50        # per GPU. Health monitor only -- see the docstring.
 
 # Keys that may differ from the anchor's stored config without invalidating the control: where
 # output goes, logging, and the validation cut above. Anything else that differs aborts.
+# `defaults` is consumed by hydra and never stored; `data.num_features` is null in the YAML and
+# filled in by anemoi at runtime (67).
 IGNORE_DIFF  = ("system.output", "diagnostics", "dataloader.limit_batches.validation",
                 "dataloader.num_workers", "dataloader.prefetch_factor", "training.run_id",
-                "training.fork_run_id", "graph.overwrite")
+                "training.fork_run_id", "graph.overwrite", "defaults", "data.num_features")
 
 SAME = "anchor"          # seed sentinel: MixedRollout's own seed, read from its metadata
+
+# The runs that form the control band in the report. Rounds 1-2 were measured against the
+# MixedRollout recipe (ctrl_s1..3). From round 3 the baseline is the unfrozen processor, and every
+# new run changes one thing on top of IT -- so the band must be its seeds, or each new run is
+# graded against a baseline it already beats by 0.7 pp and everything looks like a candidate.
+CONTROLS = ["unfreeze_proc", "unfreeze_s2", "unfreeze_s3"]
 
 # Priority order: if the weekend runs out, what is left undone is the least informative. Controls
 # first; the rollout ends, then LR, which bracket the two things most likely to move the number;
@@ -120,6 +128,40 @@ RUNS = [
     ("rollfull6",     SAME, {"training.rollout.start": 6}),   # what Optimize.yaml does now: no ramp
     ("unfreeze_proc", SAME, {"training.submodules_to_freeze": ["encoder"]}),  # attacks the WIND term
     ("steps10k",      SAME, {"training.max_steps": 10000, "training.lr.iterations": 10000}),
+    # ROUND 2. unfreeze_proc won round 1 outright -- 5.21 against a 5.95-6.16 control band, and
+    # the farm wind IMPROVED (1.019 vs 1.071), so it is not the usual power-for-wind trade. These
+    # three ask whether that survives a different seed, and whether it stacks with the other two
+    # things that worked, both of which amount to "the fine-tune was under-trained".
+    ("unfreeze_s2",     5678, {"training.submodules_to_freeze": ["encoder"]}),
+    ("unfreeze_lr1e-4", SAME, {"training.submodules_to_freeze": ["encoder"],
+                               "training.lr.rate": 1.0e-4}),
+    ("unfreeze_10k",    SAME, {"training.submodules_to_freeze": ["encoder"],
+                               "training.max_steps": 10000, "training.lr.iterations": 10000}),
+    # ROUND 3. Baseline = unfreeze_proc (processor trainable, lr 3e-5, 5k). Test year, 730 inits:
+    # direct 6.35 / 6.28 on two seeds vs MixedRollout 6.84; the gain is CONVERSION at short leads
+    # and WIND at long leads. Each run below changes one thing on top of that, seed paired with
+    # unfreeze_proc. The report's band is CONTROLS -- see above.
+    ("unfreeze_s3",       9012, {"training.submodules_to_freeze": ["encoder"]}),
+    # the encoder too: farm identity/capacity can now reach the latent at all
+    ("unfreeze_all",      SAME, {"training.submodules_to_freeze": []}),
+    # insurance for the weather claim: a small weight on every non-wind variable, so an unfrozen
+    # processor cannot drift t/q/z for free. Expect a small power cost; the question is how small.
+    ("unfreeze_anchor",   SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.scalers.weather_variable.weights.default": 0.01}),
+    # 1e-4 broke the unfrozen run (wind gain lost); is 3e-5 even the optimum, or is lower better?
+    ("unfreeze_lr1.5e-5", SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.lr.rate": 1.5e-5}),
+    # rollout was inert with a frozen trunk because only the decoder could use the multi-step
+    # signal; with trainable dynamics, training out to the scored horizon may finally matter
+    ("unfreeze_roll11",   SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.rollout.start": 6, "training.rollout.max": 11}),
+    # the power weight was inert when frozen; it now sets how the TRUNK splits power vs wind
+    ("unfreeze_cf300",    SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.scalers.power_variable.weights.capacityfactor": 300}),
+    # Huber d1 on wind is ~MSE -> conditional mean -> strong winds pulled low, which is the bias
+    # the unfrozen runs show above 8 m/s. d0.5 was ruled out when frozen; the trade can differ now.
+    ("unfreeze_huber05",  SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.training_loss.losses.0.delta": 0.5}),
 ]
 
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
@@ -140,16 +182,25 @@ class _NoAlias(yaml.SafeDumper):
         return True
 
 
+def _step(d, k):
+    # a numeric segment indexes a list: "training.training_loss.losses.0.delta"
+    return d[int(k)] if isinstance(d, list) else d[k]
+
+
 def dget(d, key):
     for k in key.split("."):
-        d = d[k]
+        d = _step(d, k)
     return d
 
 
 def dset(d, key, value):
     *head, last = key.split(".")
     for k in head:
-        d = d[k]
+        d = _step(d, k)
+    if isinstance(d, list):
+        assert int(last) < len(d), f"{key}: index out of range in {BASE_YAML.name}"
+        d[int(last)] = value
+        return
     assert last in d, f"{key}: no such key in {BASE_YAML.name} -- typo?"
     d[last] = value
 
@@ -234,10 +285,17 @@ def check_control(ctrl, stored):
     absent = "(absent)"
 
     def get(d, key):
-        try:
-            return dget(d, key)
-        except (KeyError, TypeError):
-            return absent
+        # The YAML writes `layer_kernels: ${model.layer_kernels}`; the checkpoint stores it
+        # EXPANDED. A key below an interpolation exists on one side only, so stop at the
+        # `${...}` string and let same() treat it as uncomparable rather than as absent.
+        for k in key.split("."):
+            if isinstance(d, str) and "${" in d:
+                return d
+            try:
+                d = d[k]
+            except (KeyError, TypeError):
+                return absent
+        return d
 
     diffs = []
     for key in dict.fromkeys([k for k, _ in leaves(ctrl)] + [k for k, _ in leaves(stored)]):
@@ -266,7 +324,33 @@ def pick(ckpt_dir):
     return [by_step[steps[i]] for i in idx]
 
 
+def patch_checkpoints(ckpt_dir):
+    """Clear dataset.variables_metadata, as inference/patch_all.py does by hand.
+
+    anemoi-inference cannot run a freshly written checkpoint until this is cleared: it dies with
+    `KeyError: 'latitudes'` inside the output post-processor, because the initial state never gets
+    built. Every run of the first sweep trained fine and then failed to score on exactly this.
+    Supporting arrays are read and written straight back, so latitudes/longitudes/cutout_mask/
+    grid_indices are untouched -- pick() checks for those before it will score a checkpoint.
+    """
+    paths = sorted(ckpt_dir.glob("**/inference-*.ckpt"))
+    if not paths:
+        return
+    from anemoi.utils.checkpoints import load_metadata, replace_metadata
+    n = 0
+    for p in paths:
+        meta, arrays = load_metadata(p, supporting_arrays=True)
+        if not meta.get("dataset", {}).get("variables_metadata"):
+            continue                      # already patched, or written by a version that is clean
+        meta["dataset"]["variables_metadata"] = {}
+        replace_metadata(p, meta, arrays)
+        n += 1
+    if n:
+        print(f"    patched {n} checkpoint(s): cleared dataset.variables_metadata", flush=True)
+
+
 def score(name, ckpt_dir, work):
+    patch_checkpoints(ckpt_dir)
     ckpts = pick(ckpt_dir)
     if not ckpts:
         return [], "no runnable checkpoint"
@@ -277,6 +361,10 @@ def score(name, ckpt_dir, work):
         df = rc.main()
     except SystemExit as e:
         return [], f"scoring failed: {e}"
+    if df is None:
+        # a problem with the code, not the checkpoint -- stop, rather than mark every run unscored
+        raise SystemExit(f"{VERIF_DIR / 'rank_checkpoints.py'}: main() returned None. It must end with `return df`; "
+                         f"that line is missing from the copy on this machine.")
     cols = ["epoch", "step", "power", "long", "wind", "n"]
     return [{c: (float(r[c]) if c in ("power", "long", "wind") else int(r[c])) for c in cols}
             for _, r in df.sort_values("step").iterrows()], ""
@@ -292,6 +380,9 @@ def train(name, cfg, seed):
     env = dict(os.environ)
     env["PYTHONPATH"] = f"{TRAINING_DIR}:{env.get('PYTHONPATH', '')}".rstrip(":")
     env["ANEMOI_BASE_SEED"] = str(seed)
+    # this mlflow refuses to create a NEW file store ("maintenance mode") unless told otherwise,
+    # and logs/mlflow under SWEEP_ROOT is new -- every run died at startup without this
+    env["MLFLOW_ALLOW_FILE_STORE"] = "true"
     cmd = ["anemoi-training", "train", f"--config-path={logdir}", f"--config-name={name}"]
     with open(logdir / "train.log", "w") as log:
         p = subprocess.Popen(cmd, cwd=logdir, env=env, stdout=log, stderr=subprocess.STDOUT,
@@ -328,7 +419,9 @@ def _kill(p):
 LABELS = {"training.rollout.max": "rollout max", "training.rollout.start": "rollout start",
           "training.lr.rate": "lr", "training.max_steps": "steps",
           "training.scalers.power_variable.weights.capacityfactor": "cf weight",
-          "training.submodules_to_freeze": "freeze"}
+          "training.submodules_to_freeze": "freeze",
+          "training.scalers.weather_variable.weights.default": "weather weight",
+          "training.training_loss.losses.0.delta": "wind huber delta"}
 
 
 def describe(overrides, seed, anchor_seed):
@@ -351,7 +444,9 @@ def report(state):
         print("nothing scored yet")
         return
     final = {n: r["scores"][-1] for n, r in runs.items()}
-    ctrls = [n for n in runs if n == ANCHOR_NAME or n.startswith("ctrl")]
+    ctrls = [n for n in CONTROLS if n in runs]
+    if not ctrls:
+        raise SystemExit(f"none of CONTROLS {CONTROLS} is scored yet -- no band to compare against")
     cp = np.array([final[n]["power"] for n in ctrls])
     cw = np.array([final[n]["wind"] for n in ctrls])
     c_mean, c_lo, c_hi = cp.mean(), cp.min(), cp.max()
@@ -362,8 +457,10 @@ def report(state):
           f"{'WIND m/s':>9s} {'vs ctrl':>8s} {'step':>6s} {'train h':>7s}")
     for n in sorted(runs, key=lambda n: final[n]["power"]):
         f, r = final[n], runs[n]
-        band = ("" if n in ctrls else "  inside ctrl band" if f["power"] >= c_lo
-                else "  BELOW ctrl band -> candidate")
+        band = ("" if n in ctrls else
+                "  BELOW ctrl band -> candidate" if f["power"] < c_lo else
+                "  above ctrl band -> worse" if f["power"] > c_hi else
+                "  inside ctrl band")
         print(f"{n:15s} {r.get('change', ''):38.38s} {f['power']:10.2f} {f['power'] - c_mean:+8.2f} "
               f"{f['long']:6.2f} {f['wind']:9.3f} {f['wind'] - cw.mean():+8.3f} {f['step']:6d} "
               f"{r.get('hours_train', float('nan')):7.1f}{band}")
@@ -385,7 +482,7 @@ def report(state):
     for n in runs:
         if n == ANCHOR_NAME:
             style[n] = dict(color=to_rgba("k"), ls="--", lw=2.0, label=f"{n} (original)")
-        elif n.startswith("ctrl"):
+        elif n in ctrls:
             style[n] = dict(color=to_rgba("0.55"), ls="-", lw=1.6, label=n)
         else:
             style[n] = dict(color=to_rgba(palette[k % len(palette)]),
@@ -455,8 +552,9 @@ def main():
     total = sum(c for *_, c in plan)
     print(f"\ntotal {total:.1f} MixedRollout-equivalents of training, plus scoring "
           f"({SCORE_POINTS} checkpoints x {N_DATES} inference calls per run).")
-    done_h = [(state[n]["hours_train"], state[n]["cost"]) for n in state
-              if state[n].get("hours_train") and state[n].get("cost")]
+    done_h = [(state[n]["hours_train"], state[n]["cost"]) for n in state     # finished runs only:
+              if state[n].get("status") in ("trained", "scored")             # a crash at startup
+              and state[n].get("hours_train") and state[n].get("cost")]      # is not a timing
     if done_h:
         per = sum(h for h, _ in done_h) / sum(c for _, c in done_h)
         left = sum(c for n, _, _, _, c in plan if state.get(n, {}).get("status") != "scored")

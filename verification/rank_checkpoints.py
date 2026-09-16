@@ -460,6 +460,7 @@ def main():
     out = OUT_DIR / f"rank_checkpoints_{REGION}.png"
     fig.savefig(out, dpi=150); plt.close(fig)
     print(f"\nSaved: {out}")
+    return df        # training/WPDistr/Sweep/sweep.py keeps the scores; run standalone, unused
 
 
 if __name__ == "__main__":
