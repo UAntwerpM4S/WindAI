@@ -148,6 +148,14 @@ RUNS = [
     # processor cannot drift t/q/z for free. Expect a small power cost; the question is how small.
     ("unfreeze_anchor",   SAME, {"training.submodules_to_freeze": ["encoder"],
                                  "training.scalers.weather_variable.weights.default": 0.01}),
+    # MEASURED on unfreeze_proc (verify_weather, 2916 inits): z_500 RMSE +75% at 36h with
+    # sigma_p/sigma_o decaying 0.997 -> 0.958 -- the unweighted large-scale field is damped step by
+    # step. 0.01 x the 0.7 pressure-level factor may be far too weak against 0.5 on each wind
+    # variable, so bracket it. 1.0 is every variable at full weight, as in pre-training.
+    ("unfreeze_anchor01", SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.scalers.weather_variable.weights.default": 0.1}),
+    ("unfreeze_anchor1",  SAME, {"training.submodules_to_freeze": ["encoder"],
+                                 "training.scalers.weather_variable.weights.default": 1.0}),
     # 1e-4 broke the unfrozen run (wind gain lost); is 3e-5 even the optimum, or is lower better?
     ("unfreeze_lr1.5e-5", SAME, {"training.submodules_to_freeze": ["encoder"],
                                  "training.lr.rate": 1.5e-5}),
