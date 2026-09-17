@@ -139,6 +139,12 @@ TRAIN_END   = pd.Timestamp("2024-01-31 21:00:00", tz="UTC")
 BLEND_WEIGHT = 0.5           # weight on DIRECT; (1 - w) goes on the curve
 BLEND_CURVE  = "empirical"   # which curve to blend with; must be in CURVE_MODES
 
+# FORECAST_DIRS labels of runs trained with training/rollout_tasks.BackwardWindowForecaster. Their
+# capacityfactor at valid time T is power over [T-3h, T), not [T, T+3h), so DIRECT is read one
+# step later to land on the same observation window as every other method. Their wind and curve
+# are scored exactly as usual. Leave a run out of this list and it is graded on the wrong window.
+BACKWARD_WINDOW_RUNS = []
+
 # THE CERRA TRANSFORMER -- a REFERENCE line, not a scored method. The WindPowerTransformer trained
 # on CERRA wind 2020-01..2024-01 (val 2024-02..07) and pushed with RegularWeather forecast wind
 # over 2024-08..2025-07 (/mnt/weatherloss/cerra_check). These numbers were computed THERE, on
@@ -487,7 +493,9 @@ def main():
                          if CURVE_KIND[m] == "instant" else p_curve[m][t2i[vt]])
                         for m in CURVE_MODES}
                 if p_direct is not None:
-                    pred["direct"] = p_direct[t2i[vt]]
+                    # a backward-window run's output at T is power over [T-3h, T), so the
+                    # observation window [vt, vt+3h) sits at the NEXT step -- nxt, guarded above
+                    pred["direct"] = p_direct[nxt if label in BACKWARD_WINDOW_RUNS else t2i[vt]]
                     # derived from two entries of `pred`, so it inherits their NaN handling and
                     # is scored on exactly the same cases as everything else
                     if BLEND_WEIGHT is not None:

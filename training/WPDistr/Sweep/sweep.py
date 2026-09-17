@@ -49,7 +49,9 @@ logs/sweep_state.json (the job queue that makes this resumable), sweep_validatio
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
 import math
 import os
@@ -170,10 +172,26 @@ RUNS = [
     # the unfrozen runs show above 8 m/s. d0.5 was ruled out when frozen; the trade can differ now.
     ("unfreeze_huber05",  SAME, {"training.submodules_to_freeze": ["encoder"],
                                  "training.training_loss.losses.0.delta": 0.5}),
+    # ROUND 4. Round 3 converged: nothing beat unfreeze_proc by more than seed noise. On the test
+    # year it ties the MAE-trained CERRA transformer (6.40 vs 6.46) with a crossing lead profile:
+    # the converter wins +3h/+6h, the head wins beyond ~18h. Both runs below attack the short
+    # leads, one mechanism each -- see training/rollout_tasks.py.
+    # Step 1 is 1/6 of the rollout loss and the only step on analysis inputs: weight it up.
+    ("unfreeze_earlystep", SAME, {"training.submodules_to_freeze": ["encoder"],
+                                  "training.model_task": "rollout_tasks.EarlyStepForecaster"}),
+    # The head extrapolates [T, T+3h) from the state at T; target [T-3h, T) instead. Its power
+    # output means a different window, so it is SCORED one step later (rank_checkpoints
+    # BACKWARD_WINDOW, set automatically below) -- and needs BACKWARD_WINDOW_RUNS in verify_power.
+    ("unfreeze_backwin",   SAME, {"training.submodules_to_freeze": ["encoder"],
+                                  "training.model_task": "rollout_tasks.BackwardWindowForecaster"}),
 ]
 
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
-N_DATES      = 16        # validation inits per checkpoint; same as rank_checkpoints.py -> paired
+# Validation inits per checkpoint. Rounds 1-3 used 16; round 3's control band was 0.23 wide and the
+# effects left are ~0.1-0.2, so it could no longer separate them. 48 = ~3x the scoring time. A
+# different N_DATES scores a DIFFERENT set of dates, so scores are only comparable at equal
+# N_DATES: each run records its own, and the report shows only runs scored at the current value.
+N_DATES      = 48
 TRAIN_TIMEOUT_H = 12     # a hung DDP job must not eat the weekend
 RETRY_FAILED = False     # True: re-attempt runs that failed on an earlier start
 # ======================================================================
@@ -351,13 +369,17 @@ def patch_checkpoints(ckpt_dir):
         if not meta.get("dataset", {}).get("variables_metadata"):
             continue                      # already patched, or written by a version that is clean
         meta["dataset"]["variables_metadata"] = {}
-        replace_metadata(p, meta, arrays)
+        # replace_metadata prints a tqdm bar and a zipfile "Duplicate name" warning per supporting
+        # array (it rewrites them under the same name; the last copy is the one read, so harmless).
+        # ~12 lines x 12 checkpoints per run buried the scores. Exceptions still propagate.
+        with contextlib.redirect_stderr(io.StringIO()):
+            replace_metadata(p, meta, arrays)
         n += 1
     if n:
         print(f"    patched {n} checkpoint(s): cleared dataset.variables_metadata", flush=True)
 
 
-def score(name, ckpt_dir, work):
+def score(name, ckpt_dir, work, backward_window=False):
     patch_checkpoints(ckpt_dir)
     ckpts = pick(ckpt_dir)
     if not ckpts:
@@ -365,6 +387,7 @@ def score(name, ckpt_dir, work):
     rc.CHECKPOINTS = [str(p) for p in ckpts]
     rc.CKPT_ROOT, rc.OUT_DIR, rc.WORK_DIR = ckpt_dir, work, work / "_rank_work"
     rc.N_DATES = N_DATES
+    rc.BACKWARD_WINDOW = backward_window     # module global: reset for every run, never inherited
     try:
         df = rc.main()
     except SystemExit as e:
@@ -429,11 +452,13 @@ LABELS = {"training.rollout.max": "rollout max", "training.rollout.start": "roll
           "training.scalers.power_variable.weights.capacityfactor": "cf weight",
           "training.submodules_to_freeze": "freeze",
           "training.scalers.weather_variable.weights.default": "weather weight",
-          "training.training_loss.losses.0.delta": "wind huber delta"}
+          "training.training_loss.losses.0.delta": "wind huber delta",
+          "training.model_task": "task"}
 
 
 def describe(overrides, seed, anchor_seed):
     parts = [f"{LABELS.get(k, k.split('.')[-1])} {v:g}" if isinstance(v, float)
+             else f"{LABELS.get(k, k.split('.')[-1])} {v.split('.')[-1]}" if k == "training.model_task"
              else f"{LABELS.get(k, k.split('.')[-1])} {v}"
              for k, v in overrides.items() if k != "training.lr.iterations"]
     if seed != anchor_seed:
@@ -447,14 +472,20 @@ def _raise_interrupt(*_):
 
 def report(state):
     order = [ANCHOR_NAME] + [n for n, _, _ in RUNS]
-    runs = {n: state[n] for n in order if state.get(n, {}).get("scores")}
+    # runs scored before n_dates was recorded used 16
+    runs = {n: state[n] for n in order
+            if state.get(n, {}).get("scores") and state[n].get("n_dates", 16) == N_DATES}
     if not runs:
         print("nothing scored yet")
         return
     final = {n: r["scores"][-1] for n, r in runs.items()}
     ctrls = [n for n in CONTROLS if n in runs]
     if not ctrls:
-        raise SystemExit(f"none of CONTROLS {CONTROLS} is scored yet -- no band to compare against")
+        # print, don't raise: report() also runs inside the sweep loop, and a missing band must
+        # not kill the sweep between two runs
+        print(f"none of CONTROLS {CONTROLS} is scored at N_DATES={N_DATES} yet -- no band to "
+              f"compare against. Re-queue them for scoring (see the round-4 note).")
+        return
     cp = np.array([final[n]["power"] for n in ctrls])
     cw = np.array([final[n]["wind"] for n in ctrls])
     c_mean, c_lo, c_hi = cp.mean(), cp.min(), cp.max()
@@ -583,6 +614,7 @@ def main():
         t0 = time.time()
         scores, note = score(ANCHOR_NAME, ANCHOR_DIR, SWEEP_ROOT / "logs" / "anchor")
         state[ANCHOR_NAME] = {"status": "scored" if scores else "failed", "scores": scores,
+                              "n_dates": N_DATES,
                               "note": note, "hours_score": (time.time() - t0) / 3600,
                               "change": "the original run"}
         save_state(state)
@@ -620,8 +652,9 @@ def main():
 
         print(f"### {name}: scoring", flush=True)
         t0 = time.time()
-        scores, note = score(name, SWEEP_ROOT / name / "checkpoint", SWEEP_ROOT / name / "logs")
-        state[name].update(scores=scores, hours_score=(time.time() - t0) / 3600,
+        scores, note = score(name, SWEEP_ROOT / name / "checkpoint", SWEEP_ROOT / name / "logs",
+                             backward_window=ov.get("training.model_task") == "rollout_tasks.BackwardWindowForecaster")
+        state[name].update(scores=scores, hours_score=(time.time() - t0) / 3600, n_dates=N_DATES,
                            status="scored" if scores else "trained",
                            note=note or state[name].get("note", ""))
         save_state(state)

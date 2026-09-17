@@ -95,6 +95,10 @@ LEAD_HOURS  = 37          # inference lead; gives forecast steps at +3h .. +36h
 SCORE_LEADS = tuple(range(3, 34, 3))       # +3h .. +33h, the same 11 leads verify_power scores
 LONG_FROM   = 21          # leads >= this also get their own column: where rollout actually pays
 DEVICE      = "cuda"
+# True for checkpoints trained with training/rollout_tasks.BackwardWindowForecaster: their power
+# output at valid time T is the mean over [T-3h, T), so the observation window [vt, vt+3h) is read
+# from the output at vt+3h. The wind is unaffected. sweep.py sets this per run.
+BACKWARD_WINDOW = False
 SKIP_RUNS   = []          # run directory names to leave out, e.g. a crashed run
 
 WPOWER_DIR  = Path("/mnt/weatherloss/WindPower/data/WPDistr")
@@ -367,10 +371,11 @@ def main():
                         if j is None:
                             continue
                         vt = d + pd.Timedelta(hours=lead)
-                        mw = fx[CF_VAR].values[j, fcells] @ G.T          # MW per farm
+                        jp = pos.get(vt + pd.Timedelta(hours=OBS_STEP_H)) if BACKWARD_WINDOW else j
+                        mw = fx[CF_VAR].values[jp, fcells] @ G.T if jp is not None else None
                         ws = fx[WS_VAR].values[j, fcells] @ Wn.T         # m/s per farm
                         o = obs.reindex([vt])[farms].to_numpy(float).ravel()
-                        if np.isfinite(o).all():
+                        if mw is not None and np.isfinite(o).all():
                             e = abs(float(mw.sum()) - float(o.sum()))
                             p_err.append(e)
                             if lead >= LONG_FROM:
