@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 START      = datetime(2024, 8, 1, 0)
 END        = datetime(2025, 7, 31, 9)
 STEP       = timedelta(hours=3)
-N_PER_DAY  = 2
+N_PER_DAY  = 8
 SEED       = 0
 LEAD_TIME  = 37
 INIT_LIST  = "sampled_inits.txt"     # written once, so the sample is on the record
@@ -41,8 +41,8 @@ CHECKPOINTS = {
     # "WindAI/RegularWeather": (
     #     "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
     #     "inference-last.ckpt"),
-        "WPDistr/Windweights": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/Windweights/", 
+        "WPDistr/unfreeze_backwin": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/Sweep/unfreeze_backwin/checkpoint/bfda9b8a5ccd48298104d583511f05ca/", 
         "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
     # "WPDistr/Static": (
     #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/Static/", 

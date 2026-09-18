@@ -8,8 +8,8 @@ interval = timedelta(hours=3)
 
 checkpoints = {
 
-        "WPDistr/Vanilla_Finetune": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/VanillaPowerGTFinetune/checkpoint/b5b86e46dc9b433fa6e3f7383a9f6c43/",
+        "WPDistr/Unfreezeproc": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/Sweep/unfreeze_proc/checkpoint/9e0fae50d184471e8309bf89a8d59c1b/",
         "inference-last.ckpt"
     ),
 
