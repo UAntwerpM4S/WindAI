@@ -105,7 +105,7 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False            # False: the summed regional total. True: one series per farm.
-CURVE_MODES = ["specs","empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
+CURVE_MODES = ["empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
                             # "specs"    : turbine_specs.csv through the cubic law. Nothing
                             #   observed, nothing fitted -- the manufacturer curve.
                             # "empirical": the farm's own MEASURED curve, by the method of bins
@@ -143,7 +143,7 @@ BLEND_CURVE  = "empirical"   # which curve to blend with; must be in CURVE_MODES
 # capacityfactor at valid time T is power over [T-3h, T), not [T, T+3h), so DIRECT is read one
 # step later to land on the same observation window as every other method. Their wind and curve
 # are scored exactly as usual. Leave a run out of this list and it is graded on the wrong window.
-BACKWARD_WINDOW_RUNS = ["Unfreezprocbackwin"]
+BACKWARD_WINDOW_RUNS = ["Unfreezprocbackwin","Unfreezprocbackwin_fromstart"]
 
 # THE CERRA TRANSFORMER -- a REFERENCE line, not a scored method. The WindPowerTransformer trained
 # on CERRA wind 2020-01..2024-01 (val 2024-02..07) and pushed with RegularWeather forecast wind
@@ -151,20 +151,21 @@ BACKWARD_WINDOW_RUNS = ["Unfreezprocbackwin"]
 # RegularWeather's own 2909 inits, not re-scored on this script's sample. They are only valid for
 # the BE regional total, all 10 farms, full year, MAE -- so the line is drawn only in that
 # configuration and skipped (with a note) otherwise.
-TRANSFORMER = False
-TRANSFORMER_MAE = {3: 5.25, 6: 5.68, 9: 5.96, 12: 6.09, 15: 6.25, 18: 6.53,   # % of capacity
-                   21: 6.77, 24: 7.01, 27: 7.21, 30: 7.36, 33: 7.55}
-TRANSFORMER_SUMMARY = "MAE 6.52 %, RMSE 228.1 MW, bias -50.4 MW over 2909 inits"
-TRANSFORMER_LABEL = "CERRA transformer <- RegularWeather wind (reference, own sample)"
+# TRANSFORMER = False
+# TRANSFORMER_MAE = {3: 5.25, 6: 5.68, 9: 5.96, 12: 6.09, 15: 6.25, 18: 6.53,   # % of capacity
+#                    21: 6.77, 24: 7.01, 27: 7.21, 30: 7.36, 33: 7.55}
+# TRANSFORMER_SUMMARY = "MAE 6.52 %, RMSE 228.1 MW, bias -50.4 MW over 2909 inits"
+# TRANSFORMER_LABEL = "CERRA transformer <- RegularWeather wind (reference, own sample)"
 
 
 
 FORECAST_DIRS = {
-   # "RegularWeather":      Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-    "Unfreezproc":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/Unfreezproc"),
-     "Unfreezprocbackwin":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
-    #"CERRATransformerCausal":    Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAECausal"),
-    "TransformerMAE": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAE"),
+    "RegularWeather":      Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "FinetunedBack":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
+     "Finetuned":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/Unfreezproc"),
+   #       "Unfreezprocbackwin_fromstart":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin_fromstart"),
+   "VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+    "Transformer": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAE"),
  #   "CERRATransformerMSE": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformer"),
 }
 
