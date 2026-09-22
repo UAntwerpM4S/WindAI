@@ -59,13 +59,11 @@ REGION      = "BE"
 # Leave the list empty to sweep CKPT_ROOT/CKPT_GLOB instead. Explicit is the sane default: the
 # root holds 134 checkpoints across 11 runs, most of them dead ends, and every one costs N_DATES
 # inference subprocesses. Keep the 6.94 reference in each sweep so the ranking has an anchor.
-_CKPT_DIR = ("/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/"
-             "checkpoint/")
+_CKPT_DIR = ("/mnt/weatherloss/WindPower/training/WPDistr/")
 CHECKPOINTS = [
-    _CKPT_DIR + "MixedRollout/inference-*.ckpt",
-    _CKPT_DIR + "HuberCFHead5Mixed/inference-*.ckpt",
+    _CKPT_DIR + "VHCapacityBackWinFinetune/checkpoint/f9ff915ed31f4356b1da9c48217377fc/inference-*.ckpt",
+    _CKPT_DIR + "NoWeightPowerFinetune/checkpoint/*/inference-anemoi-by_epoch-*.ckpt",
 ]
-
 # Unpickling an inference checkpoint imports the decoder by its module path, so `cf_head` must be
 # importable in the SUBPROCESS or torch.load fails. Worse, it fails misleadingly: runner.py:589
 # calls validate_environment() from inside the except handler, and that itself dies with
@@ -98,7 +96,7 @@ DEVICE      = "cuda"
 # True for checkpoints trained with training/rollout_tasks.BackwardWindowForecaster: their power
 # output at valid time T is the mean over [T-3h, T), so the observation window [vt, vt+3h) is read
 # from the output at vt+3h. The wind is unaffected. sweep.py sets this per run.
-BACKWARD_WINDOW = False
+BACKWARD_WINDOW = True
 SKIP_RUNS   = []          # run directory names to leave out, e.g. a crashed run
 
 WPOWER_DIR  = Path("/mnt/weatherloss/WindPower/data/WPDistr")

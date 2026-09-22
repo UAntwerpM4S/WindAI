@@ -10,7 +10,7 @@ from pathlib import Path
 
 from anemoi.utils.checkpoints import load_metadata, replace_metadata
 
-ROOT = Path("/mnt/weatherloss/WindPower/training/WPDistr/Sweep")
+ROOT = Path("/mnt/weatherloss/WindPower/training/WPDistr/NoWeightPowerFinetune")
 GLOB = "**/*.ckpt"
 
 paths = sorted(ROOT.glob(GLOB))

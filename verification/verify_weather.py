@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 # ============================== SETTINGS ==============================
-VARIABLE = "t_850"           # any variable in the truth zarr; "regimes" needs ws100
+VARIABLE = "ws100"           # any variable in the truth zarr; "regimes" needs ws100
 DOMAIN   = "all"              # "all" | "BE" | "BE+UK"
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
 BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
@@ -53,11 +53,9 @@ MATCH_VARIANCE = False       # binned modes: rescale each run to the truth sprea
 
 FORECAST_DIRS = {
     "RegularWeather":     Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-    "VHC":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-     "Unfreezprocbackwin":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
-      #  "Unfreezproc2": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Unfreezproc2"),
+    #"VHC":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+     "FinetundedBackWin":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
 
-   # "Deeper": Path("/mnt/weatherloss/WindPower/inference/WPDistr/Deeper"),
 
 } 
 TRUTH_ZARR   = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")

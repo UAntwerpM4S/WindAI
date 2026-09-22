@@ -10,13 +10,23 @@ annotated numbers are the true, unclipped values. Pressure-level variables are d
 level x lead panels, surface variables as one strip each (GraphCast Fig. 2D).
 
 Weather fields are never window-shifted -- only capacityfactor is, in backward-window runs -- so
-every run is scored as is. DOMAIN "BE" = the 15 BE farm cells, i.e. where the power target lives.
+every run is scored as is. DOMAIN "BE" = the 15 BE farm cells, i.e. where the power target lives;
+"all" = every CERRA cell.
+
+Memory: the full truth (all cells x 50 variables x ~2900 times) is ~42 GB, so the inits are
+scored in blocks of BLOCK_INITS. Each block's truth (only the valid times that block needs) goes
+into a memory-mapped .npy in TMP_DIR that every worker reads without a copy; both runs are scored
+on it, the squared errors are added to running sums, and the file is deleted before the next
+block. Every forecast file and every truth time is read once. RMSE is sqrt(total SSE / total n),
+so blocking changes nothing in the result.
 
 Prints every number it plots; writes one PNG.
 """
 
 from __future__ import annotations
 
+import tempfile
+import time
 from pathlib import Path
 from multiprocessing import Pool
 import multiprocessing as mp
@@ -34,9 +44,10 @@ from verify_weather import TRUTH_ZARR, forecast_cell_map, parse_init, select_cel
 
 # ============================== SETTINGS ==============================
 RUN       = ("FinetunedBack",  Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"))
-REFERENCE = ("RegularWeather", Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"))
+#REFERENCE = ("RegularWeather", Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"))
+REFERENCE = ("VeryHighCapacityGT", Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"))
 
-DOMAIN   = "BE"              # "BE" (15 farm cells) | "BE+UK" (all 172 farm cells)
+DOMAIN   = "all"             # "BE" (15 farm cells) | "BE+UK" (172 farm cells) | "all" (every cell)
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
 
 PL_VARS  = ["u", "v", "z", "t", "q"]
@@ -50,6 +61,9 @@ INIT_START = pd.Timestamp("2024-08-01 00:00:00", tz="UTC")
 INIT_END   = pd.Timestamp("2025-07-31 21:00:00", tz="UTC")
 LEAD_HOURS = list(range(3, 37, 3))
 
+BLOCK_INITS = 100            # inits per block; truth per block ~ (BLOCK_INITS+12) x 50 x cells x 4 B
+                             # = ~1.6 GB for "all" -- lower it if memory is tight
+TMP_DIR   = None             # where the per-block truth memmap goes; None = system temp dir
 N_WORKERS = 8
 OUT_DIR   = Path("DistrFigures")
 # ======================================================================
@@ -60,17 +74,18 @@ SEASONS = {"all": None, "DJF": {12, 1, 2}, "MAM": {3, 4, 5},
 _W = {}           # per-worker globals, filled once by the Pool initializer
 
 
-def _init_worker(truth, t_index, fc_sorted, inv, varnames, leads):
-    _W.update(truth=truth, t_index=t_index, fc_sorted=fc_sorted, inv=inv,
-              varnames=varnames, leads=leads)
+def _init_worker(fc_by_run, varnames, leads):
+    _W.update(fc=fc_by_run, varnames=varnames, leads=leads)
 
 
 def _score_file(args):
     """One forecast file -> (V, L) sum of squared errors and (V, L) counts."""
-    path, init_iso = args
+    path, init_iso, label, tpath, t_index = args
     V, L = len(_W["varnames"]), len(_W["leads"])
     sse, n = np.zeros((V, L)), np.zeros((V, L))
     init = pd.Timestamp(init_iso)
+    fc = _W["fc"][label]
+    truth = np.load(tpath, mmap_mode="r")          # (T_block, V, C), shared page cache, no copy
 
     with h5py.File(path, "r") as f:
         tv = f["time"]
@@ -80,39 +95,20 @@ def _score_file(args):
         rows = []                                   # (lead k, forecast row, truth row)
         for k, lh in enumerate(_W["leads"]):
             vt = (init + pd.Timedelta(hours=lh)).isoformat()
-            if vt in fmap and vt in _W["t_index"]:
-                rows.append((k, fmap[vt], _W["t_index"][vt]))
+            if vt in fmap and vt in t_index:
+                rows.append((k, fmap[vt], t_index[vt]))
         if not rows:
             return sse, n
         ks, fj, tj = (np.array(c) for c in zip(*rows))
 
         for v, name in enumerate(_W["varnames"]):
-            # h5py wants increasing indices: read the cells sorted, then restore truth's order
-            y = f[name][:, _W["fc_sorted"]][fj][:, _W["inv"]].astype(np.float64)
-            x = _W["truth"][tj, v].astype(np.float64)
+            y = f[name][:][fj][:, fc].astype(np.float64)
+            x = truth[tj, v].astype(np.float64)
             d2 = (y - x) ** 2
             ok = np.isfinite(d2)
             sse[v, ks] += np.where(ok, d2, 0.0).sum(1)
             n[v, ks] += ok.sum(1)
     return sse, n
-
-
-def score_run(label, fmap, inits, truth, t_index, lat, lon, varnames):
-    fc_cells = forecast_cell_map(fmap[inits[0]], lat, lon)
-    order = np.argsort(fc_cells)
-    inv = np.argsort(order)
-    tasks = [(str(fmap[i]), i.isoformat()) for i in inits]
-    sse = np.zeros((len(varnames), len(LEAD_HOURS)))
-    n = np.zeros_like(sse)
-    with Pool(N_WORKERS, initializer=_init_worker,
-              initargs=(truth, t_index, fc_cells[order], inv, varnames, LEAD_HOURS)) as pool:
-        for c, (s, m) in enumerate(pool.imap_unordered(_score_file, tasks, chunksize=4)):
-            sse += s
-            n += m
-            if c % 500 == 0:
-                print(f"  {label}: {c}/{len(tasks)}", flush=True)
-    print(f"  {label}: done")
-    return np.sqrt(sse / n), n
 
 
 def draw(skill, varnames, title, out):
@@ -167,14 +163,14 @@ def draw(skill, varnames, title, out):
 def main():
     mp.set_start_method("spawn", force=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    if DOMAIN not in ("BE", "BE+UK"):
-        raise SystemExit(f"DOMAIN must be 'BE' or 'BE+UK', got {DOMAIN!r} -- the full domain x "
-                         f"every variable does not fit in memory")
+    if DOMAIN not in ("BE", "BE+UK", "all"):
+        raise SystemExit(f"DOMAIN must be 'BE', 'BE+UK' or 'all', got {DOMAIN!r}")
     varnames = [f"{p}_{lev}" for p in PL_VARS for lev in LEVELS] + SFC_VARS
+    runs = (RUN, REFERENCE)
 
     months = SEASONS[SEASON]
     fmaps = {}
-    for label, d in (RUN, REFERENCE):
+    for label, d in runs:
         m = {parse_init(f): f for f in sorted(d.glob("forecast_*.nc"))
              if INIT_START <= parse_init(f) <= INIT_END}
         if months:
@@ -199,22 +195,53 @@ def main():
     if gone:
         raise SystemExit(f"truth zarr lacks {gone}")
     tdates = pd.to_datetime(ds["dates"].values).tz_localize("UTC")
+    d2i = {d: i for i, d in enumerate(tdates)}
+    vidx = [tvars.index(v) for v in varnames]
     lat = np.asarray(ds["latitudes"]).ravel()[cells]
     lon = to_180(np.asarray(ds["longitudes"]).ravel())[cells]
+    fc_by_run = {label: forecast_cell_map(fmaps[label][inits[0]], lat, lon) for label, _ in runs}
 
-    d2i = {d: i for i, d in enumerate(tdates)}
-    vtimes = sorted({i + pd.Timedelta(hours=lh) for i in inits for lh in LEAD_HOURS} & set(d2i))
-    print(f"Loading truth: {len(vtimes)} times x {len(varnames)} variables x {cells.size} cells ...")
-    da = ds["data"].isel(time=[d2i[t] for t in vtimes],
-                         variable=[tvars.index(v) for v in varnames], ensemble=0)
-    truth = da.isel({da.dims[-1]: cells}).values.astype(np.float32)       # (T, V, C)
+    blocks = [inits[i:i + BLOCK_INITS] for i in range(0, len(inits), BLOCK_INITS)]
+    gb = (BLOCK_INITS + len(LEAD_HOURS)) * len(varnames) * cells.size * 4 / 1e9
+    tmp = Path(tempfile.mkdtemp(prefix="scorecard_", dir=TMP_DIR))
+    print(f"{len(blocks)} blocks of <= {BLOCK_INITS} inits | truth per block <= {gb:.2f} GB "
+          f"({len(varnames)} variables x {cells.size} cells) in {tmp}")
+
+    sse = {label: np.zeros((len(varnames), len(LEAD_HOURS))) for label, _ in runs}
+    cnt = {label: np.zeros_like(sse[label]) for label, _ in runs}
+    t0 = time.time()
+    with Pool(N_WORKERS, initializer=_init_worker,
+              initargs=(fc_by_run, varnames, LEAD_HOURS)) as pool:
+        for b, blk in enumerate(blocks):
+            vtimes = sorted({i + pd.Timedelta(hours=lh) for i in blk for lh in LEAD_HOURS}
+                            & set(d2i))
+            da = ds["data"].isel(time=[d2i[t] for t in vtimes], variable=vidx, ensemble=0)
+            if DOMAIN != "all":
+                da = da.isel({da.dims[-1]: cells})
+            tpath = tmp / f"truth_block{b:03d}.npy"
+            mm = np.lib.format.open_memmap(tpath, mode="w+", dtype=np.float32,
+                                           shape=(len(vtimes), len(varnames), cells.size))
+            mm[:] = da.values
+            mm.flush()
+            del mm
+            t_index = {t.isoformat(): r for r, t in enumerate(vtimes)}
+
+            for label, _ in runs:
+                tasks = [(str(fmaps[label][i]), i.isoformat(), label, str(tpath), t_index)
+                         for i in blk]
+                for s, m in pool.imap_unordered(_score_file, tasks, chunksize=2):
+                    sse[label] += s
+                    cnt[label] += m
+            tpath.unlink()
+            done = sum(len(x) for x in blocks[:b + 1])
+            el = time.time() - t0
+            print(f"  block {b + 1}/{len(blocks)}: {done}/{len(inits)} inits | "
+                  f"{el / 60:.1f} min, ~{el / done * (len(inits) - done) / 60:.0f} min left",
+                  flush=True)
     ds.close()
-    t_index = {t.isoformat(): i for i, t in enumerate(vtimes)}
+    tmp.rmdir()
 
-    rmse, cnt = {}, {}
-    for label, _ in (RUN, REFERENCE):
-        rmse[label], cnt[label] = score_run(label, fmaps[label], inits, truth, t_index,
-                                            lat, lon, varnames)
+    rmse = {label: np.sqrt(sse[label] / cnt[label]) for label, _ in runs}
     same = np.array_equal(cnt[RUN[0]], cnt[REFERENCE[0]])
     print(f"\nIdentical sample in both runs (every variable x lead): {same}")
 
@@ -232,7 +259,7 @@ def main():
         print(f"{name:10s} " + " ".join(f"{r:7.3g}" for r in rmse[REFERENCE[0]][v]))
         print(f"{'':10s} " + " ".join(f"{r:7.3g}" for r in rmse[RUN[0]][v]))
 
-    dom = {"BE": "BE farm cells", "BE+UK": "BE+UK farm cells"}[DOMAIN]
+    dom = {"BE": "BE farm cells", "BE+UK": "BE+UK farm cells", "all": "full CERRA domain"}[DOMAIN]
     draw(skill, varnames,
          f"RMSE skill: {RUN[0]} vs {REFERENCE[0]} — {dom} ({cells.size} cells, "
          f"{len(inits)} inits, season {SEASON})",
@@ -241,3 +268,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

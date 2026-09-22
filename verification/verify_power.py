@@ -95,7 +95,7 @@ METRIC   = "mae"             # "mae" | "rmse" -- see the METRIC note in the docs
                              # aggregated from summed SQUARED errors, so the all-bins number is
                              # the true overall RMSE, not an average of the per-bin ones.
 SEASON   = "all"             # "all" | "DJF" | "MAM" | "JJA" | "SON"  -- filters on INIT month
-BINNING  = "none"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
+BINNING  = "regimes"            # "none" | "regimes" | "quantiles"   -- mutually exclusive
 N_QUANT  = 10                # BINNING="quantiles": equal-count bins, cut per unit
 REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              # "cerra-ws": CERRA truth ws100 at the unit's cells.
@@ -105,7 +105,7 @@ REGIME_BY = "cerra-ws"       # what the bins are cut on, in both binned modes.
                              #   top edge gets an EMPTY top bin, and with "quantiles" the upper
                              #   bins are cut on ties. cerra-ws has no such blind spot.
 PER_FARM = False            # False: the summed regional total. True: one series per farm.
-CURVE_MODES = ["empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
+CURVE_MODES = ["specs","empirical"] #, "empirical"]   # curve baselines, both scored on one sample.
                             # "specs"    : turbine_specs.csv through the cubic law. Nothing
                             #   observed, nothing fitted -- the manufacturer curve.
                             # "empirical": the farm's own MEASURED curve, by the method of bins
@@ -143,20 +143,27 @@ BLEND_CURVE  = "empirical"   # which curve to blend with; must be in CURVE_MODES
 # capacityfactor at valid time T is power over [T-3h, T), not [T, T+3h), so DIRECT is read one
 # step later to land on the same observation window as every other method. Their wind and curve
 # are scored exactly as usual. Leave a run out of this list and it is graded on the wrong window.
-BACKWARD_WINDOW_RUNS = ["Unfreezprocbackwin","Unfreezprocbackwin_fromstart"]
+BACKWARD_WINDOW_RUNS = ["FinetunedBack","Noweight"] #, "Unfreezprocbackwin", "Unfreezprocbackwin_fromstart"]
 
 # The CERRA transformer is scored like any other run: /mnt/weatherloss/cerra_*/write_inference*.py
 # inserts its capacityfactor into copies of RegularWeather's forecast files, so it is just another
 # FORECAST_DIRS entry -- same inits, same sample, same metrics. Its "curve" line is RegularWeather's
 # wind through the measured curve, since those files carry RegularWeather's ws100.
 FORECAST_DIRS = {
-    "RegularWeather":      Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
-    "FinetunedBack":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
-     "Finetuned":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/Unfreezproc"),
-   #       "Unfreezprocbackwin_fromstart":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin_fromstart"),
-   "VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
-    "Transformer": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAE"),
- #   "CERRATransformerMSE": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformer"),
+   # "RegularWeather":      Path("/mnt/weatherloss/WindPower/inference/WindAI/RegularWeather"),
+    "Noweight":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/NoweightPower"),
+          "FinetunedBack":         Path("/mnt/weatherloss/WindPower/inference/WPDistr/unfreeze_backwin"),
+  #"VanillaPower":  Path("/mnt/weatherloss/WindPower/inference/WPDistr/VeryHighCapacityGT"),
+   # "Transformer": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAENoRated"),
+        #"Transformer": Path("/mnt/weatherloss/WindPower/inference/WPDistr/CERRATransformerMAE"),
+}
+
+# Fixed colours by FORECAST_DIRS label, so the key runs look the same in every figure. Any other
+# run takes the next free colour from CB_COLORS.
+RUN_COLORS = {
+    "RegularWeather": "black",   # black
+    "FinetunedBack":  "blue",   # blue
+    "Transformer":    "red",   # red
 }
 
 WPOWER_DIR = Path("/mnt/weatherloss/WindPower/data/WPDistr")   # farms/turbines/obs/specs live here
@@ -585,7 +592,8 @@ def main():
                       " ".join(f"{v:+7.1f}" for v in bias(k, u, r_i)))
 
     # ---------------- figures ----------------
-    colors = {r: CB_COLORS[i % len(CB_COLORS)] for i, r in enumerate(fmaps)}
+    free = iter([c for c in CB_COLORS if c not in RUN_COLORS.values() and c != "#D55E00"] * 4)
+    colors = {r: RUN_COLORS[r] if r in RUN_COLORS else next(free) for r in fmaps}
     marks = {r: CB_MARKERS[i % len(CB_MARKERS)] for i, r in enumerate(fmaps)}
     # runs x methods would be one entry per combination -- 12 lines at fontsize 7. Split it:
     # colour and marker identify the RUN, linestyle identifies the METHOD, so the legend is

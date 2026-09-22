@@ -41,18 +41,18 @@ CHECKPOINTS = {
     # "WindAI/RegularWeather": (
     #     "/mnt/weatherloss/WindPower/training/WindAI/RegularWeather/checkpoint/80b001d0e79942d086812e255a19b0e1/",
     #     "inference-last.ckpt"),
-        "WPDistr/unfreeze_backwin": (
-        "/mnt/weatherloss/WindPower/training/WPDistr/Sweep/unfreeze_backwin/checkpoint/bfda9b8a5ccd48298104d583511f05ca/", 
-        "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
+        # "WPDistr/unfreeze_backwin_fromstart2": (
+        # "/mnt/weatherloss/WindPower/training/WPDistr/VHCapacityBackWinFinetune/checkpoint/f9ff915ed31f4356b1da9c48217377fc/", 
+        # "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
     # "WPDistr/Static": (
     #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/Static/", 
     #     "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
     # "WPDistr/MixedRollout": (
     #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetuneHuber/checkpoint/MixedRollout/", 
     #     "inference-anemoi-by_time-epoch_009-step_005000.ckpt"),
-    # "WPDistr/VHC_5k_Finetune": (
-    #     "/mnt/weatherloss/WindPower/training/WPDistr/VeryHighCapacityGTFinetune/checkpoint/81daa05665cb4f4daf1452e60657465d/",
-    #     "inference-anemoi-by_epoch-epoch_009-step_005000.ckpt"),
+     "WPDistr/NoweightPower": (
+        "/mnt/weatherloss/WindPower/training/WPDistr/NoWeightPowerFinetune/checkpoint/a7252a1e7813485ab24e259bbcc301bc/",
+        "inference-anemoi-by_epoch-epoch_009-step_005000.ckpt"),
 
 }
 
