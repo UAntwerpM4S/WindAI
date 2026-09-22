@@ -98,6 +98,12 @@ DEVICE      = "cuda"
 # from the output at vt+3h. The wind is unaffected. sweep.py sets this per run.
 BACKWARD_WINDOW = True
 SKIP_RUNS   = []          # run directory names to leave out, e.g. a crashed run
+# Domain-wide weather check, off when empty. RMSE of each variable against CERRA over every
+# WX_STRIDE-th inner cell, pooled over SCORE_LEADS and the inits -- the number that says whether a
+# fine-tune kept the WEATHER, which the farm-cell WIND column cannot show (the fine-tune drifts
+# fields it gives no weight, everywhere). sweep.py turns it on.
+WEATHER_VARS = ()
+WX_STRIDE    = 7
 
 WPOWER_DIR  = Path("/mnt/weatherloss/WindPower/data/WPDistr")
 TRUTH_ZARR  = Path("/mnt/weatherloss/WindPower/data/WPDistr/Anemoidatasets/power_cerra_A.zarr")
@@ -319,6 +325,24 @@ def main():
                           periods=N_DATES).round("3h")
     dates = pd.DatetimeIndex(sorted(set(dates)))
 
+    # ---- CERRA truth for the weather check: every valid time scored, a regular cell subsample ----
+    wx_truth, wx_row, wx_cells = None, {}, None
+    if WEATHER_VARS:
+        ds = xr.open_zarr(TRUTH_ZARR, consolidated=False)
+        d2i = {t: i for i, t in enumerate(tdates)}
+        vts = sorted({d + pd.Timedelta(hours=lead) for d in dates for lead in SCORE_LEADS} & set(d2i))
+        vidx = [tvars.index(v) for v in WEATHER_VARS]
+        wx_cells = np.arange(0, glat.size, WX_STRIDE)
+        blocks = []
+        for s in range(0, len(vts), 32):            # batches of times: never the whole field at once
+            da = ds["data"].isel(time=[d2i[t] for t in vts[s:s + 32]], variable=vidx, ensemble=0)
+            blocks.append(da.values[..., wx_cells].astype(np.float32))
+        wx_truth = np.concatenate(blocks)           # (T, V, C)
+        wx_row = {t: r for r, t in enumerate(vts)}
+        ds.close()
+        print(f"weather check: {', '.join(WEATHER_VARS)} on {wx_cells.size} cells "
+              f"(every {WX_STRIDE}th), {len(vts)} valid times")
+
     ckpts = find_checkpoints()
     print(f"\nRegion {REGION}: {len(farms)} farms, {total_cap:.0f} MW")
     print(f"validation window {VAL_START.date()}..{VAL_END.date()} | {len(dates)} inits "
@@ -328,7 +352,7 @@ def main():
     if not ckpts:
         raise SystemExit(f"no checkpoints matched {CKPT_ROOT / CKPT_GLOB}")
 
-    fcells = None
+    fcells, wfc = None, None
     rows = []
     for k, c in enumerate(ckpts):
         wdir = WORK_DIR / c["tag"]
@@ -336,6 +360,7 @@ def main():
         print(f"[{k+1}/{len(ckpts)}] {c['tag']}", flush=True)
 
         p_err, w_err, p_long = [], [], []
+        wx_sse, wx_n = np.zeros(len(WEATHER_VARS)), np.zeros(len(WEATHER_VARS))
         for d in dates:
             nc = wdir / f"forecast_{d.strftime('%Y%m%d%H%M%S')}.nc"
             if not run_inference(c["path"], d, nc):
@@ -360,15 +385,24 @@ def main():
                         fl = np.asarray(fx["latitude"].values)
                         fo = to_180(np.asarray(fx["longitude"].values))
                         fk = np.cos(np.radians(float(fl.mean())))
-                        _, fcells = cKDTree(np.c_[fo * fk, fl]).query(
-                            np.c_[glon[cells] * fk, glat[cells]], k=1)
+                        tree = cKDTree(np.c_[fo * fk, fl])
+                        _, fcells = tree.query(np.c_[glon[cells] * fk, glat[cells]], k=1)
+                        if WEATHER_VARS:
+                            _, wfc = tree.query(np.c_[glon[wx_cells] * fk, glat[wx_cells]], k=1)
                     ft = pd.DatetimeIndex(fx["time"].values).tz_localize("UTC")
                     pos = {t: q for q, t in enumerate(ft)}
+                    wx_fc = {v: fx[v].values[:, wfc] for v in WEATHER_VARS}   # read each once
                     for lead in SCORE_LEADS:
                         j = pos.get(d + pd.Timedelta(hours=lead))
                         if j is None:
                             continue
                         vt = d + pd.Timedelta(hours=lead)
+                        if vt in wx_row:
+                            for v, name in enumerate(WEATHER_VARS):
+                                d2 = (wx_fc[name][j] - wx_truth[wx_row[vt], v]) ** 2
+                                ok = np.isfinite(d2)
+                                wx_sse[v] += d2[ok].sum()
+                                wx_n[v] += ok.sum()
                         jp = pos.get(vt + pd.Timedelta(hours=OBS_STEP_H)) if BACKWARD_WINDOW else j
                         mw = fx[CF_VAR].values[jp, fcells] @ G.T if jp is not None else None
                         ws = fx[WS_VAR].values[j, fcells] @ Wn.T         # m/s per farm
@@ -395,9 +429,12 @@ def main():
                      "power": 100.0 * float(np.mean(p_err)) / total_cap,
                      "long": 100.0 * float(np.mean(p_long)) / total_cap if p_long else np.nan,
                      "wind": float(np.mean(w_err)) if w_err else np.nan,
-                     "n": len(p_err)})
+                     "n": len(p_err),
+                     **{f"wx_{v}": float(np.sqrt(wx_sse[i] / wx_n[i])) if wx_n[i] else np.nan
+                        for i, v in enumerate(WEATHER_VARS)}})
         print(f"    power {rows[-1]['power']:.2f} | +{LONG_FROM}h {rows[-1]['long']:.2f} %cap "
-              f"| wind {rows[-1]['wind']:.3f} m/s | n={rows[-1]['n']}")
+              f"| wind {rows[-1]['wind']:.3f} m/s | n={rows[-1]['n']}"
+              + "".join(f" | {v} {rows[-1][f'wx_{v}']:.4g}" for v in WEATHER_VARS))
 
     if not KEEP_FORECASTS:
         for p in sorted(WORK_DIR.glob("*"), reverse=True):
