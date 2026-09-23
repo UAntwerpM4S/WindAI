@@ -67,6 +67,17 @@ BASE_CKPT    = str(REPO / "training/WPDistr/VHCapacityBackWin/checkpoint/"
                    "538e92ed028f46bf9a0826ef7bb3dee3/inference-*step_007500*.ckpt")
 BASE_NAME    = "base_7500"
 
+# The OTHER stage-2 base: pre-trained with capacityfactor weight 0, i.e. a clean weather model.
+# Its 10k fine-tune (Noweight10k) is the best power forecast measured so far (5.88 % on the test-year
+# overlap, vs 6.00 for the co-trained chain), so the nw_* runs below fine-tune from it instead.
+# Scored untrained as a second reference: the nw_* runs' weather must be read against THIS row,
+# not against base_7500 -- they start from a different model.
+NW_WARM      = str(REPO / "training/WPDistr/NoWeightPower/checkpoint/"
+                   "6d6611e1a6e44c93a37c4e7a34f6ce92/anemoi-by_time-epoch_007-step_007500.ckpt")
+NW_BASE_CKPT = str(REPO / "training/WPDistr/NoWeightPower/checkpoint/"
+                   "6d6611e1a6e44c93a37c4e7a34f6ce92/inference-*step_007500*.ckpt")
+NW_BASE_NAME = "base_nw7500"
+
 # Domain-wide weather check: RMSE over every WX_STRIDE-th inner cell. The fields the scorecard
 # showed drifting most (z, t, q) plus the surface fields and the farm-relevant wind.
 WEATHER_VARS = ("z_500", "z_850", "t_850", "q_850", "u_850", "msl", "t2m", "ws100")
@@ -119,11 +130,35 @@ RUNS = [
                              "training.scalers.power_variable.weights.capacityfactor": 300},
                                                                                "weather x0.25, power 300"),
     ("wx10_s2",       5678, {WXKEY: wx(0.10)},                                 "weather x0.10, seed 5678"),
-    # a smaller step moves the trunk less for the same power gradient
-    ("wx10_lr1.5e-5", SAME, {WXKEY: wx(0.10), "training.lr.rate": 1.5e-5},     "weather x0.10, lr 1.5e-5"),
-    # two objectives may need longer to settle than one
-    ("wx10_10k",      SAME, {WXKEY: wx(0.10), "training.max_steps": 10000,
-                             "training.lr.iterations": 10000},                 "weather x0.10, 10k steps"),
+    # DROPPED 2026-09-23. Both asked where the weather damage comes from; the sweep answered that
+    # (loss rescaling, not step size or trunk drift), and the GPU time buys more as the 2x2 below.
+    #   ("wx10_lr1.5e-5", SAME, {WXKEY: wx(0.10), "training.lr.rate": 1.5e-5}, "weather x0.10, lr 1.5e-5"),
+    #   ("wx10_10k", SAME, {WXKEY: wx(0.10), "training.max_steps": 10000,
+    #                       "training.lr.iterations": 10000},                  "weather x0.10, 10k steps"),
+    # --- THE CANDIDATE FINAL MODEL, and the 2x2 that isolates why it wins ----------------------
+    # base (co-trained / weather-0) x steps (5k / 10k), one recipe throughout: weather x0.25 with
+    # the power weight scaled to 300. wx25_cf300 above is the 5k co-trained cell, already scored.
+    # Every ingredient measured separately, never combined: weather-clean pre-training (best power
+    # on the test year), the weather anchor with the power weight scaled to match (best of this
+    # sweep: below the control band on power AND better weather than its base), and 10k steps.
+    # nw_wx25_cf300 is its 5k sibling: without it, base and step count are confounded.
+    ("nw_wx25_cf300_10k", SAME, {"system.input.warm_start": NW_WARM,
+                                 WXKEY: wx(0.25),
+                                 "training.scalers.power_variable.weights.capacityfactor": 300,
+                                 "training.max_steps": 10000,
+                                 "training.lr.iterations": 10000},
+                                                                               "weather-0 base, weather x0.25, power 300, 10k"),
+    ("nw_wx25_cf300", SAME, {"system.input.warm_start": NW_WARM,
+                             WXKEY: wx(0.25),
+                             "training.scalers.power_variable.weights.capacityfactor": 300},
+                                                                               "weather-0 base, weather x0.25, power 300"),
+    # the fourth cell: co-trained base at 10k, so "weather-0 base is better" cannot be confused
+    # with "10k beats 5k"
+    ("wx25_cf300_10k", SAME, {WXKEY: wx(0.25),
+                              "training.scalers.power_variable.weights.capacityfactor": 300,
+                              "training.max_steps": 10000,
+                              "training.lr.iterations": 10000},
+                                                                               "weather x0.25, power 300, 10k steps"),
 ]
 
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
@@ -479,6 +514,13 @@ def main():
     if not base_hits:
         raise SystemExit(f"stage-2 base checkpoint not found: {BASE_CKPT}")
     print(f"base    {BASE_NAME}: {Path(base_hits[0]).name}")
+    nw_hits = sorted(glob.glob(NW_BASE_CKPT))
+    if any(n.startswith("nw_") for n, *_ in RUNS):
+        if not nw_hits:
+            raise SystemExit(f"weather-0 base checkpoint not found: {NW_BASE_CKPT}")
+        if not Path(NW_WARM).exists():
+            raise SystemExit(f"weather-0 warm start not found: {NW_WARM}")
+        print(f"base    {NW_BASE_NAME}: {Path(nw_hits[0]).name}")
 
     ctrl = build_config(base, "ctrl", {})
     diffs = check_control(ctrl, stored)
@@ -520,8 +562,11 @@ def main():
     signal.signal(signal.SIGTERM, _raise_interrupt)
 
     # the two references, scored once: untrained base (weather = 0) and FS2 itself
-    for name, ckpts, change in ((BASE_NAME, base_hits[:1], "stage-2 base, no fine-tune"),
-                                (ANCHOR_NAME, pick(ANCHOR_DIR), "FS2 (the current best)")):
+    refs = [(BASE_NAME, base_hits[:1], "stage-2 base, no fine-tune"),
+            (ANCHOR_NAME, pick(ANCHOR_DIR), "FS2 (the current best)")]
+    if nw_hits and any(n.startswith("nw_") for n, *_ in RUNS):
+        refs.append((NW_BASE_NAME, nw_hits[:1], "weather-0 stage-2 base, no fine-tune"))
+    for name, ckpts, change in refs:
         if state.get(name, {}).get("status") == "scored":
             continue
         print(f"\n### scoring {name}", flush=True)
