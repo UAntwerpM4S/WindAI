@@ -159,6 +159,21 @@ RUNS = [
                               "training.max_steps": 10000,
                               "training.lr.iterations": 10000},
                                                                                "weather x0.25, power 300, 10k steps"),
+    # --- THE CONTROL FOR THE WEATHER CLAIM -----------------------------------------------------
+    # nw_wx25_cf300_10k beats RegularWeather domain-wide (z500 -9 % at 36 h), but it also has 10k
+    # steps RegularWeather never got, a different rollout schedule (1->6 vs 1->15) and a shorter
+    # fine-tune window (2020+ vs 2015+), so that comparison cannot carry the claim. This run is
+    # identical to nw_wx25_cf300_10k in EVERY respect except the power weight (300 -> 0):
+    # capacityfactor is diagnostic, so the inputs, the architecture and the data are untouched and
+    # the only difference is that one output channel's gradient. Scorecard against THIS, not
+    # against RegularWeather, to say what the power objective costs the weather.
+    # Its POWER column is meaningless (the head is never trained); read only its WEATHER.
+    ("nw_wx0_10k",    SAME, {"system.input.warm_start": NW_WARM,
+                             WXKEY: wx(0.25),
+                             "training.scalers.power_variable.weights.capacityfactor": 0,
+                             "training.max_steps": 10000,
+                             "training.lr.iterations": 10000},
+                                                                               "weather-0 base, weather x0.25, NO power, 10k"),
 ]
 
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
@@ -407,7 +422,7 @@ def wx_skill(final, base_final):
 
 
 def report(state):
-    order = [BASE_NAME, ANCHOR_NAME] + [n for n, _, _, _ in RUNS]
+    order = [BASE_NAME, NW_BASE_NAME, ANCHOR_NAME] + [n for n, _, _, _ in RUNS]
     runs = {n: state[n] for n in order
             if state.get(n, {}).get("scores") and state[n].get("n_dates") == N_DATES}
     if BASE_NAME not in runs:
@@ -432,7 +447,7 @@ def report(state):
     for n in sorted(runs, key=lambda n: final[n]["power"]):
         f, r = final[n], runs[n]
         m, per = wxs[n]
-        band = ("" if not ctrls or n in ctrls or n == BASE_NAME else
+        band = ("" if not ctrls or n in ctrls or n in (BASE_NAME, NW_BASE_NAME) else
                 "  below ctrl band" if f["power"] < c_lo else
                 "  above ctrl band" if f["power"] > c_hi else "  inside ctrl band")
         print(f"{n:14s} {r.get('change', ''):26.26s} {f['power']:6.2f} {f['power'] - c_mean:+7.2f} "
@@ -446,6 +461,9 @@ def report(state):
     if ctrls:
         print(f"\n  ctrl band ({', '.join(ctrls)}): power {c_lo:.2f}..{c_hi:.2f}. Inside it = same "
               f"power as FS2 within seed noise.")
+    if NW_BASE_NAME in runs:
+        print(f"  the nw_* runs start from {NW_BASE_NAME}, not {BASE_NAME}: read their WEATHER "
+              f"against that row ({100 * wxs[NW_BASE_NAME][0]:+.1f}%), not against 0.")
     print(f"  {BASE_NAME} is the model before any fine-tune: its WEATHER is 0 by definition, and its "
           f"POWER is what")
     print("  pre-training alone gives. Wanted: power inside/below the band, weather as close to 0 "
