@@ -81,6 +81,15 @@ NW_BASE_CKPT = str(REPO / "training/WPDistr/NoWeightPower/checkpoint/"
                    "6d6611e1a6e44c93a37c4e7a34f6ce92/inference-*step_007500*.ckpt")
 NW_BASE_NAME = "base_nw7500"
 
+# Stage 1 of the same lineage, for the s1_* runs: is the intermediate 7.5k stage doing anything, or
+# can one longer fine-tune replace stage 2 + stage 3? MUST be the WPDistr stage-1 checkpoint (same
+# graph, capacityfactor present) -- RegularWeather's 150k has no power channel and the WindAI/* ones
+# use a different graph, so none of those can warm-start a cf_head model.
+# Same run_id directory as NW_WARM: stage 2 restarted the step counter (load_weights_only), so the
+# 150k and the 7.5k are side by side.
+S1_WARM      = str(REPO / "training/WPDistr/NoWeightPower/checkpoint/"
+                   "6d6611e1a6e44c93a37c4e7a34f6ce92/anemoi-by_time-epoch_011-step_150000.ckpt")
+
 # Domain-wide weather check: RMSE over every WX_STRIDE-th inner cell. The fields the scorecard
 # showed drifting most (z, t, q) plus the surface fields and the farm-relevant wind.
 WEATHER_VARS = ("z_500", "z_850", "t_850", "q_850", "u_850", "msl", "t2m", "ws100")
@@ -198,7 +207,33 @@ RUNS = [
                               "training.lr.iterations": 10000,
                               "training.rollout.max": 11},
                                                                                "weather-0 base, x0.25, NO power, 10k, rollout 11"),
+    # --- IS THE INTERMEDIATE 7.5k STAGE NECESSARY? ---------------------------------------------
+    # One fine-tune straight from stage 1, replacing stage 2 + stage 3. Step-matched to the pair it
+    # is compared against (7500 + 10000 = 17500), same rollout 11, same weights -- so the ONLY
+    # difference from nw_*_r11 is whether the 7.5k rollout-ramp stage happened in between.
+    # The encoder is NOT frozen here: stage 2 trained it, so freezing would leave this encoder with
+    # 150k steps and no rollout adaptation, which is a second difference rather than one.
+    ("s1_wx25_cf300_17k", SAME, {"system.input.warm_start": S1_WARM,
+                                 WXKEY: wx(0.25),
+                                 "training.scalers.power_variable.weights.capacityfactor": 300,
+                                 "training.max_steps": 17500,
+                                 "training.lr.iterations": 17500,
+                                 "training.rollout.max": 11,
+                                 "training.lr.warmup": 1000,
+                                 "training.submodules_to_freeze": []},
+                                                                               "from stage 1, x0.25, power 300, 17.5k, rollout 11"),
+    ("s1_wx25_17k",    SAME, {"system.input.warm_start": S1_WARM,
+                              WXKEY: wx(0.25),
+                              "training.scalers.power_variable.weights.capacityfactor": 0,
+                              "training.max_steps": 17500,
+                              "training.lr.iterations": 17500,
+                              "training.rollout.max": 11,
+                              "training.lr.warmup": 1000,
+                              "training.submodules_to_freeze": []},
+                                                                               "from stage 1, x0.25, NO power, 17.5k, rollout 11"),
 ]
+if any(n.startswith("s1_") for n, *_ in RUNS):
+    assert S1_WARM, "set S1_WARM to the stage-1 (150k) checkpoint before running the s1_* runs"
 
 _ONLY = [n for n in os.environ.get("SWEEP_ONLY", "").split(",") if n]
 if _ONLY:
