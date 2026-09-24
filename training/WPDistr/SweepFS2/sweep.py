@@ -59,7 +59,10 @@ REPO         = Path("/mnt/weatherloss/WindPower")
 BASE_YAML    = REPO / "training/WPDistr/VHCapacityBackWin/VHCapacityBackWin.yaml"   # = FS2's recipe
 TRAINING_DIR = REPO / "training"            # rollout_tasks, cf_head, combined_loss -> PYTHONPATH
 VERIF_DIR    = REPO / "verification"        # rank_checkpoints.py, farm_curves.py
-SWEEP_ROOT   = REPO / "training/WPDistr/SweepFS2"
+#   SWEEP_ROOT=<dir> SWEEP_ONLY=<run,run> python sweep.py
+# runs a subset in a SEPARATE tree with its OWN state file, so a second machine can work in
+# parallel without touching the running sweep's state or its checkpoints.
+SWEEP_ROOT   = Path(os.environ.get("SWEEP_ROOT", REPO / "training/WPDistr/SweepFS2"))
 ANCHOR_DIR   = REPO / "training/WPDistr/VHCapacityBackWinFinetune/checkpoint/f9ff915ed31f4356b1da9c48217377fc"
 ANCHOR_NAME  = "FS2"
 # the stage-2 base FS2 was fine-tuned from, scored untrained: the weather reference
@@ -174,7 +177,34 @@ RUNS = [
                              "training.max_steps": 10000,
                              "training.lr.iterations": 10000},
                                                                                "weather-0 base, weather x0.25, NO power, 10k"),
+    # --- ROLLOUT 11: the same pair with the horizon matched to the evaluation range -------------
+    # Reported metric = mean MAE over leads 3..33h = 11 steps, equally weighted; the rollout loss is
+    # also an equal-weighted mean over steps 1..N (rollout.py:163-177), so max=11 makes the training
+    # objective the same functional as the metric. It also makes the whole recipe monotone
+    # (1 -> 8 in stage 2 -> 11 here) instead of stepping back down to 6.
+    # ~1.8x the cost. THESE TWO ARE ONLY COMPARABLE TO EACH OTHER, not to the rollout-6 rows:
+    # rollout-11 vs rollout-6 is a deliberate ablation, never a ranking.
+    ("nw_wx25_cf300_10k_r11", SAME, {"system.input.warm_start": NW_WARM,
+                                     WXKEY: wx(0.25),
+                                     "training.scalers.power_variable.weights.capacityfactor": 300,
+                                     "training.max_steps": 10000,
+                                     "training.lr.iterations": 10000,
+                                     "training.rollout.max": 11},
+                                                                               "weather-0 base, x0.25, power 300, 10k, rollout 11"),
+    ("nw_wx0_10k_r11", SAME, {"system.input.warm_start": NW_WARM,
+                              WXKEY: wx(0.25),
+                              "training.scalers.power_variable.weights.capacityfactor": 0,
+                              "training.max_steps": 10000,
+                              "training.lr.iterations": 10000,
+                              "training.rollout.max": 11},
+                                                                               "weather-0 base, x0.25, NO power, 10k, rollout 11"),
 ]
+
+_ONLY = [n for n in os.environ.get("SWEEP_ONLY", "").split(",") if n]
+if _ONLY:
+    missing = [n for n in _ONLY if n not in {r[0] for r in RUNS}]
+    assert not missing, f"SWEEP_ONLY names no such run: {missing}"
+    RUNS = [r for r in RUNS if r[0] in _ONLY]
 
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
 N_DATES      = 48        # validation inits; scores are only comparable at equal N_DATES
