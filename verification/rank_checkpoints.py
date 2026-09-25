@@ -61,8 +61,10 @@ REGION      = "BE"
 # inference subprocesses. Keep the 6.94 reference in each sweep so the ranking has an anchor.
 _CKPT_DIR = ("/mnt/weatherloss/WindPower/training/WPDistr/")
 CHECKPOINTS = [
-    _CKPT_DIR + "VHCapacityBackWinFinetune/checkpoint/f9ff915ed31f4356b1da9c48217377fc/inference-*.ckpt",
-    _CKPT_DIR + "NoWeightPowerFinetune/checkpoint/*/inference-anemoi-by_epoch-*.ckpt",
+    # Wx25CF300, the frozen recipe: 150k pre-train -> 25k fine-tune (rollout ->12, power 300).
+    # Every epoch is saved, so this globs ~25 checkpoints; drop the glob to a subset if that
+    # is too many inference calls (each costs N_DATES subprocesses).
+    _CKPT_DIR + "Wx25CF300/finetune/checkpoint/*/inference-anemoi-by_epoch-*.ckpt",
 ]
 # Unpickling an inference checkpoint imports the decoder by its module path, so `cf_head` must be
 # importable in the SUBPROCESS or torch.load fails. Worse, it fails misleadingly: runner.py:589
@@ -79,7 +81,7 @@ CKPT_GLOB   = "checkpoint/*/inference-*.ckpt"   # inference checkpoints only; th
 ONLY_RUNS   = []          # when sweeping, run directory names to keep. empty means all
 VAL_START   = pd.Timestamp("2024-02-01 00:00:00", tz="UTC")   # dataloader.validation window
 VAL_END     = pd.Timestamp("2024-07-31 21:00:00", tz="UTC")
-N_DATES     = 16          # initial times, spread evenly over the window. paired across runs.
+N_DATES     = 48          # initial times, spread evenly over the window. paired across runs.
 
 # MATCH verify_power.py's lead range, and do not shorten it to save time. Measured the hard way:
 # with SCORE_LEADS stopping at +18h, MixedRollout and HuberCFHead5Mixed came out TIED at 6.09
@@ -102,7 +104,7 @@ SKIP_RUNS   = []          # run directory names to leave out, e.g. a crashed run
 # WX_STRIDE-th inner cell, pooled over SCORE_LEADS and the inits -- the number that says whether a
 # fine-tune kept the WEATHER, which the farm-cell WIND column cannot show (the fine-tune drifts
 # fields it gives no weight, everywhere). sweep.py turns it on.
-WEATHER_VARS = ()
+WEATHER_VARS = ("z_500", "z_850", "t_850", "q_850", "u_850", "msl", "t2m", "ws100")
 WX_STRIDE    = 7
 
 WPOWER_DIR  = Path("/mnt/weatherloss/WindPower/data/WPDistr")
