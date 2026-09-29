@@ -613,7 +613,7 @@ model:
 training:
   run_id: null 
   fork_run_id: null 
-  load_weights_only: True
+  load_weights_only: False   # training from scratch: True takes the restore branch unconditionally and torch.load(None) fails (train.py:204)
   transfer_learning: false
 
   deterministic: false

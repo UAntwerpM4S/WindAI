@@ -126,32 +126,17 @@ CONTROLS = ["base12k"]
 RUNS = [
     ("base12k",          SAME, {**SHORT, WXKEY: wx(0.25), CFKEY: 300},
                                                       "shipped recipe at 12k -- the control"),
-    ("wx100_cf1200",     SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 1200},
-                                                      "weather x1.0, power 1200 (compensated)"),
-    ("wx50_cf600",       SAME, {**SHORT, WXKEY: wx(0.50), CFKEY: 600},
-                                                      "weather x0.50, power 600"),
-    ("wx100_cf300",      SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 300},
-                                                      "weather x1.0, power NOT compensated"),
     ("wx100_ws1_cf1200", SAME, {**SHORT, WXKEY: wx(1.00, 1.0), CFKEY: 1200},
-                                                      "weather x1.0, winds at the pre-training ratio"),
-    ("wx75_cf900",       SAME, {**SHORT, WXKEY: wx(0.75), CFKEY: 900},
-                                                      "weather x0.75, power 900"),
+                                                      "EXACTLY RegularWeather's weather weights, power compensated"),
+    ("wx100_cf300",      SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 300},
+                                                      "weather x1.0, power NOT compensated -- local share 87->62%"),
     ("wx50_cf300",       SAME, {**SHORT, WXKEY: wx(0.50), CFKEY: 300},
-                                                      "weather x0.50, power NOT compensated"),
-    ("wx100_cf2400",     SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 2400},
-                                                      "weather x1.0, power 2400 (over-compensated)"),
-    ("wx100_cf1200_lr15", SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 1200,
-                                 "training.lr.rate": 1.5e-5},
-                                                      "weather x1.0, power 1200, lr 1.5e-5"),
-    ("wx100_cf1200_20k", SAME, {WXKEY: wx(1.00), CFKEY: 1200,
-                                "training.max_steps": 20000, "training.lr.iterations": 20000},
-                                                      "weather x1.0, power 1200, 20k steps"),
+                                                      "weather x0.50, power NOT compensated -- local share 76%"),
 ]
-
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
 N_DATES      = 48        # validation inits; scores are only comparable at equal N_DATES
-TRAIN_TIMEOUT_H = 12     # a hung DDP job must not eat the weekend
-RETRY_FAILED = False     # True: re-attempt runs that failed on an earlier start
+TRAIN_TIMEOUT_H = 24     # a hung DDP job must not eat the weekend
+RETRY_FAILED = True     # True: re-attempt runs that failed on an earlier start
 # ======================================================================
 
 sys.path.insert(0, str(VERIF_DIR))
@@ -586,6 +571,7 @@ def main():
             state[name] = {"status": "training", "cost": cost, "seed": seed, "change": desc,
                            "started": time.strftime("%a %H:%M")}
             save_state(state)
+            time.sleep(120)   # let the previous job's CUDA contexts drain before DDP init
             t0 = time.time()
             ok, note = train(name, cfg, seed)
             state[name].update(status="trained" if ok else "failed", note=note,

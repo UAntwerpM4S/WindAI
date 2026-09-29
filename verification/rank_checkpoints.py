@@ -349,7 +349,10 @@ def main():
     print(f"\nRegion {REGION}: {len(farms)} farms, {total_cap:.0f} MW")
     print(f"validation window {VAL_START.date()}..{VAL_END.date()} | {len(dates)} inits "
           f"| leads {SCORE_LEADS} h")
-    print(f"{len(ckpts)} checkpoints under {CKPT_ROOT.name}, "
+    # Label from what is actually being scored. CKPT_ROOT is only the fallback selector for
+    # when CHECKPOINTS is empty, so using its name here mislabels every explicit run.
+    scored_from = "/".join(ckpts[0]["path"].parents[i].name for i in (3, 2)) if ckpts else "?"
+    print(f"{len(ckpts)} checkpoints under {scored_from}, "
           f"{len({c['run'] for c in ckpts})} runs\n")
     if not ckpts:
         raise SystemExit(f"no checkpoints matched {CKPT_ROOT / CKPT_GLOB}")
@@ -496,7 +499,7 @@ def main():
     for ax in axs:
         ax.grid(alpha=0.3)
     axs[0].legend(fontsize=7, title="run", title_fontsize=7)
-    fig.suptitle(f"{CKPT_ROOT.name} — every checkpoint scored at the farm cells on "
+    fig.suptitle(f"{scored_from} — every checkpoint scored at the farm cells on "
                  f"{VAL_START.date()}..{VAL_END.date()}", fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     out = OUT_DIR / f"rank_checkpoints_{REGION}.png"

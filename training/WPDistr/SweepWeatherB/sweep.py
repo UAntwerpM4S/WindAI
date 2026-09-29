@@ -140,28 +140,14 @@ def losses(power_target="anemoi.training.losses.MAELoss", delta=None):
 #   name              seed  overrides                                        description
 RUNS = [
     ("base12k",       SAME, {**SHORT},                "shipped recipe at 12k -- the control"),
-    ("cf150",         SAME, {**SHORT, CFKEY: 150},    "power 150 (half)"),
-    ("cf600",         SAME, {**SHORT, CFKEY: 600},    "power 600 (double)"),
-    ("pw_huber1",     SAME, {**SHORT, LOSSKEY: losses(delta=1.0)},
-                                                      "power term Huber(1.0) instead of MAE"),
+    ("cf150",         SAME, {**SHORT, CFKEY: 150},    "power 150: local share 87->76% by LOWERING power"),
     ("pw_huber03",    SAME, {**SHORT, LOSSKEY: losses(delta=0.3)},
-                                                      "power term Huber(0.3): bounds the gradient harder"),
-    ("lw_1_05",       SAME, {**SHORT, "training.training_loss.loss_weights": [1, 0.5]},
-                                                      "power term at half the combined weight"),
-    ("lw_1_2",        SAME, {**SHORT, "training.training_loss.loss_weights": [1, 2]},
-                                                      "power term at double the combined weight"),
-    ("lr15",          SAME, {**SHORT, "training.lr.rate": 1.5e-5},
-                                                      "lr 1.5e-5: less drift from the pre-training"),
-    ("lr6",           SAME, {**SHORT, "training.lr.rate": 6.0e-5},
-                                                      "lr 6e-5"),
-    ("rollout6",      SAME, {**SHORT, "training.rollout.max": 6},
-                                                      "rollout ->6: does the local damage grow with horizon?"),
+                                                      "power term Huber(0.3): the only change to the loss SHAPE"),
 ]
-
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
 N_DATES      = 48        # validation inits; scores are only comparable at equal N_DATES
-TRAIN_TIMEOUT_H = 12     # a hung DDP job must not eat the weekend
-RETRY_FAILED = False     # True: re-attempt runs that failed on an earlier start
+TRAIN_TIMEOUT_H = 24     # a hung DDP job must not eat the weekend
+RETRY_FAILED = True     # True: re-attempt runs that failed on an earlier start
 # ======================================================================
 
 sys.path.insert(0, str(VERIF_DIR))
@@ -596,6 +582,7 @@ def main():
             state[name] = {"status": "training", "cost": cost, "seed": seed, "change": desc,
                            "started": time.strftime("%a %H:%M")}
             save_state(state)
+            time.sleep(120)   # let the previous job's CUDA contexts drain before DDP init
             t0 = time.time()
             ok, note = train(name, cfg, seed)
             state[name].update(status="trained" if ok else "failed", note=note,
