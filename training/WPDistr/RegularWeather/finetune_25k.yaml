@@ -371,8 +371,8 @@ diagnostics:
 
   checkpoint:
     every_n_minutes:
-      save_frequency: 60
-      num_models_saved: 3
+      save_frequency: null   # OFF: colliding with the per-epoch saver hung
+      num_models_saved: 0    # both sweeps at step 9000, 2026-09-28
     every_n_epochs:
       save_frequency: 1
       num_models_saved: -1
