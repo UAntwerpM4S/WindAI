@@ -143,6 +143,11 @@ RUNS = [
     ("cf150",         SAME, {**SHORT, CFKEY: 150},    "power 150: local share 87->76% by LOWERING power"),
     ("pw_huber03",    SAME, {**SHORT, LOSSKEY: losses(delta=0.3)},
                                                       "power term Huber(0.3): the only change to the loss SHAPE"),
+    # THE CANDIDATE. At 12k, cf150 beat the shipped recipe on the column the README ranks on
+    # (+21h 6.45 vs 6.57) and on farm wind (1.103 vs 1.118) for 0.07 on the all-lead mean -- and
+    # its +21h nearly matched the 25k anchor (6.42) with 13k fewer steps. No SHORT here, so it
+    # inherits the base YAML's full 25 000 steps and the matching cosine.
+    ("cf150_25k",     SAME, {CFKEY: 150},             "power 150 at the FULL 25k schedule"),
 ]
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
 N_DATES      = 48        # validation inits; scores are only comparable at equal N_DATES
