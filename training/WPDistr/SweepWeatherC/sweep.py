@@ -133,25 +133,26 @@ def losses(power_target="anemoi.training.losses.MAELoss", delta=None):
              "scalers": WX_SCALERS, "ignore_nans": True}, cf]
 
 
-# WHY THIS SWEEP. In EVERY model trained so far the power term has DOMINATED the loss at the farm
-# cells: per cell the 63 weather channels sum to ~46 of weight (x0.25) or ~185 (x1.0), against power
-# 300 -- so power is 87 % of the gradient arriving there, and even SweepWeatherA's most aggressive
-# run (wx100_cf300) only reaches 62 %. FS2 at power 100 vs weather 46 was 68 %. So the regime where
-# power is a MINORITY locally has never been tested, and that is exactly the regime where "can we
-# have both?" would be answered.
-# Every run here holds the weather at x1.0 = RegularWeather's own fine-tune weights, and walks the
-# power weight down. Together with A's two runs this is a 5-point dose-response at fixed weather:
-#   cf1200 -> 87 %   cf300 -> 62 %   cf100 -> 35 %   cf50 -> 21 %   cf20 -> 10 %
-# Read it as a frontier: the lowest power weight whose farm damage is gone tells you what having
-# both actually costs. If power collapses before the damage does, the trade is real.
+# WHY THIS SWEEP (v2, 2026-09-30). The first version walked the power weight down to a 10 % local
+# share. wx100_cf100 settled it: farm wind SATURATES at 1.088 (the same value wx100_cf300 reached
+# at 62 %) while power keeps falling, 5.92 -> 6.43 -> 7.32. Below ~60 % you pay power and buy
+# nothing, so cf50/cf20 were dropped.
+# What replaced them: SweepWeatherA measured that the weather WEIGHTS are nearly inert -- x4 on
+# every weather variable moves domain z500 by 0.5 %. So the 5-10 % domain gap to RegularWeather_20K
+# is NOT the weights, and the only untested structural difference left is the LOSS SHAPE: this
+# fine-tune uses Huber(delta=1), RegularWeather uses MSE. Huber is linear beyond delta, so it stops
+# chasing exactly the large long-lead residuals where z lives.
+#   wx_mse        isolates the loss shape (shipped weights, power 300)
+#   wx_mse_wx100  MSE + RegularWeather's own weights = its weather objective, with the head attached
+WX_MSE = [{"_target_": "anemoi.training.losses.MSELoss", "scalers": WX_SCALERS, "ignore_nans": True},
+          {"_target_": "anemoi.training.losses.MAELoss", "scalers": CF_SCALERS, "ignore_nans": True}]
+
 #   name              seed  overrides                                        description
 RUNS = [
-    ("wx100_cf100",   SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 100},
-                                                      "weather x1.0, power 100 -- local share 35%"),
-    ("wx100_cf50",    SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 50},
-                                                      "weather x1.0, power 50 -- local share 21%"),
-    ("wx100_cf20",    SAME, {**SHORT, WXKEY: wx(1.00), CFKEY: 20},
-                                                      "weather x1.0, power 20 -- local share 10%"),
+    ("wx_mse",        SAME, {**SHORT, LOSSKEY: WX_MSE},
+                                                      "weather term MSE instead of Huber(1.0)"),
+    ("wx_mse_wx100",  SAME, {**SHORT, LOSSKEY: WX_MSE, WXKEY: wx(1.00, 1.0)},
+                                                      "MSE + RegularWeather's exact weather weights"),
 ]
 SCORE_POINTS = 5         # epoch checkpoints scored per run, evenly spread, always incl. the last
 N_DATES      = 48        # validation inits; scores are only comparable at equal N_DATES
